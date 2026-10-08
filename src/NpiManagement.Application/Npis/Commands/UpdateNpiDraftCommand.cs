@@ -8,9 +8,10 @@ using NpiManagement.Domain.Common;
 namespace NpiManagement.Application.Npis.Commands;
 
 /// <summary>Acción 2 de workflow.md — Editar borrador (o reenvío pendiente, ver Npi.UpdateDraft).</summary>
-public sealed record UpdateNpiDraftCommand(Guid NpiId, CurrentUser Actor, NpiCaptureDto Capture, Priority Priority, byte[] ExpectedRowVersion);
+/// <param name="ActorName">Para la bitácora de cambios (quién modificó cada campo).</param>
+public sealed record UpdateNpiDraftCommand(Guid NpiId, CurrentUser Actor, NpiCaptureDto Capture, Priority Priority, byte[] ExpectedRowVersion, string ActorName = "");
 
-public sealed class UpdateNpiDraftCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar)
+public sealed class UpdateNpiDraftCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INpiCaptureHistoryStore history)
 {
     public async Task<NpiDetailDto> HandleAsync(UpdateNpiDraftCommand command, CancellationToken cancellationToken)
     {
@@ -26,7 +27,8 @@ public sealed class UpdateNpiDraftCommandHandler(INpiRepository repository, IUni
         // dentro de esta misma request (ver Fase 8, docs/api-contract.md §0).
         repository.SetExpectedRowVersion(npi, command.ExpectedRowVersion);
 
-        npi.UpdateDraft(command.Capture.ToDomain(), command.Priority);
+        var changes = npi.UpdateDraft(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.Capture.ToDomain(), command.Priority);
+        history.AddRange(changes);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
     }

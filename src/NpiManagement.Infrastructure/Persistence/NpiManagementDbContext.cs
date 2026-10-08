@@ -31,6 +31,7 @@ public sealed class NpiManagementDbContext : IdentityDbContext<ApplicationUser, 
     public DbSet<FeedbackReport> FeedbackReports => Set<FeedbackReport>();
     public DbSet<NpiManagement.Domain.Entities.NpiComment> NpiComments => Set<NpiManagement.Domain.Entities.NpiComment>();
     public DbSet<NpiChatRead> NpiChatReads => Set<NpiChatRead>();
+    public DbSet<NpiManagement.Domain.Entities.CaptureChange> NpiCaptureChanges => Set<NpiManagement.Domain.Entities.CaptureChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

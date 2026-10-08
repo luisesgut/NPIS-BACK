@@ -74,23 +74,14 @@ public sealed class ChangeRequest
         EvidenceAttachmentId = evidenceAttachmentId;
     }
 
-    internal static string SnapshotOf(NpiCaptureData capture) => JsonSerializer.Serialize(capture, Json);
+    internal static string SnapshotOf(NpiCaptureData capture) => CaptureDiff.Snapshot(capture);
 
     /// <summary>Marca la solicitud como atendida y registra qué cambió respecto a la foto tomada al pedirla.</summary>
     internal void Resolve(Actor actor, DateTimeOffset at, string? comment, NpiCaptureData currentCapture)
     {
-        var changes = new List<FieldChange>();
-        if (CaptureSnapshotJson is not null && JsonSerializer.Deserialize<NpiCaptureData>(CaptureSnapshotJson, Json) is { } before)
-        {
-            foreach (var property in typeof(NpiCaptureData).GetProperties())
-            {
-                if (property.PropertyType != typeof(string)) continue;
-                var oldValue = (string?)property.GetValue(before) ?? string.Empty;
-                var newValue = (string?)property.GetValue(currentCapture) ?? string.Empty;
-                if (oldValue != newValue)
-                    changes.Add(new FieldChange(char.ToLowerInvariant(property.Name[0]) + property.Name[1..], oldValue, newValue));
-            }
-        }
+        var changes = CaptureDiff.FromSnapshot(CaptureSnapshotJson) is { } before
+            ? CaptureDiff.Between(before, currentCapture)
+            : [];
 
         ResolvedAt = at;
         ResolvedByUserId = actor.UserId;

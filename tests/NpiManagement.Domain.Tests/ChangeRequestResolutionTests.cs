@@ -17,7 +17,7 @@ public class ChangeRequestResolutionTests
         var npi = CreateActiveAssigned(clock);
         npi.RequestEngineeringChanges(Engineer, clock, Calendar, "El ancho no coincide con el plano", ["ancho"]);
 
-        npi.UpdateDraft(npi.Capture with { Ancho = "304.8", Observaciones = "Confirmado con el cliente" }, npi.Priority);
+        npi.UpdateDraft(Commercial, clock, npi.Capture with { Ancho = "304.8", Observaciones = "Confirmado con el cliente" }, npi.Priority);
         npi.Submit(Commercial, clock, Calendar, comment: "Corregí el ancho según el plano v2");
 
         var cr = npi.ChangeRequests.Single();
@@ -53,11 +53,11 @@ public class ChangeRequestResolutionTests
         var npi = CreateActiveAssigned(clock);
 
         npi.RequestEngineeringChanges(Engineer, clock, Calendar, "Ronda 1", ["ancho"]);
-        npi.UpdateDraft(npi.Capture with { Ancho = "100" }, npi.Priority);
+        npi.UpdateDraft(Commercial, clock, npi.Capture with { Ancho = "100" }, npi.Priority);
         npi.Submit(Commercial, clock, Calendar);
         clock.Advance(TimeSpan.FromMinutes(5));
         npi.RequestEngineeringChanges(Engineer, clock, Calendar, "Ronda 2", ["alto"]);
-        npi.UpdateDraft(npi.Capture with { Alto = "200" }, npi.Priority);
+        npi.UpdateDraft(Commercial, clock, npi.Capture with { Alto = "200" }, npi.Priority);
         npi.Submit(Commercial, clock, Calendar);
 
         var rounds = npi.ChangeRequests.OrderBy(c => c.RequestedAt).ToList();

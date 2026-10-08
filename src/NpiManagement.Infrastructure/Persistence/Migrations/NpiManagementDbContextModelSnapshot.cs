@@ -255,6 +255,53 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("AuditEvents", (string)null);
                 });
 
+            modelBuilder.Entity("NpiManagement.Domain.Entities.CaptureChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("After")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Before")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid?>("ChangeRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ChangedByName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("NpiId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("WasRequested")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NpiId", "ChangedAt");
+
+                    b.ToTable("NpiCaptureChanges", (string)null);
+                });
+
             modelBuilder.Entity("NpiManagement.Domain.Entities.ChangeRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -644,6 +691,15 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("EtLoadedInSisproByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("FirstSubmittedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("FirstSubmittedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InitialCaptureJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("LifecycleStatus")
                         .IsRequired()
@@ -1304,6 +1360,15 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("NpiManagement.Domain.Npi", null)
                         .WithMany("AuditLog")
+                        .HasForeignKey("NpiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("NpiManagement.Domain.Entities.CaptureChange", b =>
+                {
+                    b.HasOne("NpiManagement.Domain.Npi", null)
+                        .WithMany()
                         .HasForeignKey("NpiId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

@@ -55,3 +55,13 @@ public sealed class FakeChatRealtime : IChatRealtime
         return Task.CompletedTask;
     }
 }
+
+public sealed class FakeCaptureHistoryStore : INpiCaptureHistoryStore
+{
+    public List<CaptureChange> Changes { get; } = [];
+
+    public void AddRange(IEnumerable<CaptureChange> changes) => Changes.AddRange(changes);
+
+    public Task<IReadOnlyList<CaptureChange>> ListAsync(Guid npiId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<CaptureChange>>(Changes.Where(c => c.NpiId == npiId).OrderBy(c => c.ChangedAt).ToList());
+}

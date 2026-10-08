@@ -42,6 +42,7 @@ No existe `POST /api/auth/register` (sin registro público — usuarios se crean
 | `GET /api/npis/{id}` | — | `NpiDetailResponse` | `200`, `403`, `404` |
 | `GET /api/npis/{id}/audit` | paginado | página de `AuditEventResponse` | `200`, `403`, `404` |
 | `GET /api/npis/{id}/timer-events` | — | `[TimerEventResponse]` | `200`, `403`, `404` |
+| `GET /api/npis/{id}/capture-history` | — | `{ initialCapture?, initialPriority?, firstSubmittedAt?, firstSubmittedByName?, changes: [{ id, field, before, after, changedByName, changedAt, changeRequestId?, wasRequested, requestedByName?, requestedFromArea?, requestedAt?, requestDescription? }] }` — "fase inicial" (foto de la captura al primer envío) y cada campo que cambió después con quién lo modificó y qué solicitud lo pidió (`changeRequestId = null`: iniciativa de Comercial; `wasRequested = false`: se cambió mientras atendía esa solicitud sin que lo marcara). Los borradores no se registran. `initialCapture` es null en NPIs enviados antes del 2026-10-08 | `200`, `404` |
 | `GET /api/npis/{id}/assignees` | — | `{ commercial: { userId, fullName }, engineering?, design? }` — mismo alcance que el detalle, para cualquier rol (`/api/users` es sólo para admins) | `200`, `404` |
 
 ### 3.1 `CreateNpiRequest` / `UpdateNpiDraftRequest` (forma resumida)

@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<GetNpiAuditQueryHandler>();
         services.AddScoped<GetNpiTimerEventsQueryHandler>();
         services.AddScoped<GetNpiAssigneesQueryHandler>();
+        services.AddScoped<GetCaptureHistoryQueryHandler>();
 
         // Fase 5 — comandos del flujo (workflow.md, 26 acciones).
         services.AddScoped<SubmitNpiCommandHandler>();

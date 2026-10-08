@@ -27,7 +27,7 @@ public class UpdateNpiDraftCommandHandlerTests
     {
         var clock = TestClock.Default();
         var (repo, npi, creatorId) = SeedDraft(clock);
-        var handler = new UpdateNpiDraftCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new MexicoBusinessCalendar());
+        var handler = new UpdateNpiDraftCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new MexicoBusinessCalendar(), new FakeCaptureHistoryStore());
         var actor = new CurrentUser(creatorId, "UsuarioComercial", AreaType.Comercial);
 
         var command = new UpdateNpiDraftCommand(npi.Id, actor, new NpiCaptureDto { Cliente = "Actualizado" }, Priority.Alta, repo.GetRowVersion(npi));
@@ -44,7 +44,7 @@ public class UpdateNpiDraftCommandHandlerTests
     {
         var clock = TestClock.Default();
         var (repo, npi, _) = SeedDraft(clock);
-        var handler = new UpdateNpiDraftCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new MexicoBusinessCalendar());
+        var handler = new UpdateNpiDraftCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new MexicoBusinessCalendar(), new FakeCaptureHistoryStore());
         var admin = new CurrentUser(Guid.NewGuid(), "AdminTotal", AreaType.Total);
 
         var command = new UpdateNpiDraftCommand(npi.Id, admin, new NpiCaptureDto { Cliente = "Editado por admin" }, Priority.Baja, repo.GetRowVersion(npi));
@@ -58,7 +58,7 @@ public class UpdateNpiDraftCommandHandlerTests
     {
         var clock = TestClock.Default();
         var (repo, npi, _) = SeedDraft(clock);
-        var handler = new UpdateNpiDraftCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new MexicoBusinessCalendar());
+        var handler = new UpdateNpiDraftCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new MexicoBusinessCalendar(), new FakeCaptureHistoryStore());
         var stranger = new CurrentUser(Guid.NewGuid(), "UsuarioComercial", AreaType.Comercial);
 
         var command = new UpdateNpiDraftCommand(npi.Id, stranger, new NpiCaptureDto(), Priority.Media, repo.GetRowVersion(npi));
@@ -73,7 +73,7 @@ public class UpdateNpiDraftCommandHandlerTests
         var clock = TestClock.Default();
         var (repo, npi, _) = SeedDraft(clock);
         npi.AssignEngineering(Guid.NewGuid(), new Actor(Guid.NewGuid(), "AdminIngenieria", "Admin"), clock);
-        var handler = new UpdateNpiDraftCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new MexicoBusinessCalendar());
+        var handler = new UpdateNpiDraftCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new MexicoBusinessCalendar(), new FakeCaptureHistoryStore());
         var engineer = new CurrentUser(npi.AssignedEngineeringUserId!.Value, "UsuarioIngenieria", AreaType.Ingenieria);
 
         var command = new UpdateNpiDraftCommand(npi.Id, engineer, new NpiCaptureDto(), Priority.Media, repo.GetRowVersion(npi));
@@ -86,7 +86,7 @@ public class UpdateNpiDraftCommandHandlerTests
     public async Task Updating_a_nonexistent_npi_throws_NotFoundException()
     {
         var repo = new FakeNpiRepository();
-        var handler = new UpdateNpiDraftCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new MexicoBusinessCalendar());
+        var handler = new UpdateNpiDraftCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new MexicoBusinessCalendar(), new FakeCaptureHistoryStore());
         var actor = new CurrentUser(Guid.NewGuid(), "AdminTotal", AreaType.Total);
 
         var command = new UpdateNpiDraftCommand(Guid.NewGuid(), actor, new NpiCaptureDto(), Priority.Media, []);

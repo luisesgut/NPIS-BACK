@@ -14,6 +14,8 @@ namespace NpiManagement.IntegrationTests;
 [Collection(IntegrationTestCollection.Name)]
 public class ConfigurationAndConstraintsTests(SqlServerFixture fixture)
 {
+    private static readonly Actor Editor = new(Guid.NewGuid(), "UsuarioComercial", "Editor");
+
     [SkippableFact]
     public async Task Multiple_drafts_without_NpiNumber_are_allowed_by_the_filtered_unique_index()
     {
@@ -80,10 +82,10 @@ public class ConfigurationAndConstraintsTests(SqlServerFixture fixture)
         var npiB = await dbB.Npis.SingleAsync(n => n.Id == npiId);
 
         // Cambio sobre la fila del propio Npi (no una colección satélite), que es lo que verifica el RowVersion.
-        npiA.UpdateDraft(npiA.Capture, Priority.Alta);
+        npiA.UpdateDraft(Editor, clock, npiA.Capture, Priority.Alta);
         await dbA.SaveChangesAsync(); // gana la primera escritura, RowVersion avanza en la BD
 
-        npiB.UpdateDraft(npiB.Capture, Priority.Baja); // RowVersion desactualizado
+        npiB.UpdateDraft(Editor, clock, npiB.Capture, Priority.Baja); // RowVersion desactualizado
         var act = async () => await dbB.SaveChangesAsync();
 
         await act.Should().ThrowAsync<DbUpdateConcurrencyException>("dbB todavía tiene el RowVersion anterior a la escritura de dbA");

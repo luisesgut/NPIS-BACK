@@ -48,6 +48,8 @@ public sealed class NpiConfiguration : IEntityTypeConfiguration<Npi>
         builder.Property(n => n.DesignAreaStatus).HasConversion<string>().HasMaxLength(30).IsRequired();
 
         builder.Property(n => n.CreatedAt).IsRequired();
+        // Foto de la captura al primer envío (JSON) — "fase inicial" de la bitácora de cambios.
+        builder.Property(n => n.InitialCaptureJson);
         builder.Property(n => n.RequestDate).IsRequired();
 
         // Asignaciones y creador: FK a AspNetUsers, sin cascada (borrar un usuario no debe

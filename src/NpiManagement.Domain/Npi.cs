@@ -26,6 +26,14 @@ public sealed class Npi
 
     public Guid CreatedByUserId { get; }
     public DateTimeOffset CreatedAt { get; }
+
+    /// <summary>
+    /// Foto de la captura tal como se envió por primera vez (la "fase inicial"), para compararla
+    /// contra la actual. null en NPIs enviados antes de que existiera la bitácora de cambios.
+    /// </summary>
+    public string? InitialCaptureJson { get; private set; }
+    public DateTimeOffset? FirstSubmittedAt { get; private set; }
+    public Guid? FirstSubmittedByUserId { get; private set; }
     public DateOnly RequestDate { get; }
 
     public Guid? AssignedEngineeringUserId { get; private set; }
@@ -133,12 +141,44 @@ public sealed class Npi
         return npi;
     }
 
-    /// <summary>Acción 2 — Editar borrador (o reenvío pendiente tras solicitud de cambios).</summary>
-    public void UpdateDraft(NpiCaptureData capture, Priority priority)
+    /// <summary>
+    /// Acción 2 — Editar la captura (borrador, o tras una solicitud de cambios). Desde el primer
+    /// envío, cada campo que cambia queda en la bitácora con su valor anterior, quién lo cambió y
+    /// qué solicitud lo pidió; quien llama persiste los <see cref="CaptureChange"/> devueltos. Los
+    /// borradores no se registran: hasta enviarse, el NPI sólo existe para Comercial.
+    /// </summary>
+    public IReadOnlyList<CaptureChange> UpdateDraft(Actor actor, IClock clock, NpiCaptureData capture, Priority priority)
     {
         EnsureNotTerminal();
+        var changes = new List<CaptureChange>();
+
+        if (LifecycleStatus != Domain.LifecycleStatus.Draft)
+        {
+            var now = clock.UtcNow;
+            var openRequests = _changeRequests
+                .Where(c => c.ToArea == AreaType.Comercial && !c.IsResolved && c.Origin != ChangeRequestOrigin.ArtworkRejected)
+                .OrderByDescending(c => c.RequestedAt)
+                .ToList();
+
+            var diffs = CaptureDiff.Between(Capture, capture).ToList();
+            if (Priority != priority) diffs.Add(new FieldChange("priority", Priority.ToString(), priority.ToString()));
+
+            foreach (var diff in diffs)
+            {
+                // Quién lo pidió: la solicitud abierta que marcó ese campo; si ninguna lo marcó pero
+                // había una abierta, el cambio se hizo al atenderla (no "por iniciativa propia").
+                var requestedBy = openRequests.FirstOrDefault(r => r.FieldKeys.Contains(diff.Field));
+                var related = requestedBy ?? openRequests.FirstOrDefault();
+                changes.Add(new CaptureChange(Guid.NewGuid(), Id, diff.Field, diff.Before, diff.After, actor.UserId, actor.Name, now, related?.Id, requestedBy is not null));
+            }
+
+            if (changes.Count > 0)
+                Audit(actor, now, "CaptureUpdated", $"{changes.Count} campo{(changes.Count == 1 ? "" : "s")}");
+        }
+
         Capture = capture;
         Priority = priority;
+        return changes;
     }
 
     /// <summary>Acción 3 — Enviar NPI. Primer envío requiere el folio ya asignado por Infrastructure (SEQUENCE de SQL Server).</summary>
@@ -153,6 +193,9 @@ public sealed class Npi
 
             NpiNumber = assignedNumberIfFirstSubmission;
             LifecycleStatus = Domain.LifecycleStatus.Active;
+            InitialCaptureJson = CaptureDiff.Snapshot(Capture);
+            FirstSubmittedAt = now;
+            FirstSubmittedByUserId = actor.UserId;
             EngineeringAreaStatus = AssignedEngineeringUserId is not null ? EngineeringAreaStatus.Assigned : EngineeringAreaStatus.Requested;
 
             GlobalTimer = GlobalTimer.StartOrResume(clock);

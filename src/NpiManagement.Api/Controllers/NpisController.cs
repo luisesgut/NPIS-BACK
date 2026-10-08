@@ -25,6 +25,7 @@ public sealed class NpisController(
     GetNpiAuditQueryHandler auditHandler,
     GetNpiTimerEventsQueryHandler timerEventsHandler,
     GetNpiAssigneesQueryHandler assigneesHandler,
+    GetCaptureHistoryQueryHandler captureHistoryHandler,
     IValidator<CreateNpiDraftCommand> createValidator,
     IValidator<UpdateNpiDraftCommand> updateValidator) : ControllerBase
 {
@@ -47,7 +48,7 @@ public sealed class NpisController(
     public async Task<ActionResult<NpiDetailDto>> Update(Guid id, UpdateNpiDraftRequest request, CancellationToken cancellationToken)
     {
         var user = User.ToCurrentUser();
-        var command = new UpdateNpiDraftCommand(id, user, request.Capture, request.Priority, request.ExpectedRowVersion);
+        var command = new UpdateNpiDraftCommand(id, user, request.Capture, request.Priority, request.ExpectedRowVersion, User.DisplayName());
 
         var validation = await updateValidator.ValidateAsync(command, cancellationToken);
         if (!validation.IsValid) return this.ValidationProblem(validation);
@@ -85,6 +86,11 @@ public sealed class NpisController(
         var result = await auditHandler.HandleAsync(new GetNpiAuditQuery(id, User.ToCurrentUser()), cancellationToken);
         return Ok(result);
     }
+
+    /// <summary>Captura inicial (al primer envío) y bitácora de cambios campo por campo: quién lo pidió y quién lo modificó.</summary>
+    [HttpGet("{id:guid}/capture-history")]
+    public async Task<ActionResult<CaptureHistoryDto>> GetCaptureHistory(Guid id, CancellationToken cancellationToken) =>
+        Ok(await captureHistoryHandler.HandleAsync(new GetCaptureHistoryQuery(id, User.ToCurrentUser()), cancellationToken));
 
     [HttpGet("{id:guid}/timer-events")]
     public async Task<ActionResult<IReadOnlyList<TimerEventDto>>> GetTimerEvents(Guid id, CancellationToken cancellationToken)

@@ -45,7 +45,7 @@ public class DesignRejectionTests
         npi.RequestDesignChanges(Designer, _clock, Calendar, "Corregir tipo de tinta", ["tipoTinta"]);
         _clock.Advance(TimeSpan.FromHours(1));
 
-        npi.UpdateDraft(npi.Capture with { TipoTinta = "FRENTE + BARNIZ" }, npi.Priority);
+        npi.UpdateDraft(Commercial, _clock, npi.Capture with { TipoTinta = "FRENTE + BARNIZ" }, npi.Priority);
         npi.Submit(Commercial, _clock, Calendar, comment: "Corregí la tinta");
 
         var request = npi.ChangeRequests.Single(c => c.FromArea == AreaType.Diseno);
