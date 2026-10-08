@@ -7,11 +7,11 @@ public sealed record CommentDto(Guid Id, Guid NpiId, Guid AuthorUserId, string A
 
 public sealed record FieldChangeDto(string Field, string Before, string After);
 
-/// <summary>ResolvedAt/ChangesApplied: cuándo y qué corrigió Comercial al reenviar (sólo solicitudes de Ingeniería).</summary>
+/// <summary>ResolvedAt/ChangesApplied: cuándo y qué corrigió Comercial al reenviar (solicitudes de Ingeniería o Diseño). EvidenceAttachmentId: apoyo opcional (artes rechazadas).</summary>
 public sealed record ChangeRequestDto(
     Guid Id, Guid RequestedByUserId, string RequestedByName, DateTimeOffset RequestedAt, string FromArea, string ToArea, string Origin,
     string Description, IReadOnlyList<string> FieldKeys,
-    DateTimeOffset? ResolvedAt, string? ResolvedByName, string? ResponseComment, IReadOnlyList<FieldChangeDto> ChangesApplied);
+    DateTimeOffset? ResolvedAt, string? ResolvedByName, string? ResponseComment, IReadOnlyList<FieldChangeDto> ChangesApplied, Guid? EvidenceAttachmentId);
 
 public sealed record InformationRequestDto(Guid Id, string Type, string Status, string Text, Guid RequestedByUserId, string RequestedByName, DateTimeOffset RequestedAt, DateTimeOffset? ResolvedAt, Guid? ResolvedByUserId, string? ResponseText);
 

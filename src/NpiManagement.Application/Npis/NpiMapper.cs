@@ -29,7 +29,7 @@ public static class NpiMapper
         npi.EtCreatedAt, npi.EtLoadedInSisproAt,
         npi.Attachments.Select(ToAttachmentDto).ToList(),
         npi.ChangeRequests.Select(cr => new ChangeRequestDto(cr.Id, cr.RequestedByUserId, cr.RequestedByName, cr.RequestedAt, cr.FromArea.ToString(), cr.ToArea.ToString(), cr.Origin.ToString(), cr.Description, cr.FieldKeys,
-            cr.ResolvedAt, cr.ResolvedByName, cr.ResponseComment, cr.ChangesApplied.Select(c => new FieldChangeDto(c.Field, c.Before, c.After)).ToList())).ToList(),
+            cr.ResolvedAt, cr.ResolvedByName, cr.ResponseComment, cr.ChangesApplied.Select(c => new FieldChangeDto(c.Field, c.Before, c.After)).ToList(), cr.EvidenceAttachmentId)).ToList(),
         npi.InformationRequests.Select(r => new InformationRequestDto(r.Id, r.Type.ToString(), r.Status.ToString(), r.Text, r.RequestedByUserId, r.RequestedByName, r.RequestedAt, r.ResolvedAt, r.ResolvedByUserId, r.ResponseText)).ToList(),
         npi.FeasibilityReviews.Select(f => new FeasibilityReviewDto(f.Id, f.Area.ToString(), f.ApprovedByUserId, f.ApprovedByName, f.ApprovedAt, f.Note, f.ConfirmedFieldKeys)).ToList(),
         npi.PrintCardVersions.OrderBy(v => v.VersionNumber).Select(v => new PrintCardVersionDto(

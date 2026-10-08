@@ -14,6 +14,24 @@ public static class NotificationText
         return $"Ingeniería solicitó cambios en el NPI {npiNumber}{fields}: {Clip(description)}";
     }
 
+    public static string DesignChangesRequested(string? npiNumber, int fieldCount, string description)
+    {
+        var fields = fieldCount > 0 ? $" ({fieldCount} campo{(fieldCount == 1 ? "" : "s")} por corregir)" : "";
+        return $"Diseño solicitó cambios en el NPI {npiNumber}{fields}: {Clip(description)}";
+    }
+
+    public static string DesignNoFeasibility(string? npiNumber, string note) =>
+        $"El NPI {npiNumber} fue rechazado por Diseño (no factible): {Clip(note)}";
+
+    public static string ArtworkRejected(string? npiNumber, string reason) =>
+        $"Diseño rechazó las artes del NPI {npiNumber}: {Clip(reason)}";
+
+    public static string ArtworkResubmitted(string? npiNumber, string? comment)
+    {
+        var text = $"Comercial subió artes corregidas en el NPI {npiNumber}.";
+        return string.IsNullOrWhiteSpace(comment) ? text : $"{text} Comentario: {Clip(comment)}";
+    }
+
     public static string Resubmitted(string? npiNumber, int changedCount, string? comment)
     {
         var changed = changedCount switch

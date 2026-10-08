@@ -30,6 +30,9 @@ public sealed class SubmitNpiCommandHandler(
         var actor = new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName);
         var isFirstSubmission = npi.NpiNumber is null;
         var number = isFirstSubmission ? await numberGenerator.NextAsync(cancellationToken) : null;
+        // Quién esperaba las correcciones (Ingeniería, Diseño o ambos) para avisarle sólo a ese.
+        var engineeringWasWaiting = npi.EngineeringAreaStatus == EngineeringAreaStatus.ChangesRequested;
+        var designWasWaiting = npi.DesignAreaStatus == DesignAreaStatus.ChangesRequested;
 
         npi.Submit(actor, clock, calendar, number, command.Comment);
 
@@ -50,10 +53,14 @@ public sealed class SubmitNpiCommandHandler(
                 designAdmins.Where(u => u.Role == "AdminDiseno").Select(u => u.Id),
                 $"Nuevo NPI {npi.NpiNumber?.Value} disponible para Diseño en paralelo.", npi.Id, NotificationChannel.BellAndEmail);
         }
-        else if (npi.AssignedEngineeringUserId is { } engineerId2)
+        else
         {
             var resolved = npi.ChangeRequests.Where(c => c.IsResolved).OrderByDescending(c => c.ResolvedAt).FirstOrDefault();
-            notifications.Notify(engineerId2, NotificationText.Resubmitted(npi.NpiNumber?.Value, resolved?.ChangesApplied.Count ?? 0, resolved?.ResponseComment), npi.Id, NotificationChannel.BellAndEmail);
+            var message = NotificationText.Resubmitted(npi.NpiNumber?.Value, resolved?.ChangesApplied.Count ?? 0, resolved?.ResponseComment);
+            if (engineeringWasWaiting && npi.AssignedEngineeringUserId is { } engineerId2)
+                notifications.Notify(engineerId2, message, npi.Id, NotificationChannel.BellAndEmail);
+            if (designWasWaiting && npi.AssignedDesignUserId is { } designerId)
+                notifications.Notify(designerId, message, npi.Id, NotificationChannel.BellAndEmail);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

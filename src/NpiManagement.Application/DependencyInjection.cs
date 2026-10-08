@@ -28,6 +28,10 @@ public static class DependencyInjection
         services.AddScoped<ApproveDesignFeasibilityCommandHandler>();
         services.AddScoped<RequestEngineeringChangesCommandHandler>();
         services.AddScoped<RejectNoFeasibilityCommandHandler>();
+        services.AddScoped<RequestDesignChangesCommandHandler>();
+        services.AddScoped<RejectDesignNoFeasibilityCommandHandler>();
+        services.AddScoped<RejectArtworkCommandHandler>();
+        services.AddScoped<ResolveArtworkRejectionCommandHandler>();
         services.AddScoped<ValidateArtworkCommandHandler>();
         services.AddScoped<CreatePrintCardVersionCommandHandler>();
         services.AddScoped<ApprovePrintCardCommandHandler>();

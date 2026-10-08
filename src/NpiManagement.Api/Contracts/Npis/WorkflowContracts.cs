@@ -33,3 +33,8 @@ public sealed record RequestInformationRequest([Required] InformationRequestType
 public sealed record RespondCommercialInformationRequest([Required] string ResponseText);
 
 public sealed record CancelRequest([Required] string Reason);
+
+/// <summary>Rechazos de Diseño: el motivo es obligatorio (es lo que lee Comercial).</summary>
+public sealed record RequiredNoteRequest([Required] string Note);
+
+public sealed record RejectArtworkRequest([Required] string Reason, Guid? EvidenceAttachmentId);

@@ -8,11 +8,12 @@ namespace NpiManagement.Domain.Entities;
 public sealed record FieldChange(string Field, string Before, string After);
 
 /// <summary>
-/// Solicitud de cambios sobre un NPI. Tres orígenes posibles: Ingeniería→Comercial (rechazo con
-/// cambios), Comercial→Diseño (cambios reportados por el cliente, ChangeRequestOrigin.ClientReported),
+/// Solicitud de cambios sobre un NPI. Orígenes posibles: Ingeniería o Diseño→Comercial (rechazo con
+/// cambios), Diseño→Comercial por artes rechazadas (ChangeRequestOrigin.ArtworkRejected), Comercial→Diseño
+/// (cambios reportados por el cliente, ChangeRequestOrigin.ClientReported),
 /// o cualquier otra interna. No es terminal — forma parte del ciclo normal del flujo.
 ///
-/// Las de Ingeniería→Comercial guardan una foto de la captura al pedir los cambios; al reenviar,
+/// Las de Ingeniería/Diseño→Comercial con cambios de captura guardan una foto de la captura al pedir los cambios; al reenviar,
 /// Comercial la "resuelve" y queda registrado qué campos cambió (antes → después) y su comentario,
 /// para que Ingeniería vea exactamente qué se corrigió.
 /// </summary>
@@ -39,6 +40,9 @@ public sealed class ChangeRequest
     public string? ResponseComment { get; private set; }
     public string? ChangesAppliedJson { get; private set; }
 
+    /// <summary>Archivo o link de apoyo (p. ej. captura de por qué se rechazaron las artes). Opcional.</summary>
+    public Guid? EvidenceAttachmentId { get; private set; }
+
     public bool IsResolved => ResolvedAt is not null;
 
     public IReadOnlyList<FieldChange> ChangesApplied =>
@@ -54,7 +58,8 @@ public sealed class ChangeRequest
         ChangeRequestOrigin origin,
         string description,
         IReadOnlyList<string> fieldKeys,
-        string? captureSnapshotJson = null)
+        string? captureSnapshotJson = null,
+        Guid? evidenceAttachmentId = null)
     {
         Id = id;
         RequestedByUserId = requestedByUserId;
@@ -66,6 +71,7 @@ public sealed class ChangeRequest
         Description = description;
         FieldKeys = fieldKeys;
         CaptureSnapshotJson = captureSnapshotJson;
+        EvidenceAttachmentId = evidenceAttachmentId;
     }
 
     internal static string SnapshotOf(NpiCaptureData capture) => JsonSerializer.Serialize(capture, Json);

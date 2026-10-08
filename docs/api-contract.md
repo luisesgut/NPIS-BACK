@@ -67,7 +67,11 @@ Todas: `POST /api/npis/{id}/{accion}`, responden `200` con `NpiDetailResponse` a
 | `POST /api/npis/{id}/design-feasibility` | `{ note?, attachmentIds? }` |
 | `POST /api/npis/{id}/request-changes` | `{ description, fieldKeys?, attachmentIds? }` |
 | `POST /api/npis/{id}/reject-no-feasibility` | `{ note? }` |
-| `POST /api/npis/{id}/validate-artwork` | `{}` |
+| `POST /api/npis/{id}/validate-artwork` | `{}` (409 `artwork-rejection-pending` si hay artes rechazadas sin corregir) |
+| `POST /api/npis/{id}/request-design-changes` | `{ description, fieldKeys? }` — Diseño rechaza con cambios (no terminal; antes de su factibilidad; `description` obligatoria). Comercial corrige y reenvía con `submit`, que atiende a la vez lo pendiente de Ingeniería y de Diseño. Ingeniería sigue en paralelo |
+| `POST /api/npis/{id}/reject-design-no-feasibility` | `{ note }` — terminal, `terminalReason = DesignNoFeasibility`; `note` obligatoria |
+| `POST /api/npis/{id}/reject-artwork` | `{ reason, evidenceAttachmentId? }` — Diseño rechaza las artes (antes de validarlas). Queda como `ChangeRequest` con `origin = ArtworkRejected` |
+| `POST /api/npis/{id}/resolve-artwork-rejection` | `{ note? }` — Comercial: exige artes nuevas (contexto `Artwork`) subidas después del rechazo |
 | `POST /api/npis/{id}/printcards` | `{ code, attachmentId?, note? }` |
 | `POST /api/npis/{id}/printcard-approvals` | `{ role: "Design"\|"Engineering"\|"Client", note?, evidenceAttachmentId? }` (obligatorio si `role="Client"`) |
 | `POST /api/npis/{id}/send-printcard-to-client` | `{}` |

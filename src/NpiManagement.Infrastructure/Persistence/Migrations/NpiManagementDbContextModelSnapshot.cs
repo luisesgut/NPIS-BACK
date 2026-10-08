@@ -271,6 +271,9 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
+                    b.Property<Guid?>("EvidenceAttachmentId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("FieldKeys")
                         .IsRequired()
                         .HasMaxLength(2000)

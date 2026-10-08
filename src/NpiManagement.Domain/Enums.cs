@@ -16,6 +16,8 @@ public enum TerminalReason
     NoFeasibility = 0,
     SuppliesRejectionTotal = 1,
     ClientRejection = 2,
+    /// <summary>Diseño declaró el NPI no factible (rechazo terminal de Diseño).</summary>
+    DesignNoFeasibility = 3,
 }
 
 /// <summary>Estado operativo de presentación para el área de Ingeniería (no gatilla por sí solo las transiciones).</summary>
@@ -42,6 +44,11 @@ public enum DesignAreaStatus
     AwaitingInformation = 4,
     PrintCardInApproval = 5,
     PrintCardLoaded = 6,
+    /// <summary>Diseño rechazó con cambios: Comercial debe corregir la captura y reenviar.</summary>
+    ChangesRequested = 7,
+    NoFeasibility = 8,
+    /// <summary>Diseño rechazó las artes del cliente: Comercial debe subir artes nuevas.</summary>
+    ArtworkRejected = 9,
 }
 
 public enum AreaType
@@ -115,6 +122,8 @@ public enum ChangeRequestOrigin
 {
     Internal = 0,
     ClientReported = 1,
+    /// <summary>Diseño rechazó las artes; se resuelve cuando Comercial sube artes nuevas.</summary>
+    ArtworkRejected = 2,
 }
 
 /// <summary>

@@ -165,19 +165,39 @@ public sealed class Npi
             return;
         }
 
-        if (LifecycleStatus == Domain.LifecycleStatus.Active && EngineeringAreaStatus == EngineeringAreaStatus.ChangesRequested)
+        // Reenvío tras "Rechazar con cambios" de Ingeniería, de Diseño o de ambos: Comercial corrige la
+        // captura una sola vez y el mismo reenvío atiende las dos solicitudes.
+        var engineeringChangesPending = EngineeringAreaStatus == EngineeringAreaStatus.ChangesRequested;
+        var designChangesPending = PendingDesignChangeRequest is not null;
+        if (LifecycleStatus == Domain.LifecycleStatus.Active && (engineeringChangesPending || designChangesPending))
         {
             if (comment is { Length: > 2000 })
-                throw new NpiValidationException("resubmit-comment-too-long", "El comentario para Ingeniería no puede exceder 2000 caracteres.");
-            // Registra qué corrigió Comercial respecto a lo que Ingeniería vio al pedir los cambios.
-            PendingEngineeringChangeRequest?.Resolve(actor, now, comment, Capture);
+                throw new NpiValidationException("resubmit-comment-too-long", "El comentario no puede exceder 2000 caracteres.");
 
-            EngineeringAreaStatus = AssignedEngineeringUserId is not null ? EngineeringAreaStatus.Assigned : EngineeringAreaStatus.Requested;
+            if (engineeringChangesPending)
+            {
+                // Registra qué corrigió Comercial respecto a lo que Ingeniería vio al pedir los cambios.
+                PendingEngineeringChangeRequest?.Resolve(actor, now, comment, Capture);
+                EngineeringAreaStatus = AssignedEngineeringUserId is not null ? EngineeringAreaStatus.Assigned : EngineeringAreaStatus.Requested;
+                if (EngineeringHasPendingWork) ResumeTimer(TimerStage.Engineering, actor, clock, now);
+            }
 
-            if (EngineeringHasPendingWork) ResumeTimer(TimerStage.Engineering, actor, clock, now);
-            PauseTimer(TimerStage.Commercial, actor, clock, calendar, now);
+            if (designChangesPending)
+            {
+                PendingDesignChangeRequest!.Resolve(actor, now, comment, Capture);
+                DesignAreaStatus = CurrentDesignAreaStatus();
+                ResumeDesignTimer(actor, clock, now);
+            }
 
-            Audit(actor, now, "NpiResubmittedAfterChanges", null);
+            if (!CommercialHasPendingWork) PauseTimer(TimerStage.Commercial, actor, clock, calendar, now);
+
+            var areas = (engineeringChangesPending, designChangesPending) switch
+            {
+                (true, true) => "Ingenieria,Diseno",
+                (false, true) => "Diseno",
+                _ => null,
+            };
+            Audit(actor, now, "NpiResubmittedAfterChanges", areas);
             return;
         }
 
@@ -246,6 +266,8 @@ public sealed class Npi
             throw new InvalidNpiTransitionException("design-not-assigned", "El NPI no tiene un diseñador asignado.");
         if (DesignFeasibility is not null)
             throw new InvalidNpiTransitionException("design-feasibility-already-approved", "La factibilidad de Diseño ya fue aprobada.");
+        if (PendingDesignChangeRequest is not null)
+            throw new InvalidNpiTransitionException("design-changes-pending", "Comercial aún no atiende los cambios que pidió Diseño.");
 
         var now = clock.UtcNow;
         _feasibilityReviews.Add(new FeasibilityReview(Guid.NewGuid(), AreaType.Diseno, actor.UserId, actor.Name, now, note));
@@ -297,6 +319,8 @@ public sealed class Npi
             throw new InvalidNpiTransitionException("design-not-assigned", "El NPI no tiene un diseñador asignado.");
         if (ArtesValidadasAt is not null)
             throw new InvalidNpiTransitionException("artwork-already-validated", "Las artes ya fueron validadas.");
+        if (PendingArtworkRejection is not null)
+            throw new InvalidNpiTransitionException("artwork-rejection-pending", "Diseño rechazó las artes y Comercial aún no sube las corregidas.");
 
         var now = clock.UtcNow;
         ArtesValidadasAt = now;
@@ -306,6 +330,160 @@ public sealed class Npi
         TryStartDesignTimer(actor, clock, now);
 
         Audit(actor, now, "ArtworkValidated", null);
+    }
+
+    // ===== Rechazos de Diseño (ida y vuelta con Comercial, igual que Ingeniería) =====
+    // Todo rechazo de Diseño exige una nota: es lo que Comercial lee para saber qué corregir.
+
+    /// <summary>
+    /// Diseño rechaza con cambios a Comercial (no terminal). Comercial corrige la captura y reenvía
+    /// (Submit), igual que con Ingeniería. Ingeniería sigue en paralelo: no se detiene ni se reinicia.
+    /// </summary>
+    public void RequestDesignChanges(Actor actor, IClock clock, IBusinessCalendar calendar, string description, IReadOnlyList<string> fieldKeys)
+    {
+        EnsureActive();
+        if (AssignedDesignUserId is null)
+            throw new InvalidNpiTransitionException("design-not-assigned", "El NPI no tiene un diseñador asignado.");
+        if (DesignFeasibility is not null)
+            throw new InvalidNpiTransitionException("design-feasibility-already-approved", "La factibilidad de Diseño ya fue aprobada.");
+        if (PendingDesignChangeRequest is not null)
+            throw new InvalidNpiTransitionException("design-changes-already-pending", "Ya hay cambios de Diseño pendientes de que Comercial los atienda.");
+        RequireRejectionNote(description);
+
+        var now = clock.UtcNow;
+        _changeRequests.Add(new ChangeRequest(Guid.NewGuid(), actor.UserId, actor.Name, now, AreaType.Diseno, AreaType.Comercial, ChangeRequestOrigin.Internal, description.Trim(), fieldKeys, ChangeRequest.SnapshotOf(Capture)));
+        DesignAreaStatus = DesignAreaStatus.ChangesRequested;
+
+        PauseTimer(TimerStage.Design, actor, clock, calendar, now);
+        RunCommercialTimer(actor, clock, now, "Diseño solicitó cambios");
+
+        Audit(actor, now, "DesignRequestedChanges", description.Trim());
+    }
+
+    /// <summary>Rechazo terminal de Diseño por no factibilidad.</summary>
+    public void RejectDesignNoFeasibility(Actor actor, IClock clock, IBusinessCalendar calendar, string note)
+    {
+        EnsureActive();
+        if (AssignedDesignUserId is null)
+            throw new InvalidNpiTransitionException("design-not-assigned", "El NPI no tiene un diseñador asignado.");
+        if (DesignFeasibility is not null)
+            throw new InvalidNpiTransitionException("design-feasibility-already-approved", "La factibilidad de Diseño ya fue aprobada.");
+        RequireRejectionNote(note);
+
+        var now = clock.UtcNow;
+        DesignAreaStatus = DesignAreaStatus.NoFeasibility;
+        CloseAllTimers(clock, calendar, now, actor.UserId);
+        LifecycleStatus = Domain.LifecycleStatus.Rejected;
+        TerminalReason = Domain.TerminalReason.DesignNoFeasibility;
+
+        Audit(actor, now, "NpiRejectedDesignNoFeasibility", note.Trim());
+        _domainEvents.Add(new NpiRejectedEvent(Id, TerminalReason.Value, now));
+    }
+
+    /// <summary>
+    /// Diseño rechaza las artes del cliente (no terminal): Comercial debe subir artes nuevas y
+    /// avisar con <see cref="ResolveArtworkRejection"/>. Mientras tanto corre el reloj de Comercial.
+    /// </summary>
+    public void RejectArtwork(Actor actor, IClock clock, IBusinessCalendar calendar, string reason, Guid? evidenceAttachmentId)
+    {
+        EnsureActive();
+        if (AssignedDesignUserId is null)
+            throw new InvalidNpiTransitionException("design-not-assigned", "El NPI no tiene un diseñador asignado.");
+        if (ArtesValidadasAt is not null)
+            throw new InvalidNpiTransitionException("artwork-already-validated", "Las artes ya fueron validadas.");
+        if (PendingArtworkRejection is not null)
+            throw new InvalidNpiTransitionException("artwork-rejection-already-pending", "Las artes ya están rechazadas; falta que Comercial suba las corregidas.");
+        RequireRejectionNote(reason);
+        if (evidenceAttachmentId is { } evidenceId && _attachments.All(a => a.Id != evidenceId))
+            throw new NpiValidationException("evidence-not-found", "La evidencia indicada no pertenece a este NPI.");
+
+        var now = clock.UtcNow;
+        _changeRequests.Add(new ChangeRequest(Guid.NewGuid(), actor.UserId, actor.Name, now, AreaType.Diseno, AreaType.Comercial, ChangeRequestOrigin.ArtworkRejected, reason.Trim(), [], evidenceAttachmentId: evidenceAttachmentId));
+        DesignAreaStatus = CurrentDesignAreaStatus();
+
+        PauseTimer(TimerStage.Design, actor, clock, calendar, now);
+        RunCommercialTimer(actor, clock, now, "Diseño rechazó las artes");
+
+        Audit(actor, now, "ArtworkRejected", reason.Trim());
+    }
+
+    /// <summary>Comercial avisa que ya subió las artes corregidas: regresa a Diseño para validarlas.</summary>
+    public void ResolveArtworkRejection(Actor actor, IClock clock, IBusinessCalendar calendar, string? comment)
+    {
+        EnsureActive();
+        var pending = PendingArtworkRejection
+            ?? throw new InvalidNpiTransitionException("no-pending-artwork-rejection", "No hay artes rechazadas pendientes.");
+        if (!_attachments.Any(a => a.Context == AttachmentContext.Artwork && a.UploadedAt > pending.RequestedAt))
+            throw new InvalidNpiTransitionException("new-artwork-required", "Sube las artes corregidas (archivo o link) antes de regresarlas a Diseño.");
+        if (comment is { Length: > 2000 })
+            throw new NpiValidationException("resubmit-comment-too-long", "El comentario para Diseño no puede exceder 2000 caracteres.");
+
+        var now = clock.UtcNow;
+        pending.Resolve(actor, now, comment, Capture);
+        DesignAreaStatus = CurrentDesignAreaStatus();
+
+        if (!CommercialHasPendingWork) PauseTimer(TimerStage.Commercial, actor, clock, calendar, now);
+        ResumeDesignTimer(actor, clock, now);
+
+        Audit(actor, now, "ArtworkRejectionResolved", comment);
+    }
+
+    private static void RequireRejectionNote(string? note)
+    {
+        if (string.IsNullOrWhiteSpace(note))
+            throw new NpiValidationException("design-rejection-note-required", "Explica el motivo: es lo que Comercial verá para saber qué corregir.");
+        if (note.Trim().Length > 2000)
+            throw new NpiValidationException("design-rejection-note-too-long", "El motivo no puede exceder 2000 caracteres.");
+    }
+
+    /// <summary>Arranca o reanuda el reloj de Comercial (si ya corría, no hace nada).</summary>
+    private void RunCommercialTimer(Actor actor, IClock clock, DateTimeOffset now, string note)
+    {
+        if (CommercialTimer.IsRunning || CommercialTimer.IsClosed) return;
+        var action = CommercialTimer.HasStarted ? TimerAction.Resume : TimerAction.Start;
+        CommercialTimer = CommercialTimer.StartOrResume(clock);
+        AppendTimerEvent(TimerStage.Commercial, action, now, actor.UserId, note: note);
+    }
+
+    /// <summary>La última solicitud de cambios de Diseño a Comercial (sobre la captura) que aún no se atiende.</summary>
+    private ChangeRequest? PendingDesignChangeRequest =>
+        _changeRequests
+            .Where(c => c.FromArea == AreaType.Diseno && c.ToArea == AreaType.Comercial && c.Origin == ChangeRequestOrigin.Internal && !c.IsResolved)
+            .OrderByDescending(c => c.RequestedAt)
+            .FirstOrDefault();
+
+    /// <summary>El rechazo de artes que Comercial aún no atiende.</summary>
+    private ChangeRequest? PendingArtworkRejection =>
+        _changeRequests
+            .Where(c => c.Origin == ChangeRequestOrigin.ArtworkRejected && !c.IsResolved)
+            .OrderByDescending(c => c.RequestedAt)
+            .FirstOrDefault();
+
+    /// <summary>
+    /// Algo espera a Comercial: cambios pedidos por Ingeniería o Diseño, artes rechazadas, una
+    /// solicitud de información de Diseño o un rechazo temporal por insumos. Su reloj sólo se pausa
+    /// cuando ya no queda nada de eso.
+    /// </summary>
+    private bool CommercialHasPendingWork =>
+        _changeRequests.Any(c => c.ToArea == AreaType.Comercial && !c.IsResolved)
+        || _informationRequests.Any(r => r.Type == InformationRequestType.Commercial && r.Status == InformationRequestStatus.Pending)
+        || SuppliesTemporaryRejection is not null;
+
+    /// <summary>
+    /// Estado de Diseño a partir de los hechos, para cuando se resuelve algo que lo tenía detenido
+    /// (cambios, artes rechazadas, solicitudes de información). Antes se quedaba, p. ej., en
+    /// "Esperando Información" aunque la información ya hubiera llegado.
+    /// </summary>
+    private DesignAreaStatus CurrentDesignAreaStatus()
+    {
+        if (PendingDesignChangeRequest is not null) return DesignAreaStatus.ChangesRequested;
+        if (PendingArtworkRejection is not null) return DesignAreaStatus.ArtworkRejected;
+        if (_informationRequests.Any(r => r.Status == InformationRequestStatus.Pending)) return DesignAreaStatus.AwaitingInformation;
+        if (PrintCardLoadedAt is not null) return DesignAreaStatus.PrintCardLoaded;
+        if (_printCardVersions.Count > 0) return DesignAreaStatus.PrintCardInApproval;
+        if (ArtesValidadasAt is not null) return DesignAreaStatus.ArtesValidadas;
+        if (DesignFeasibility is not null) return DesignAreaStatus.FeasibilityApproved;
+        return AssignedDesignUserId is not null ? DesignAreaStatus.Assigned : DesignAreaStatus.Requested;
     }
 
     /// <summary>
@@ -733,6 +911,7 @@ public sealed class Npi
 
         var now = clock.UtcNow;
         pending.Resolve(now, actor.UserId);
+        DesignAreaStatus = CurrentDesignAreaStatus();
 
         ResumeDesignTimer(actor, clock, now);
 
@@ -750,8 +929,9 @@ public sealed class Npi
 
         var now = clock.UtcNow;
         pending.Resolve(now, actor.UserId, responseText);
+        DesignAreaStatus = CurrentDesignAreaStatus();
 
-        PauseTimer(TimerStage.Commercial, actor, clock, calendar, now);
+        if (!CommercialHasPendingWork) PauseTimer(TimerStage.Commercial, actor, clock, calendar, now);
         ResumeDesignTimer(actor, clock, now);
 
         Audit(actor, now, "CommercialInformationSent", responseText);
@@ -826,6 +1006,14 @@ public sealed class Npi
             GlobalTimer = GlobalTimer.Close(clock, calendar);
             AppendTimerEvent(TimerStage.Global, TimerAction.Close, now, actorUserId, GlobalTimer.AccumulatedBusinessMs);
         }
+    }
+
+    /// <summary>Las acciones nuevas exigen un NPI enviado y abierto (no un borrador ni uno cerrado).</summary>
+    private void EnsureActive()
+    {
+        EnsureNotTerminal();
+        if (LifecycleStatus != Domain.LifecycleStatus.Active)
+            throw new InvalidNpiTransitionException("npi-not-active", "El NPI todavía no se ha enviado.");
     }
 
     private void EnsureNotTerminal()

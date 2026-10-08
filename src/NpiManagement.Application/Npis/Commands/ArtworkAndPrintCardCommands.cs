@@ -150,3 +150,40 @@ public sealed class LoadPrintCardIntoSystemCommandHandler(INpiRepository reposit
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
     }
 }
+
+/// <summary>Diseño rechaza las artes del cliente (motivo obligatorio, evidencia opcional). Regresa a Comercial.</summary>
+public sealed record RejectArtworkCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Reason, Guid? EvidenceAttachmentId);
+
+public sealed class RejectArtworkCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
+{
+    public async Task<NpiDetailDto> HandleAsync(RejectArtworkCommand command, CancellationToken cancellationToken)
+    {
+        var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+
+        npi.RejectArtwork(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Reason, command.EvidenceAttachmentId);
+        notifications.Notify(npi.AssignedCommercialUserId, NotificationText.ArtworkRejected(npi.NpiNumber?.Value, command.Reason), npi.Id, NotificationChannel.BellAndEmail);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+    }
+}
+
+/// <summary>Comercial avisa que ya subió las artes corregidas; regresa a Diseño.</summary>
+public sealed record ResolveArtworkRejectionCommand(Guid NpiId, CurrentUser Actor, string ActorName, string? Comment);
+
+public sealed class ResolveArtworkRejectionCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
+{
+    public async Task<NpiDetailDto> HandleAsync(ResolveArtworkRejectionCommand command, CancellationToken cancellationToken)
+    {
+        var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+
+        npi.ResolveArtworkRejection(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Comment);
+        if (npi.AssignedDesignUserId is { } designerId)
+            notifications.Notify(designerId, NotificationText.ArtworkResubmitted(npi.NpiNumber?.Value, command.Comment), npi.Id, NotificationChannel.BellAndEmail);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+    }
+}

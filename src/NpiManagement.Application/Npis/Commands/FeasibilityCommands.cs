@@ -79,3 +79,42 @@ public sealed class RejectNoFeasibilityCommandHandler(INpiRepository repository,
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
     }
 }
+
+/// <summary>Diseño rechaza con solicitud de cambios a Comercial (no terminal; mismo ida y vuelta que Ingeniería).</summary>
+public sealed record RequestDesignChangesCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Description, IReadOnlyList<string> FieldKeys);
+
+public sealed class RequestDesignChangesCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
+{
+    public async Task<NpiDetailDto> HandleAsync(RequestDesignChangesCommand command, CancellationToken cancellationToken)
+    {
+        var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+
+        npi.RequestDesignChanges(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Description, command.FieldKeys);
+        notifications.Notify(npi.AssignedCommercialUserId, NotificationText.DesignChangesRequested(npi.NpiNumber?.Value, command.FieldKeys.Count, command.Description), npi.Id, NotificationChannel.BellAndEmail);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+    }
+}
+
+/// <summary>Rechazo terminal de Diseño por no factibilidad (nota obligatoria).</summary>
+public sealed record RejectDesignNoFeasibilityCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Note);
+
+public sealed class RejectDesignNoFeasibilityCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
+{
+    public async Task<NpiDetailDto> HandleAsync(RejectDesignNoFeasibilityCommand command, CancellationToken cancellationToken)
+    {
+        var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+
+        npi.RejectDesignNoFeasibility(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Note);
+        var message = NotificationText.DesignNoFeasibility(npi.NpiNumber?.Value, command.Note);
+        notifications.Notify(npi.AssignedCommercialUserId, message, npi.Id, NotificationChannel.BellAndEmail);
+        if (npi.AssignedEngineeringUserId is { } engineerId)
+            notifications.Notify(engineerId, message, npi.Id);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+    }
+}
