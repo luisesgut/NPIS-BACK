@@ -14,6 +14,12 @@ public sealed record NpiChatTarget(Guid NpiId, string? NpiNumber, NpiOwnership O
             .OfType<Guid>()
             .Distinct()
             .ToList();
+
+    /// <summary>
+    /// Escribir en el chat es sólo para los participantes. Los administradores que no participan
+    /// pueden leer la conversación (ven todos los NPIs), pero no opinar en ella.
+    /// </summary>
+    public bool CanWrite(Guid userId) => ParticipantIds.Contains(userId);
 }
 
 /// <summary>Mensajes sin leer de un NPI para el usuario actual.</summary>

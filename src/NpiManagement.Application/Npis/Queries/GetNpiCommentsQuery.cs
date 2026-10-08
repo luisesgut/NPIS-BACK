@@ -31,8 +31,9 @@ public sealed record ChatParticipantDto(Guid UserId, string FullName, AreaType A
 public sealed record GetChatParticipantsQuery(Guid NpiId, CurrentUser Actor);
 
 /// <summary>
-/// Para el autocompletado de @: usuarios activos que pueden ver el NPI (los participantes y los
-/// administradores). /api/users no sirve porque está reservado a administradores.
+/// Para el autocompletado de @ y para saber quién puede escribir: los participantes activos del NPI
+/// (creador y responsables; los admins que no participan sólo leen). /api/users no sirve porque está
+/// reservado a administradores.
 /// </summary>
 public sealed class GetChatParticipantsQueryHandler(INpiChatStore chat, IUserDirectory userDirectory)
 {
@@ -45,10 +46,9 @@ public sealed class GetChatParticipantsQueryHandler(INpiChatStore chat, IUserDir
         var users = await userDirectory.ListAsync(null, cancellationToken);
 
         return users
-            .Where(u => u.Status == UserStatus.Active && NpiAuthorization.CanAccess(new CurrentUser(u.Id, u.Role, u.Area), npi.Ownership))
-            .Select(u => new ChatParticipantDto(u.Id, u.FullName, u.Area, assigned.Contains(u.Id)))
-            .OrderByDescending(p => p.IsAssigned)
-            .ThenBy(p => p.FullName)
+            .Where(u => u.Status == UserStatus.Active && assigned.Contains(u.Id))
+            .Select(u => new ChatParticipantDto(u.Id, u.FullName, u.Area, true))
+            .OrderBy(p => p.FullName)
             .ToList();
     }
 }

@@ -134,6 +134,43 @@ public class AddCommentCommandHandlerTests
     }
 
     [Fact]
+    public async Task An_admin_who_is_not_a_participant_can_read_but_not_write()
+    {
+        var npi = ActiveNpi();
+        var admin = new CurrentUser(Guid.NewGuid(), "AdminTotal", AreaType.Total);
+        await Handler().HandleAsync(new AddCommentCommand(npi.Id, Designer, "Diseñadora", "Hola"), CancellationToken.None);
+
+        var write = async () => await Handler().HandleAsync(new AddCommentCommand(npi.Id, admin, "Admin", "Opino"), CancellationToken.None);
+
+        (await write.Should().ThrowAsync<RequestValidationException>()).Which.Code.Should().Be("chat-not-participant");
+        var page = await new GetNpiCommentsQueryHandler(_chat).HandleAsync(new GetNpiCommentsQuery(npi.Id, admin), CancellationToken.None);
+        page.Items.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task An_admin_who_is_assigned_can_write()
+    {
+        var npi = ActiveNpi();
+        var adminEngineer = new CurrentUser(_engineerId, "AdminIngenieria", AreaType.Ingenieria);
+
+        var act = async () => await Handler().HandleAsync(new AddCommentCommand(npi.Id, adminEngineer, "Ingeniero", "Yo lo reviso"), CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task Cannot_mention_an_admin_who_is_not_a_participant()
+    {
+        var npi = ActiveNpi();
+        var admin = Guid.NewGuid();
+        _users.Users.Add(new UserSummaryDto(admin, "Admin Total", "t@bioflex.mx", "AdminTotal", AreaType.Total, UserStatus.Active));
+
+        var act = async () => await Handler().HandleAsync(new AddCommentCommand(npi.Id, Designer, "Diseñadora", "@Admin mira", [admin]), CancellationToken.None);
+
+        (await act.Should().ThrowAsync<RequestValidationException>()).Which.Code.Should().Be("chat-invalid-mention");
+    }
+
+    [Fact]
     public async Task Opening_the_chat_marks_it_read_and_clears_the_grouped_bell()
     {
         var npi = ActiveNpi();
@@ -162,7 +199,7 @@ public class AddCommentCommandHandlerTests
     }
 
     [Fact]
-    public async Task Mention_candidates_are_active_users_who_can_see_the_npi_assigned_first()
+    public async Task Mention_candidates_are_only_the_active_participants()
     {
         var npi = ActiveNpi();
         var admin = Guid.NewGuid();
@@ -172,7 +209,7 @@ public class AddCommentCommandHandlerTests
 
         var participants = await new GetChatParticipantsQueryHandler(_chat, _users).HandleAsync(new GetChatParticipantsQuery(npi.Id, Designer), CancellationToken.None);
 
-        participants.Select(p => p.FullName).Should().Equal("Diseñadora", "Ingeniero", "Vendedor", "Admin Ingeniería");
-        participants.Single(p => p.UserId == admin).IsAssigned.Should().BeFalse();
+        participants.Select(p => p.FullName).Should().Equal("Diseñadora", "Ingeniero", "Vendedor");
+        participants.Should().NotContain(p => p.UserId == admin, "el admin puede leer pero no participa");
     }
 }

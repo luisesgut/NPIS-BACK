@@ -26,10 +26,12 @@ public sealed class AddCommentCommandHandler(
     {
         var npi = await chat.FindNpiAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanAccess(command.Actor, npi.Ownership)) throw new NotFoundException("Npi", command.NpiId);
+        if (!npi.CanWrite(command.Actor.UserId))
+            throw new RequestValidationException("chat-not-participant", "Sólo los participantes de este NPI (quien lo creó y sus responsables de Comercial, Ingeniería y Diseño) pueden escribir en el chat.");
 
         var author = new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName);
         var message = NpiComment.Create(npi.NpiId, author, clock, command.Text, command.MentionedUserIds);
-        await EnsureMentionsCanSeeTheNpiAsync(message.MentionedUserIds, npi.Ownership, cancellationToken);
+        await EnsureMentionsAreParticipantsAsync(message.MentionedUserIds, npi, cancellationToken);
 
         chat.Add(message);
         // Quien escribe ya está viendo la conversación: su marca de leído avanza con su propio mensaje.
@@ -57,18 +59,16 @@ public sealed class AddCommentCommandHandler(
         new(c.Id, c.NpiId, c.AuthorUserId, c.AuthorName, c.Text, c.CreatedAt, c.MentionedUserIds.ToList());
 
     /// <summary>
-    /// Sólo se puede mencionar a alguien activo que ya pueda ver el NPI: una mención no da acceso, y
-    /// avisar a alguien de un NPI que no puede abrir sólo le deja un link que termina en "no encontrado".
+    /// Sólo se puede mencionar a participantes activos: una mención no da acceso, y avisarle a alguien
+    /// que no puede contestar (o ni abrir el NPI) sólo le deja un aviso al que no puede dar seguimiento.
     /// </summary>
-    private async Task EnsureMentionsCanSeeTheNpiAsync(IReadOnlyCollection<Guid> mentioned, NpiOwnership ownership, CancellationToken cancellationToken)
+    private async Task EnsureMentionsAreParticipantsAsync(IReadOnlyCollection<Guid> mentioned, NpiChatTarget npi, CancellationToken cancellationToken)
     {
         foreach (var userId in mentioned)
         {
             var user = await userDirectory.FindAsync(userId, cancellationToken);
-            var canSee = user is { Status: UserStatus.Active }
-                && NpiAuthorization.CanAccess(new CurrentUser(user.Id, user.Role, user.Area), ownership);
-            if (!canSee)
-                throw new RequestValidationException("chat-invalid-mention", "Sólo puedes mencionar a personas activas que tengan acceso a este NPI.");
+            if (user is not { Status: UserStatus.Active } || !npi.CanWrite(user.Id))
+                throw new RequestValidationException("chat-invalid-mention", "Sólo puedes mencionar a los participantes activos de este NPI.");
         }
     }
 }

@@ -98,9 +98,9 @@ Los comentarios se convirtieron en el chat del NPI: misma ruta, misma tabla (`Np
 | Método/Ruta | Request | Response | Códigos |
 |---|---|---|---|
 | `GET /api/npis/{id}/comments` | `?page&pageSize` (máx. 100) | página de `CommentDto`, del más reciente al más antiguo | `200`, `404` |
-| `POST /api/npis/{id}/comments` | `{ text, mentionedUserIds? }` | `CommentDto { id, npiId, authorUserId, authorName, text, createdAt, mentionedUserIds }` | `201`, `400` (vacío, > 4000 caracteres, > 10 menciones, o mención a alguien inactivo o sin acceso: `chat-invalid-mention`), `404`. Permitido incluso en estado terminal |
+| `POST /api/npis/{id}/comments` | `{ text, mentionedUserIds? }` | `CommentDto { id, npiId, authorUserId, authorName, text, createdAt, mentionedUserIds }` | `201`, `400` (vacío, > 4000 caracteres, > 10 menciones; quien escribe no es participante: `chat-not-participant`; mención a alguien inactivo o que no es participante: `chat-invalid-mention`), `404`. Sólo escriben los participantes (creador y responsables de las tres áreas); los admins que no participan sólo leen. Permitido incluso en estado terminal |
 | `POST /api/npis/{id}/comments/read` | — | — | `204`, `404`. Marca leído el chat para el usuario actual y su aviso agrupado de la campana |
-| `GET /api/npis/{id}/comments/participants` | — | `ChatParticipantDto[] { userId, fullName, area, isAssigned }`: usuarios activos que pueden ver el NPI, para el autocompletado de @ | `200`, `404` |
+| `GET /api/npis/{id}/comments/participants` | — | `ChatParticipantDto[] { userId, fullName, area, isAssigned }`: participantes activos del NPI (creador y responsables): autocompletado de @ y lista de quién puede escribir | `200`, `404` |
 | `GET /api/chat/unread` | — | `ChatUnreadDto[] { npiId, npiNumber, unreadCount, lastMessageAt }`: sólo NPIs donde el usuario es creador o responsable | `200` |
 
 **Avisos.** Mencionado con @ → campana **y correo**. Resto de participantes (creador y responsables de Comercial, Ingeniería y Diseño) → **un solo** aviso de campana por NPI (`Notifications.GroupKey = "chat:{npiId}"`) que se reescribe con el último mensaje mientras no se lea. Nunca se avisa a quien escribe.
