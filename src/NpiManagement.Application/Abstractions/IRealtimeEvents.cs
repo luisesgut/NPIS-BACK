@@ -15,6 +15,12 @@ public interface IRealtimeEvents
 
     /// <summary>A quienes les llegó (o leyeron) una notificación: refresca su campana.</summary>
     Task NotificationsChangedAsync(IReadOnlyCollection<Guid> userIds);
+
+    /// <summary>Solicitudes de acceso o cuentas que cambiaron: a los administradores (bandeja de pendientes, usuarios).</summary>
+    Task UsersChangedAsync();
+
+    /// <summary>Ingeniería editó un catálogo: a todos, para que los combobox del formulario lo tomen sin recargar.</summary>
+    Task CatalogsChangedAsync();
 }
 
 /// <summary>Sin tiempo real (pruebas, herramientas): las pantallas se actualizan con sus consultas normales.</summary>
@@ -22,4 +28,6 @@ public sealed class NullRealtimeEvents : IRealtimeEvents
 {
     public Task NpisChangedAsync(IReadOnlyCollection<NpiChange> changes) => Task.CompletedTask;
     public Task NotificationsChangedAsync(IReadOnlyCollection<Guid> userIds) => Task.CompletedTask;
+    public Task UsersChangedAsync() => Task.CompletedTask;
+    public Task CatalogsChangedAsync() => Task.CompletedTask;
 }

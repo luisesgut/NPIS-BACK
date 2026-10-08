@@ -25,6 +25,7 @@ public sealed class UserAdminService(
     IUnitOfWork unitOfWork,
     IConfiguration configuration,
     IClock clock,
+    IRealtimeEvents realtime,
     ILogger<UserAdminService> logger) : IUserAdminService
 {
     /// <summary>
@@ -80,6 +81,8 @@ public sealed class UserAdminService(
             $"Nueva solicitud de acceso: {user.FullName} ({user.Email}) — área solicitada: {request.RequestedArea}.",
             cancellationToken);
 
+        // La bandeja de pendientes de los admins se actualiza sola.
+        await realtime.UsersChangedAsync();
         logger.LogInformation("Solicitud de acceso creada para el usuario {UserId}, pendiente de aprobación.", user.Id);
         return RegistrationResult.Ok();
     }
@@ -133,6 +136,7 @@ public sealed class UserAdminService(
         // guardaba, pero el correo se descartaba en silencio.
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await realtime.UsersChangedAsync();
         logger.LogInformation("Usuario {UserId} aprobado con rol {Role} por {ApprovedBy}.", user.Id, role, approvedByUserId);
     }
 
@@ -146,6 +150,7 @@ public sealed class UserAdminService(
         user.Status = UserStatus.Disabled;
         ThrowIfFailed(await userManager.UpdateAsync(user));
 
+        await realtime.UsersChangedAsync();
         logger.LogInformation("Solicitud del usuario {UserId} rechazada por {RejectedBy}.", user.Id, rejectedByUserId);
     }
 
@@ -165,6 +170,7 @@ public sealed class UserAdminService(
         if (!active)
             await RevokeAllRefreshTokensAsync(user.Id, $"Cuenta dada de baja por {changedByUserId}", cancellationToken);
 
+        await realtime.UsersChangedAsync();
         logger.LogInformation("Usuario {UserId} {Accion} por {ChangedBy}.", user.Id, active ? "reactivado" : "dado de baja", changedByUserId);
     }
 

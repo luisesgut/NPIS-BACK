@@ -11,7 +11,7 @@ using NpiManagement.Infrastructure.Persistence.Entities;
 
 namespace NpiManagement.Infrastructure.Services;
 
-public sealed class EfCatalogAdminService(NpiManagementDbContext dbContext, IClock clock) : ICatalogAdminService
+public sealed class EfCatalogAdminService(NpiManagementDbContext dbContext, IClock clock, IRealtimeEvents realtime) : ICatalogAdminService
 {
     private const int MaxValueLength = 150;
 
@@ -54,7 +54,7 @@ public sealed class EfCatalogAdminService(NpiManagementDbContext dbContext, IClo
         };
         dbContext.CatalogOptions.Add(option);
         Log(catalog, "Added", null, clean, actor, actorName);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndAnnounceAsync(cancellationToken);
 
         return new CatalogAdminOptionDto(option.Id, option.Value, option.DisplayOrder, true, CatalogRules.ProtectionReason(catalog.Key, clean), 0);
     }
@@ -69,7 +69,7 @@ public sealed class EfCatalogAdminService(NpiManagementDbContext dbContext, IClo
 
         Log(catalog, "Renamed", option.Value, clean, actor, actorName);
         option.Value = clean;
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndAnnounceAsync(cancellationToken);
     }
 
     public async Task SetActiveAsync(Guid optionId, bool isActive, CurrentUser actor, string actorName, CancellationToken cancellationToken)
@@ -80,7 +80,7 @@ public sealed class EfCatalogAdminService(NpiManagementDbContext dbContext, IClo
 
         option.IsActive = isActive;
         Log(catalog, isActive ? "Activated" : "Deactivated", option.Value, option.Value, actor, actorName);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndAnnounceAsync(cancellationToken);
     }
 
     public async Task ReorderAsync(Guid catalogId, IReadOnlyList<Guid> optionIds, CurrentUser actor, string actorName, CancellationToken cancellationToken)
@@ -96,7 +96,7 @@ public sealed class EfCatalogAdminService(NpiManagementDbContext dbContext, IClo
             catalog.Options.Single(o => o.Id == optionIds[i]).DisplayOrder = i + 1;
 
         Log(catalog, "Reordered", null, null, actor, actorName);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveAndAnnounceAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<CatalogChangeDto>> ListChangesAsync(string? catalogKey, CancellationToken cancellationToken)
@@ -109,6 +109,13 @@ public sealed class EfCatalogAdminService(NpiManagementDbContext dbContext, IClo
             .Take(200)
             .Select(c => new CatalogChangeDto(c.Id, c.CatalogKey, c.Action, c.OldValue, c.NewValue, c.ChangedByName, c.ChangedAt))
             .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>Guarda y avisa a todos: los combobox del formulario toman el cambio sin recargar.</summary>
+    private async Task SaveAndAnnounceAsync(CancellationToken cancellationToken)
+    {
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await realtime.CatalogsChangedAsync();
     }
 
     private async Task<(Catalog Catalog, CatalogOption Option)> LoadOptionAsync(Guid optionId, CancellationToken cancellationToken)

@@ -20,6 +20,8 @@ namespace NpiManagement.Api.Realtime;
 ///  - ChatActivity({ npiId })    — a los participantes y mencionados, estén donde estén.
 ///  - NpiChanged({ npiIds })     — algo cambió en esos NPIs (estatus, cronómetros, asignación, adjuntos…).
 ///  - NotificationsChanged()    — llegó o se leyó una notificación del usuario.
+///  - UsersChanged()            — a los admins: nueva solicitud de acceso o cambio de una cuenta.
+///  - CatalogsChanged()         — a todos: Ingeniería editó las opciones de un catálogo.
 /// </summary>
 [Authorize]
 public sealed class NpiChatHub(ChatAccessQueryHandler access) : Hub
@@ -120,5 +122,17 @@ public sealed class SignalRRealtimeEvents(IHubContext<NpiChatHub> hub, ILogger<S
         {
             logger.LogWarning(ex, "No se pudo avisar en tiempo real de notificaciones nuevas");
         }
+    }
+
+    public Task UsersChangedAsync() =>
+        SafeAsync(() => hub.Clients.Group(NpiChatHub.AdminsGroup).SendAsync("UsersChanged"), "cambios de usuarios");
+
+    public Task CatalogsChangedAsync() =>
+        SafeAsync(() => hub.Clients.All.SendAsync("CatalogsChanged"), "cambios de catálogos");
+
+    private async Task SafeAsync(Func<Task> send, string what)
+    {
+        try { await send(); }
+        catch (Exception ex) { logger.LogWarning(ex, "No se pudo avisar en tiempo real de {What}", what); }
     }
 }
