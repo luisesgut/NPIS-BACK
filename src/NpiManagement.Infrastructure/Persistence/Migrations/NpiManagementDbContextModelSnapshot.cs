@@ -438,6 +438,10 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.PrimitiveCollection<string>("MentionedUserIds")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid>("NpiId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1050,6 +1054,10 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("GroupKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -1071,6 +1079,24 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.HasIndex("RecipientUserId", "ReadAt");
 
                     b.ToTable("Notifications", (string)null);
+                });
+
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.NpiChatRead", b =>
+                {
+                    b.Property<Guid>("NpiId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("LastReadAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("NpiId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("NpiChatReads", (string)null);
                 });
 
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.Quotation", b =>
@@ -1310,7 +1336,7 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("NpiManagement.Domain.Entities.NpiComment", b =>
                 {
                     b.HasOne("NpiManagement.Domain.Npi", null)
-                        .WithMany("Comments")
+                        .WithMany()
                         .HasForeignKey("NpiId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1930,6 +1956,21 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.NpiChatRead", b =>
+                {
+                    b.HasOne("NpiManagement.Domain.Npi", null)
+                        .WithMany()
+                        .HasForeignKey("NpiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NpiManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.RefreshToken", b =>
                 {
                     b.HasOne("NpiManagement.Infrastructure.Identity.ApplicationUser", null)
@@ -1951,8 +1992,6 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Navigation("AuditLog");
 
                     b.Navigation("ChangeRequests");
-
-                    b.Navigation("Comments");
 
                     b.Navigation("FeasibilityReviews");
 

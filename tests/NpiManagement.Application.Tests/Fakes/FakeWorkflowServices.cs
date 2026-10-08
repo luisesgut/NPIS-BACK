@@ -26,6 +26,24 @@ public sealed class FakeNotificationService : INotificationService
         foreach (var id in recipientUserIds) Notify(id, message, npiId, channel);
     }
 
+    /// <summary>Avisos agrupados vigentes: uno por (destinatario, clave), reescrito con cada aviso nuevo como en EF.</summary>
+    public Dictionary<(Guid RecipientUserId, string GroupKey), string> Grouped { get; } = [];
+
+    public List<(Guid RecipientUserId, string GroupKey)> GroupsMarkedRead { get; } = [];
+
+    public Task NotifyGroupedAsync(Guid recipientUserId, string groupKey, string message, Guid? npiId, CancellationToken cancellationToken)
+    {
+        Grouped[(recipientUserId, groupKey)] = message;
+        return Task.CompletedTask;
+    }
+
+    public Task MarkGroupReadAsync(Guid recipientUserId, string groupKey, CancellationToken cancellationToken)
+    {
+        Grouped.Remove((recipientUserId, groupKey));
+        GroupsMarkedRead.Add((recipientUserId, groupKey));
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyList<NotificationDto>> ListAsync(Guid recipientUserId, bool unreadOnly, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<NotificationDto>>([]);
 

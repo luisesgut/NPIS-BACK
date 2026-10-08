@@ -1,4 +1,5 @@
 using FluentAssertions;
+using NpiManagement.Domain.Entities;
 using NpiManagement.Domain.Exceptions;
 using Xunit;
 using static NpiManagement.Domain.Tests.NpiTestFactory;
@@ -8,27 +9,42 @@ namespace NpiManagement.Domain.Tests;
 public class NpiCommentsAttachmentsAndCancelTests
 {
     [Fact]
-    public void AddComment_rejects_empty_text()
+    public void Chat_message_rejects_empty_text()
     {
         var clock = TestClock.MondayMorning();
-        var npi = CreateActive(clock);
 
-        var act = () => npi.AddComment(Commercial, clock, "   ");
+        var act = () => NpiComment.Create(Guid.NewGuid(), Commercial, clock, "   ");
 
         act.Should().Throw<NpiValidationException>().Which.Code.Should().Be("comment-empty");
     }
 
     [Fact]
-    public void AddComment_is_allowed_even_when_the_npi_is_terminal()
+    public void Chat_message_rejects_text_over_the_limit()
     {
-        var clock = TestClock.MondayMorning();
-        var npi = CreateActive(clock);
-        npi.RejectNoFeasibility(Engineer, clock, Calendar, null);
+        var act = () => NpiComment.Create(Guid.NewGuid(), Commercial, TestClock.MondayMorning(), new string('a', NpiComment.MaxTextLength + 1));
 
-        var act = () => npi.AddComment(Commercial, clock, "Nota histórica tras el cierre");
+        act.Should().Throw<NpiValidationException>().Which.Code.Should().Be("comment-too-long");
+    }
 
-        act.Should().NotThrow();
-        npi.Comments.Should().ContainSingle();
+    [Fact]
+    public void Chat_message_trims_text_and_drops_self_and_repeated_mentions()
+    {
+        var other = Guid.NewGuid();
+
+        var message = NpiComment.Create(Guid.NewGuid(), Commercial, TestClock.MondayMorning(), "  @Ana ¿ya está el arte?  ", [other, Commercial.UserId, other]);
+
+        message.Text.Should().Be("@Ana ¿ya está el arte?");
+        message.MentionedUserIds.Should().Equal(other);
+    }
+
+    [Fact]
+    public void Chat_message_limits_the_number_of_mentions()
+    {
+        var mentions = Enumerable.Range(0, NpiComment.MaxMentions + 1).Select(_ => Guid.NewGuid()).ToList();
+
+        var act = () => NpiComment.Create(Guid.NewGuid(), Commercial, TestClock.MondayMorning(), "Hola a todos", mentions);
+
+        act.Should().Throw<NpiValidationException>().Which.Code.Should().Be("comment-too-many-mentions");
     }
 
     [Fact]

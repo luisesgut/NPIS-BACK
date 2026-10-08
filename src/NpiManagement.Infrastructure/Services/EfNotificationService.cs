@@ -35,6 +35,41 @@ public sealed class EfNotificationService(
             Notify(recipientUserId, message, npiId, channel);
     }
 
+    public async Task NotifyGroupedAsync(Guid recipientUserId, string groupKey, string message, Guid? npiId, CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.Notifications
+            .FirstOrDefaultAsync(n => n.RecipientUserId == recipientUserId && n.GroupKey == groupKey && n.ReadAt == null, cancellationToken);
+
+        if (existing is null)
+        {
+            dbContext.Notifications.Add(new NotificationEntity
+            {
+                Id = Guid.NewGuid(),
+                RecipientUserId = recipientUserId,
+                NpiId = npiId,
+                Message = message,
+                CreatedAt = clock.UtcNow,
+                GroupKey = groupKey,
+            });
+            return;
+        }
+
+        // Se reescribe con el último mensaje y sube al principio de la campana.
+        existing.Message = message;
+        existing.CreatedAt = clock.UtcNow;
+    }
+
+    public async Task MarkGroupReadAsync(Guid recipientUserId, string groupKey, CancellationToken cancellationToken)
+    {
+        var unread = await dbContext.Notifications
+            .Where(n => n.RecipientUserId == recipientUserId && n.GroupKey == groupKey && n.ReadAt == null)
+            .ToListAsync(cancellationToken);
+
+        var now = clock.UtcNow;
+        foreach (var notification in unread)
+            notification.ReadAt = now;
+    }
+
     public async Task<IReadOnlyList<NotificationDto>> ListAsync(Guid recipientUserId, bool unreadOnly, CancellationToken cancellationToken)
     {
         var query = dbContext.Notifications.AsNoTracking().Where(n => n.RecipientUserId == recipientUserId);

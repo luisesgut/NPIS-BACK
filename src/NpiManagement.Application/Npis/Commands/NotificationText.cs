@@ -32,8 +32,15 @@ public static class NotificationText
     public static string InformationAnswered(string? npiNumber, string response) =>
         $"Comercial respondió a Diseño en el NPI {npiNumber}: {Clip(response)}";
 
-    public static string Comment(string? npiNumber, string author, string text) =>
-        $"{author} comentó en el NPI {npiNumber ?? "(borrador)"}: {Clip(text)}";
+    /// <summary>Aviso agrupado del chat: se reescribe con el último mensaje mientras no se lea.</summary>
+    public static string ChatMessage(string? npiNumber, string author, string text) =>
+        $"Nuevos mensajes en el chat del NPI {npiNumber ?? "(borrador)"} — {author}: {Clip(text)}";
+
+    public static string Mention(string? npiNumber, string author, string text) =>
+        $"{author} te mencionó en el chat del NPI {npiNumber ?? "(borrador)"}: {Clip(text)}";
+
+    /// <summary>Clave con la que se agrupan los avisos del chat de un NPI (uno por NPI y destinatario).</summary>
+    public static string ChatGroupKey(Guid npiId) => $"chat:{npiId:N}";
 
     private static string Clip(string text)
     {

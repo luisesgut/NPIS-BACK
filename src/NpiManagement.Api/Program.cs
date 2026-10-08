@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using NpiManagement.Api;
+using NpiManagement.Api.Realtime;
 using NpiManagement.Application;
 using NpiManagement.Application.Abstractions;
 using NpiManagement.Infrastructure;
@@ -52,6 +53,15 @@ builder.Services.AddOpenApi(options =>
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
+
+// Chat en tiempo real (NpiChatHub). Un solo servidor IIS: no hace falta backplane.
+// CloseOnAuthenticationExpiration: una conexión WebSocket abierta no vuelve a validar el token por
+// sí sola; así, al vencer el access token (15 min) se cierra y el cliente reconecta con uno nuevo —
+// una cuenta desactivada no se queda escuchando indefinidamente.
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, UserIdFromTokenProvider>();
+builder.Services.AddScoped<IChatRealtime, SignalRChatRealtime>();
 
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -148,6 +158,20 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             ClockSkew = TimeSpan.FromSeconds(30),
             RoleClaimType = System.Security.Claims.ClaimTypes.Role,
             NameClaimType = System.Security.Claims.ClaimTypes.Name,
+        };
+
+        // El navegador no puede mandar el header Authorization al abrir un WebSocket, así que
+        // SignalR manda el token en ?access_token=. Sólo se acepta en /hubs: en el resto de la API
+        // el token sigue llegando únicamente por header (un token en la URL acaba en logs).
+        bearerOptions.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                    context.Token = accessToken;
+                return Task.CompletedTask;
+            },
         };
     });
 
@@ -267,6 +291,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapControllers();
+app.MapHub<NpiChatHub>(NpiChatHub.Path, options => options.CloseOnAuthenticationExpiration = true);
 
 var healthCheckOptions = new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { ResponseWriter = WriteHealthReportAsJson };
 app.MapHealthChecks("/health", healthCheckOptions);

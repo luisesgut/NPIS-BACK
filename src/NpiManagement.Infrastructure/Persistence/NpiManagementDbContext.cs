@@ -29,6 +29,8 @@ public sealed class NpiManagementDbContext : IdentityDbContext<ApplicationUser, 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<FeedbackReport> FeedbackReports => Set<FeedbackReport>();
+    public DbSet<NpiManagement.Domain.Entities.NpiComment> NpiComments => Set<NpiManagement.Domain.Entities.NpiComment>();
+    public DbSet<NpiChatRead> NpiChatReads => Set<NpiChatRead>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

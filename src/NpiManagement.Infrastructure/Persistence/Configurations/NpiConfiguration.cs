@@ -124,7 +124,6 @@ public sealed class NpiConfiguration : IEntityTypeConfiguration<Npi>
             b.HasIndex(x => x.Cliente);
         });
 
-        ConfigureSatelliteCollection<NpiComment>(builder, nameof(Npi.Comments), "_comments");
         ConfigureSatelliteCollection<Attachment>(builder, nameof(Npi.Attachments), "_attachments");
         ConfigureSatelliteCollection<ChangeRequest>(builder, nameof(Npi.ChangeRequests), "_changeRequests");
         ConfigureSatelliteCollection<InformationRequest>(builder, nameof(Npi.InformationRequests), "_informationRequests");

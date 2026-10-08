@@ -2,7 +2,8 @@ namespace NpiManagement.Application.Npis.Dtos;
 
 public sealed record TimerDto(bool HasStarted, bool IsRunning, bool IsClosed, long ElapsedMs);
 
-public sealed record CommentDto(Guid Id, Guid AuthorUserId, string AuthorName, string Text, DateTimeOffset CreatedAt);
+/// <summary>Mensaje del chat del NPI (antes "comentario"). MentionedUserIds: a quiénes se mencionó con @.</summary>
+public sealed record CommentDto(Guid Id, Guid NpiId, Guid AuthorUserId, string AuthorName, string Text, DateTimeOffset CreatedAt, IReadOnlyList<Guid> MentionedUserIds);
 
 public sealed record FieldChangeDto(string Field, string Before, string After);
 
@@ -58,7 +59,6 @@ public sealed record NpiDetailDto(
     DateTimeOffset? PedidoSapRegisteredAt,
     DateTimeOffset? EtCreatedAt,
     DateTimeOffset? EtLoadedInSisproAt,
-    IReadOnlyList<CommentDto> Comments,
     IReadOnlyList<AttachmentDto> Attachments,
     IReadOnlyList<ChangeRequestDto> ChangeRequests,
     IReadOnlyList<InformationRequestDto> InformationRequests,

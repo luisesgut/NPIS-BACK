@@ -32,7 +32,6 @@ public sealed class NpiRepository(NpiManagementDbContext dbContext) : INpiReposi
 
     private IQueryable<Npi> Query() =>
         dbContext.Npis
-            .Include(n => n.Comments)
             .Include(n => n.Attachments)
             .Include(n => n.ChangeRequests)
             .Include(n => n.InformationRequests)

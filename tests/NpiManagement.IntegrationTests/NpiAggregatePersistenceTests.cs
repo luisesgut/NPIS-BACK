@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NpiManagement.Domain;
+using NpiManagement.Domain.Entities;
 using NpiManagement.Domain.ValueObjects;
 using NpiManagement.Infrastructure.Persistence.Repositories;
 using Xunit;
@@ -56,9 +57,8 @@ public class NpiAggregatePersistenceTests(SqlServerFixture fixture)
             npi.ApproveDesignFeasibility(desActor, clock, "Diseño factible");
             npi.ValidateArtwork(desActor, clock);
 
-            // Adjunto suelto (comentario con adjunto).
-            var attachment = npi.RegisterAttachment(comActor, clock, "nota.pdf", "application/pdf", 1024, "storage/nota.pdf", null, AttachmentContext.Comment);
-            npi.AddComment(comActor, clock, $"Comentario con adjunto {attachment.FileName}");
+            // Adjunto suelto (contexto Comment).
+            npi.RegisterAttachment(comActor, clock, "nota.pdf", "application/pdf", 1024, "storage/nota.pdf", null, AttachmentContext.Comment);
 
             // PrintCard con las 3 aprobaciones.
             npi.CreatePrintCardVersion(desActor, clock, TestDataFactory.Calendar, "PC-INT-001", null, "Primera versión");
@@ -85,7 +85,6 @@ public class NpiAggregatePersistenceTests(SqlServerFixture fixture)
         reloaded.AssignedEngineeringUserId.Should().Be(engineerId);
         reloaded.AssignedDesignUserId.Should().Be(designerId);
 
-        reloaded.Comments.Should().ContainSingle(c => c.Text.Contains("nota.pdf"));
         reloaded.Attachments.Should().ContainSingle(a => a.FileName == "nota.pdf" && a.Context == AttachmentContext.Comment);
         reloaded.ChangeRequests.Should().ContainSingle(cr => cr.FromArea == AreaType.Ingenieria && cr.ToArea == AreaType.Comercial);
         reloaded.ChangeRequests.Single().FieldKeys.Should().BeEquivalentTo(["ancho"]);
@@ -126,7 +125,7 @@ public class NpiAggregatePersistenceTests(SqlServerFixture fixture)
             var user = await TestDataFactory.AddUserAsync(db, "cascadeowner", AreaType.Comercial);
             var actor = TestDataFactory.ActorFor(user, "UsuarioComercial");
             var npi = TestDataFactory.NewDraft(actor, clock);
-            npi.AddComment(actor, clock, "Comentario que debe borrarse en cascada");
+            db.NpiComments.Add(NpiComment.Create(npi.Id, actor, clock, "Mensaje del chat que debe borrarse en cascada"));
             npi.RegisterAttachment(actor, clock, "a.pdf", "application/pdf", 10, "k1", null, AttachmentContext.Comment);
             npiId = npi.Id;
 

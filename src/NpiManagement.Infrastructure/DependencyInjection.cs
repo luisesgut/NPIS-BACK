@@ -52,6 +52,7 @@ public static class DependencyInjection
         services.AddScoped<IUserAdminService, UserAdminService>();
         services.AddScoped<ICatalogReader, EfCatalogReader>();
         services.AddScoped<INotificationService, EfNotificationService>();
+        services.AddScoped<INpiChatStore, EfNpiChatStore>();
         services.AddScoped<IFeedbackService, FeedbackService>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
 

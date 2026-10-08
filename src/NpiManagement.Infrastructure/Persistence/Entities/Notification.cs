@@ -9,4 +9,7 @@ public sealed class Notification
     public string Message { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ReadAt { get; set; }
+
+    /// <summary>Avisos que se agrupan (p. ej. "chat:{npiId}"): mientras haya uno sin leer se actualiza en vez de duplicarse.</summary>
+    public string? GroupKey { get; set; }
 }

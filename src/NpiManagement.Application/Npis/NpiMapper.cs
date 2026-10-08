@@ -27,7 +27,6 @@ public static class NpiMapper
         npi.ArtesValidadasAt, npi.PrintCardSentToClientAt, npi.PrintCardLoadedAt, npi.CodigoPT, npi.PtName, npi.PtRegisteredAt,
         npi.PedidoSapNumber, npi.PedidoSapRegisteredAt,
         npi.EtCreatedAt, npi.EtLoadedInSisproAt,
-        npi.Comments.Select(c => new CommentDto(c.Id, c.AuthorUserId, c.AuthorName, c.Text, c.CreatedAt)).ToList(),
         npi.Attachments.Select(ToAttachmentDto).ToList(),
         npi.ChangeRequests.Select(cr => new ChangeRequestDto(cr.Id, cr.RequestedByUserId, cr.RequestedByName, cr.RequestedAt, cr.FromArea.ToString(), cr.ToArea.ToString(), cr.Origin.ToString(), cr.Description, cr.FieldKeys,
             cr.ResolvedAt, cr.ResolvedByName, cr.ResponseComment, cr.ChangesApplied.Select(c => new FieldChangeDto(c.Field, c.Before, c.After)).ToList())).ToList(),

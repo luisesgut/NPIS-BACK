@@ -36,6 +36,16 @@ public interface INotificationService
 
     void NotifyMany(IEnumerable<Guid> recipientUserIds, string message, Guid? npiId, NotificationChannel channel = NotificationChannel.Bell);
 
+    /// <summary>
+    /// Aviso de campana que se agrupa por <paramref name="groupKey"/>: si el destinatario ya tiene
+    /// uno sin leer con esa clave, se actualiza (texto y fecha) en lugar de agregar otro. Así 15
+    /// mensajes de chat seguidos son una sola notificación, no 15. Nunca sale por correo.
+    /// </summary>
+    Task NotifyGroupedAsync(Guid recipientUserId, string groupKey, string message, Guid? npiId, CancellationToken cancellationToken);
+
+    /// <summary>Marca como leídos los avisos sin leer de ese grupo (p. ej. al abrir el chat). Lo confirma IUnitOfWork.</summary>
+    Task MarkGroupReadAsync(Guid recipientUserId, string groupKey, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<NotificationDto>> ListAsync(Guid recipientUserId, bool unreadOnly, CancellationToken cancellationToken);
 
     Task MarkReadAsync(Guid notificationId, Guid recipientUserId, CancellationToken cancellationToken);

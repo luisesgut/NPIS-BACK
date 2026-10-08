@@ -50,6 +50,10 @@ public static class DependencyInjection
         // Fase 6 — comentarios y archivos.
         services.AddScoped<AddCommentCommandHandler>();
         services.AddScoped<GetNpiCommentsQueryHandler>();
+        services.AddScoped<MarkChatReadCommandHandler>();
+        services.AddScoped<GetChatParticipantsQueryHandler>();
+        services.AddScoped<GetChatUnreadQueryHandler>();
+        services.AddScoped<ChatAccessQueryHandler>();
         services.AddScoped<RegisterAttachmentCommandHandler>();
         services.AddScoped<RegisterLinkCommandHandler>();
         services.AddScoped<GetAttachmentForDownloadQueryHandler>();

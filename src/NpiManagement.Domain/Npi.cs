@@ -65,7 +65,6 @@ public sealed class Npi
     public SuppliesAgreementInfo? SuppliesAgreement { get; private set; }
     public ClientRejectionInfo? ClientRejection { get; private set; }
 
-    private readonly List<NpiComment> _comments = [];
     private readonly List<Attachment> _attachments = [];
     private readonly List<ChangeRequest> _changeRequests = [];
     private readonly List<InformationRequest> _informationRequests = [];
@@ -75,7 +74,6 @@ public sealed class Npi
     private readonly List<AuditEvent> _auditEvents = [];
     private readonly List<IDomainEvent> _domainEvents = [];
 
-    public IReadOnlyCollection<NpiComment> Comments => _comments;
     public IReadOnlyCollection<Attachment> Attachments => _attachments;
     public IReadOnlyCollection<ChangeRequest> ChangeRequests => _changeRequests;
     public IReadOnlyCollection<InformationRequest> InformationRequests => _informationRequests;
@@ -757,19 +755,6 @@ public sealed class Npi
         ResumeDesignTimer(actor, clock, now);
 
         Audit(actor, now, "CommercialInformationSent", responseText);
-    }
-
-    /// <summary>Acción 28 — Agregar comentario. Permitido incluso en estado terminal (registro histórico).</summary>
-    public NpiComment AddComment(Actor actor, IClock clock, string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            throw new NpiValidationException("comment-empty", "El comentario no puede estar vacío.");
-
-        var now = clock.UtcNow;
-        var comment = new NpiComment(Guid.NewGuid(), actor.UserId, actor.Name, text, now);
-        _comments.Add(comment);
-        Audit(actor, now, "CommentAdded", null);
-        return comment;
     }
 
     /// <summary>Registro de metadatos de un archivo ya almacenado por IFileStorage (no valida contenido — eso es de Infrastructure).</summary>

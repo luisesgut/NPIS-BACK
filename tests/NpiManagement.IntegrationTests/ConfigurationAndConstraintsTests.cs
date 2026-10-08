@@ -79,11 +79,11 @@ public class ConfigurationAndConstraintsTests(SqlServerFixture fixture)
         var npiA = await dbA.Npis.SingleAsync(n => n.Id == npiId);
         var npiB = await dbB.Npis.SingleAsync(n => n.Id == npiId);
 
-        var userForComment = await TestDataFactory.AddUserAsync(dbA, "commenter", AreaType.Comercial);
-        npiA.AddComment(TestDataFactory.ActorFor(userForComment, "UsuarioComercial"), clock, "Primer cambio");
+        // Cambio sobre la fila del propio Npi (no una colección satélite), que es lo que verifica el RowVersion.
+        npiA.UpdateDraft(npiA.Capture, Priority.Alta);
         await dbA.SaveChangesAsync(); // gana la primera escritura, RowVersion avanza en la BD
 
-        npiB.AddComment(TestDataFactory.ActorFor(userForComment, "UsuarioComercial"), clock, "Segundo cambio (con RowVersion desactualizado)");
+        npiB.UpdateDraft(npiB.Capture, Priority.Baja); // RowVersion desactualizado
         var act = async () => await dbB.SaveChangesAsync();
 
         await act.Should().ThrowAsync<DbUpdateConcurrencyException>("dbB todavía tiene el RowVersion anterior a la escritura de dbA");

@@ -51,7 +51,7 @@ Campos de captura tal como los cataloga `npiFields.ts` del frontend (verde/amari
 `id, npiNumber, priority, lifecycleStatus, engineeringAreaStatus, designAreaStatus, cliente, numeroCotizacion, descripcionProducto, requestDate, createdByUserId, assignedEngineeringUserId?, assignedDesignUserId?, assignedCommercialUserId, globalTimer, commercialTimer, engineeringTimer, designTimer, completedStages` (`completedStages`: etapas completadas de las 8 de la ruta, calculadas en la misma consulta con `NpiStageMilestones` — mismas reglas que `buildStages` del frontend — para pintar el avance sin pedir el detalle de cada fila) (los 4 objetos `TimerDto` — ver §3.3 — se agregaron en Fase 8 para que los paneles pinten cronómetros sin una consulta de detalle por fila; son columnas propias del Npi, no colecciones, así que no violan "nunca traer todo el agregado"). Difiere del diseño de Fase 0: expone IDs de usuario (no nombres resueltos — el frontend los resuelve con `GET /api/users` cuando es admin) y usa camelCase real de la serialización, no los nombres de columna aquí listados originalmente.
 
 ### 3.3 `NpiDetailResponse`
-Todos los campos de captura + `rowVersion` + `lifecycleStatus` + `terminalReason?` + `engineeringAreaStatus` + `designAreaStatus` + los 4 objetos de timer (`{ elapsedMs, isRunning, isClosed }` — **calculado en el servidor al leer**, nunca un contador persistido) + hitos (`artesValidadasAt`, `printCardLoadedAt`, `codigoPT`, `ptName`, `pedidoSapNumber`, `etCreatedAt`, `etLoadedInSisproAt`) + resúmenes de colecciones (`feasibilityReviews[]`, `printCardVersions[]` con sus `approvals[]`, `changeRequests[]`, `informationRequests[]`, `comments[]`, `attachments[]`) + `assignedEngineering/Design/Commercial { id, fullName }`. Ninguna colección incluye contenido binario — los adjuntos exponen `{ id, fileName, contentType, sizeBytes, uploadedAt, uploadedByName, context, version, downloadUrl }`, donde `downloadUrl` es una ruta autenticada de descarga (§7), nunca un data URL embebido.
+Todos los campos de captura + `rowVersion` + `lifecycleStatus` + `terminalReason?` + `engineeringAreaStatus` + `designAreaStatus` + los 4 objetos de timer (`{ elapsedMs, isRunning, isClosed }` — **calculado en el servidor al leer**, nunca un contador persistido) + hitos (`artesValidadasAt`, `printCardLoadedAt`, `codigoPT`, `ptName`, `pedidoSapNumber`, `etCreatedAt`, `etLoadedInSisproAt`) + resúmenes de colecciones (`feasibilityReviews[]`, `printCardVersions[]` con sus `approvals[]`, `changeRequests[]`, `informationRequests[]`, `attachments[]`; los mensajes del chat van aparte, §5) + `assignedEngineering/Design/Commercial { id, fullName }`. Ninguna colección incluye contenido binario — los adjuntos exponen `{ id, fileName, contentType, sizeBytes, uploadedAt, uploadedByName, context, version, downloadUrl }`, donde `downloadUrl` es una ruta autenticada de descarga (§7), nunca un data URL embebido.
 
 ## 4. Acciones de workflow
 
@@ -86,12 +86,21 @@ Todas: `POST /api/npis/{id}/{accion}`, responden `200` con `NpiDetailResponse` a
 | `POST /api/npis/{id}/respond-commercial-information` | `{ responseText, responseAttachmentId? }` |
 | `POST /api/npis/{id}/cancel` | `{ reason }` |
 
-## 5. Comentarios
+## 5. Chat del NPI (antes "Comentarios")
+
+Los comentarios se convirtieron en el chat del NPI: misma ruta, misma tabla (`NpiComments`) y mismo historial. Los mensajes ya no forman parte del agregado `Npi` ni de `NpiDetailResponse` (se leen con su propio endpoint) y ya no generan un `AuditEvent` por mensaje.
 
 | Método/Ruta | Request | Response | Códigos |
 |---|---|---|---|
-| `GET /api/npis/{id}/comments` | paginado | página de `CommentResponse` | `200`, `403`, `404` |
-| `POST /api/npis/{id}/comments` | `{ text, attachmentIds? }` | `CommentResponse` | `201`, `400`, `403`, `404` (permitido incluso en estado terminal) |
+| `GET /api/npis/{id}/comments` | `?page&pageSize` (máx. 100) | página de `CommentDto`, del más reciente al más antiguo | `200`, `404` |
+| `POST /api/npis/{id}/comments` | `{ text, mentionedUserIds? }` | `CommentDto { id, npiId, authorUserId, authorName, text, createdAt, mentionedUserIds }` | `201`, `400` (vacío, > 4000 caracteres, > 10 menciones, o mención a alguien inactivo o sin acceso: `chat-invalid-mention`), `404`. Permitido incluso en estado terminal |
+| `POST /api/npis/{id}/comments/read` | — | — | `204`, `404`. Marca leído el chat para el usuario actual y su aviso agrupado de la campana |
+| `GET /api/npis/{id}/comments/participants` | — | `ChatParticipantDto[] { userId, fullName, area, isAssigned }`: usuarios activos que pueden ver el NPI, para el autocompletado de @ | `200`, `404` |
+| `GET /api/chat/unread` | — | `ChatUnreadDto[] { npiId, npiNumber, unreadCount, lastMessageAt }`: sólo NPIs donde el usuario es creador o responsable | `200` |
+
+**Avisos.** Mencionado con @ → campana **y correo**. Resto de participantes (creador y responsables de Comercial, Ingeniería y Diseño) → **un solo** aviso de campana por NPI (`Notifications.GroupKey = "chat:{npiId}"`) que se reescribe con el último mensaje mientras no se lea. Nunca se avisa a quien escribe.
+
+**Tiempo real (SignalR).** Hub en `/hubs/chat` (fuera de `/api`), autenticado con el mismo JWT; por WebSocket el token viaja en `?access_token=` y sólo se acepta en `/hubs`. Métodos del cliente: `JoinNpi(npiId)` (misma autorización que el detalle) y `LeaveNpi(npiId)`. Eventos del servidor: `MessagePosted(CommentDto)` al grupo del NPI y `ChatActivity({ npiId })` a los participantes y mencionados. El hub sólo empuja: toda escritura pasa por el `POST` de arriba. La conexión se cierra al vencer el access token y el cliente reconecta con uno nuevo. En IIS requiere la característica **Protocolo WebSocket** (sin ella SignalR cae a long polling).
 
 ## 6. Solicitudes de cambio e información (lectura)
 
