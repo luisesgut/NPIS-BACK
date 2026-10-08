@@ -11,4 +11,7 @@ public interface IUserDirectory
 
     /// <summary>Sólo Id y nombre de los usuarios indicados. Los ids que no existen no aparecen en el resultado.</summary>
     Task<IReadOnlyDictionary<Guid, string>> GetNamesAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken);
+
+    /// <summary>Área y estatus de un usuario, para validar asignaciones. null si no existe.</summary>
+    Task<UserSummaryDto?> FindAsync(Guid userId, CancellationToken cancellationToken);
 }

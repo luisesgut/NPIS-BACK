@@ -16,7 +16,7 @@ public sealed class ApproveEngineeringFeasibilityCommandHandler(INpiRepository r
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.ApproveEngineeringFeasibility(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.Note, command.ConfirmedFieldKeys);
+        npi.ApproveEngineeringFeasibility(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Note, command.ConfirmedFieldKeys);
         if (npi.AssignedDesignUserId is { } designerId)
             notifications.Notify(designerId, $"Ingeniería aprobó la factibilidad del NPI {npi.NpiNumber?.Value}.", npi.Id);
 
@@ -55,7 +55,7 @@ public sealed class RequestEngineeringChangesCommandHandler(INpiRepository repos
         if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RequestEngineeringChanges(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Description, command.FieldKeys);
-        notifications.Notify(npi.AssignedCommercialUserId, $"El NPI {npi.NpiNumber?.Value} requiere cambios.", npi.Id, NotificationChannel.BellAndEmail);
+        notifications.Notify(npi.AssignedCommercialUserId, NotificationText.ChangesRequested(npi.NpiNumber?.Value, command.FieldKeys.Count, command.Description), npi.Id, NotificationChannel.BellAndEmail);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));

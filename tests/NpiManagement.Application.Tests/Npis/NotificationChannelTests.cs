@@ -41,9 +41,10 @@ public class NotificationChannelTests
     {
         var (repo, npi, clock) = NewActiveNpi();
         var notifications = new FakeNotificationService();
-        var handler = new AssignEngineeringCommandHandler(repo, new FakeUnitOfWork(), clock, new MexicoBusinessCalendar(), notifications);
         var admin = new CurrentUser(Guid.NewGuid(), "AdminIngenieria", AreaType.Ingenieria);
         var engineerId = Guid.NewGuid();
+        var users = new FakeUserDirectory().With(engineerId, AreaType.Ingenieria, "UsuarioIngenieria");
+        var handler = new AssignEngineeringCommandHandler(repo, new FakeUnitOfWork(), clock, new MexicoBusinessCalendar(), notifications, users);
 
         await handler.HandleAsync(new AssignEngineeringCommand(npi.Id, admin, "Admin", engineerId), CancellationToken.None);
 

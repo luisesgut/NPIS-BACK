@@ -32,6 +32,16 @@ public sealed class ChangeRequestConfiguration : IEntityTypeConfiguration<Change
                 a => a.Aggregate(0, (hash, s) => HashCode.Combine(hash, s.GetHashCode())),
                 a => a.ToList()));
 
+        // Foto de la captura al pedir cambios y lo que Comercial corrigió al reenviar (JSON).
+        builder.Property(c => c.CaptureSnapshotJson);
+        builder.Property(c => c.ResolvedAt);
+        builder.Property(c => c.ResolvedByUserId);
+        builder.Property(c => c.ResolvedByName).HasMaxLength(200);
+        builder.Property(c => c.ResponseComment).HasMaxLength(2000);
+        builder.Property(c => c.ChangesAppliedJson);
+        builder.Ignore(c => c.IsResolved);
+        builder.Ignore(c => c.ChangesApplied);
+
         builder.Property<Guid>("NpiId").IsRequired();
         builder.HasIndex("NpiId");
     }

@@ -13,7 +13,7 @@ public class NpiSapAndCycleCompletionTests
         var clock = TestClock.MondayMorning();
         var npi = CreateWithFullyApprovedPrintCard(clock); // aprobado pero aún no cargado
 
-        var act = () => npi.RegisterSapPt(Engineer, clock, "PT-001", null);
+        var act = () => npi.RegisterSapPt(Engineer, clock, Calendar, "PT-001", null);
 
         act.Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("printcard-not-loaded");
     }
@@ -24,7 +24,7 @@ public class NpiSapAndCycleCompletionTests
         var clock = TestClock.MondayMorning();
         var npi = CreateWithPrintCardLoaded(clock);
 
-        var act = () => npi.RegisterSapOrder(Commercial, clock, "4500012345");
+        var act = () => npi.RegisterSapOrder(Commercial, clock, Calendar, "4500012345");
 
         act.Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("pt-not-registered");
     }
@@ -34,7 +34,7 @@ public class NpiSapAndCycleCompletionTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateWithPrintCardLoaded(clock);
-        npi.RegisterSapPt(Engineer, clock, "PT-001", "Nombre PT");
+        npi.RegisterSapPt(Engineer, clock, Calendar, "PT-001", "Nombre PT");
 
         var act = () => npi.RegisterEt(Engineer, clock);
 
@@ -46,8 +46,8 @@ public class NpiSapAndCycleCompletionTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateWithPrintCardLoaded(clock);
-        npi.RegisterSapPt(Engineer, clock, "PT-001", null);
-        npi.RegisterSapOrder(Commercial, clock, "4500012345");
+        npi.RegisterSapPt(Engineer, clock, Calendar, "PT-001", null);
+        npi.RegisterSapOrder(Commercial, clock, Calendar, "4500012345");
 
         var act = () => npi.LoadEtIntoSispro(Engineer, clock, Calendar);
 
@@ -59,8 +59,8 @@ public class NpiSapAndCycleCompletionTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateWithPrintCardLoaded(clock);
-        npi.RegisterSapPt(Engineer, clock, "PT-001", null);
-        npi.RegisterSapOrder(Commercial, clock, "4500012345");
+        npi.RegisterSapPt(Engineer, clock, Calendar, "PT-001", null);
+        npi.RegisterSapOrder(Commercial, clock, Calendar, "4500012345");
 
         npi.RegisterEt(Engineer, clock);
 
@@ -76,10 +76,10 @@ public class NpiSapAndCycleCompletionTests
         var npi = CreateWithPrintCardLoaded(clock); // 1) PrintCard cargado
         npi.LifecycleStatus.Should().Be(LifecycleStatus.Active);
 
-        npi.RegisterSapPt(Engineer, clock, "PT-001", "Nombre PT"); // 2) PT en SAP
+        npi.RegisterSapPt(Engineer, clock, Calendar, "PT-001", "Nombre PT"); // 2) PT en SAP
         npi.LifecycleStatus.Should().Be(LifecycleStatus.Active);
 
-        npi.RegisterSapOrder(Commercial, clock, "4500012345"); // 3) Pedido SAP
+        npi.RegisterSapOrder(Commercial, clock, Calendar, "4500012345"); // 3) Pedido SAP
         npi.LifecycleStatus.Should().Be(LifecycleStatus.Active);
 
         npi.RegisterEt(Engineer, clock);
@@ -97,10 +97,10 @@ public class NpiSapAndCycleCompletionTests
         var npi = CreateWithPrintCardLoaded(clock);
         npi.GlobalTimer.IsClosed.Should().BeFalse();
 
-        npi.RegisterSapPt(Engineer, clock, "PT-001", null);
+        npi.RegisterSapPt(Engineer, clock, Calendar, "PT-001", null);
         npi.GlobalTimer.IsClosed.Should().BeFalse();
 
-        npi.RegisterSapOrder(Commercial, clock, "4500012345");
+        npi.RegisterSapOrder(Commercial, clock, Calendar, "4500012345");
         npi.GlobalTimer.IsClosed.Should().BeFalse();
 
         npi.RegisterEt(Engineer, clock);
@@ -115,8 +115,8 @@ public class NpiSapAndCycleCompletionTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateWithPrintCardLoaded(clock);
-        npi.RegisterSapPt(Engineer, clock, "PT-001", null);
-        npi.RegisterSapOrder(Commercial, clock, "4500012345");
+        npi.RegisterSapPt(Engineer, clock, Calendar, "PT-001", null);
+        npi.RegisterSapOrder(Commercial, clock, Calendar, "4500012345");
         npi.RegisterEt(Engineer, clock);
 
         npi.LoadEtIntoSispro(Engineer, clock, Calendar);
@@ -129,12 +129,12 @@ public class NpiSapAndCycleCompletionTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateWithPrintCardLoaded(clock);
-        npi.RegisterSapPt(Engineer, clock, "PT-001", null);
-        npi.RegisterSapOrder(Commercial, clock, "4500012345");
+        npi.RegisterSapPt(Engineer, clock, Calendar, "PT-001", null);
+        npi.RegisterSapOrder(Commercial, clock, Calendar, "4500012345");
         npi.RegisterEt(Engineer, clock);
         npi.LoadEtIntoSispro(Engineer, clock, Calendar);
 
-        var act = () => npi.RegisterSapPt(Engineer, clock, "PT-002", null);
+        var act = () => npi.RegisterSapPt(Engineer, clock, Calendar, "PT-002", null);
 
         act.Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("npi-terminal");
     }

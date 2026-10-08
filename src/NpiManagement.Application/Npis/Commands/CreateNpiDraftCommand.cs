@@ -8,10 +8,13 @@ namespace NpiManagement.Application.Npis.Commands;
 /// <summary>Acción 1 de workflow.md — Crear borrador. Actor siempre viene del token, nunca del body.</summary>
 public sealed record CreateNpiDraftCommand(Guid ActorUserId, string ActorRole, string ActorName, NpiCaptureDto Capture, Priority Priority, Guid? PreAssignedEngineeringUserId);
 
-public sealed class CreateNpiDraftCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock)
+public sealed class CreateNpiDraftCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IUserDirectory userDirectory)
 {
     public async Task<Guid> HandleAsync(CreateNpiDraftCommand command, CancellationToken cancellationToken)
     {
+        if (command.PreAssignedEngineeringUserId is { } engineerId)
+            await AssigneeGuard.EnsureAssignableAsync(userDirectory, engineerId, AreaType.Ingenieria, cancellationToken);
+
         var actor = new Actor(command.ActorUserId, command.ActorRole, command.ActorName);
         var npi = Npi.CreateDraft(Guid.NewGuid(), actor, clock, command.Capture.ToDomain(), command.Priority, command.PreAssignedEngineeringUserId);
 

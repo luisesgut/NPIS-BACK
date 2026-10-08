@@ -19,7 +19,7 @@ public class AddCommentCommandHandlerTests
         var creatorId = Guid.NewGuid();
         var npi = Npi.CreateDraft(Guid.NewGuid(), new Actor(creatorId, "UsuarioComercial", "Creador"), TestClock.Default(), new NpiCaptureDto().ToDomain(), Priority.Media);
         repo.Add(npi);
-        var handler = new AddCommentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default());
+        var handler = new AddCommentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeNotificationService());
         var actor = new CurrentUser(creatorId, "UsuarioComercial", AreaType.Comercial);
 
         var comment = await handler.HandleAsync(new AddCommentCommand(npi.Id, actor, "Creador", "Falta información de compras"), CancellationToken.None);
@@ -40,7 +40,7 @@ public class AddCommentCommandHandlerTests
         npi.RejectNoFeasibility(actorDomain, clock, new MexicoBusinessCalendar(), null);
         repo.Add(npi);
 
-        var handler = new AddCommentCommandHandler(repo, new FakeUnitOfWork(), clock);
+        var handler = new AddCommentCommandHandler(repo, new FakeUnitOfWork(), clock, new FakeNotificationService());
         var actor = new CurrentUser(creatorId, "UsuarioComercial", AreaType.Comercial);
 
         var act = async () => await handler.HandleAsync(new AddCommentCommand(npi.Id, actor, "Creador", "Nota histórica tras el cierre"), CancellationToken.None);
@@ -55,7 +55,7 @@ public class AddCommentCommandHandlerTests
         var creatorId = Guid.NewGuid();
         var npi = Npi.CreateDraft(Guid.NewGuid(), new Actor(creatorId, "UsuarioComercial", "Creador"), TestClock.Default(), new NpiCaptureDto().ToDomain(), Priority.Media);
         repo.Add(npi);
-        var handler = new AddCommentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default());
+        var handler = new AddCommentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeNotificationService());
         var stranger = new CurrentUser(Guid.NewGuid(), "UsuarioComercial", AreaType.Comercial);
 
         var act = async () => await handler.HandleAsync(new AddCommentCommand(npi.Id, stranger, "Extraño", "Intento no autorizado"), CancellationToken.None);

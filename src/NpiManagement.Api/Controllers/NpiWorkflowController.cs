@@ -42,8 +42,8 @@ public sealed class NpiWorkflowController(
 {
     [HttpPost("submit")]
     [Authorize(Policy = "AreaComercial")]
-    public Task<NpiDetailDto> Submit(Guid id, CancellationToken cancellationToken) =>
-        submitHandler.HandleAsync(new SubmitNpiCommand(id, User.ToCurrentUser(), User.DisplayName()), cancellationToken);
+    public Task<NpiDetailDto> Submit(Guid id, [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] SubmitNpiRequest? request, CancellationToken cancellationToken) =>
+        submitHandler.HandleAsync(new SubmitNpiCommand(id, User.ToCurrentUser(), User.DisplayName(), request?.Comment), cancellationToken);
 
     [HttpPost("assign-engineering")]
     [Authorize(Policy = "AreaIngenieria")]

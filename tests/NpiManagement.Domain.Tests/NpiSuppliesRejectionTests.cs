@@ -25,7 +25,7 @@ public class NpiSuppliesRejectionTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
-        npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
 
         var act = () => npi.RejectSuppliesTemporary(Engineer, clock, Calendar, null);
 

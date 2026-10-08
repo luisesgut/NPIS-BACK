@@ -25,7 +25,12 @@ public sealed class UsersController(IUserDirectory userDirectory, IUserAdminServ
         var user = User.ToCurrentUser();
         // Los admins de área sólo consultan su propia área, aun si piden otra por query string
         // (AdminTotal es el único que puede consultar cualquier área) — docs/api-contract.md §2.
-        var effectiveArea = user.Role == ApplicationRoles.AdminTotal ? area : user.Area;
+        // Excepción: AdminComercial consulta Ingeniería para preasignar ingeniero al crear el NPI;
+        // antes recibía su propia área y el selector "Ingeniero asignado" listaba vendedores.
+        var effectiveArea = user.Role == ApplicationRoles.AdminTotal
+            || (user.Role == ApplicationRoles.AdminComercial && area == AreaType.Ingenieria)
+            ? area
+            : user.Area;
 
         var users = await userDirectory.ListAsync(effectiveArea, cancellationToken);
         return Ok(users);

@@ -14,7 +14,7 @@ public class CreateNpiDraftCommandHandlerTests
     {
         var repository = new FakeNpiRepository();
         var unitOfWork = new FakeUnitOfWork();
-        var handler = new CreateNpiDraftCommandHandler(repository, unitOfWork, TestClock.Default());
+        var handler = new CreateNpiDraftCommandHandler(repository, unitOfWork, TestClock.Default(), new FakeUserDirectory());
         var actorId = Guid.NewGuid();
 
         var command = new CreateNpiDraftCommand(
@@ -36,8 +36,9 @@ public class CreateNpiDraftCommandHandlerTests
     public async Task Preassigns_engineering_when_requested()
     {
         var repository = new FakeNpiRepository();
-        var handler = new CreateNpiDraftCommandHandler(repository, new FakeUnitOfWork(), TestClock.Default());
         var engineerId = Guid.NewGuid();
+        var users = new FakeUserDirectory().With(engineerId, AreaType.Ingenieria, "UsuarioIngenieria");
+        var handler = new CreateNpiDraftCommandHandler(repository, new FakeUnitOfWork(), TestClock.Default(), users);
 
         var command = new CreateNpiDraftCommand(
             Guid.NewGuid(), "UsuarioComercial", "Comercial Uno",

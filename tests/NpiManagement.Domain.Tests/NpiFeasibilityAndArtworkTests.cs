@@ -13,7 +13,7 @@ public class NpiFeasibilityAndArtworkTests
         var clock = TestClock.MondayMorning();
         var npi = CreateActive(clock); // sin asignar
 
-        var act = () => npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        var act = () => npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
 
         act.Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("engineering-not-assigned");
     }
@@ -37,7 +37,7 @@ public class NpiFeasibilityAndArtworkTests
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
 
-        var act = () => npi.ApproveEngineeringFeasibility(Engineer, clock, "Ok ingeniería");
+        var act = () => npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, "Ok ingeniería");
 
         act.Should().NotThrow("las factibilidades son independientes y paralelas (decisión 1)");
         npi.EngineeringFeasibility.Should().NotBeNull();
@@ -49,9 +49,9 @@ public class NpiFeasibilityAndArtworkTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
-        npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
 
-        var act = () => npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        var act = () => npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
 
         act.Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("engineering-feasibility-already-approved");
     }
@@ -73,7 +73,7 @@ public class NpiFeasibilityAndArtworkTests
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
 
-        npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
 
         npi.DesignTimer.HasStarted.Should().BeFalse("falta Artes Validadas (invariante 6)");
     }
@@ -85,7 +85,7 @@ public class NpiFeasibilityAndArtworkTests
         var npi = CreateActiveAssigned(clock);
         npi.ValidateArtwork(Designer, clock);
 
-        npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
 
         npi.DesignTimer.IsRunning.Should().BeTrue();
     }
@@ -95,7 +95,7 @@ public class NpiFeasibilityAndArtworkTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
-        npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
 
         npi.ValidateArtwork(Designer, clock);
 

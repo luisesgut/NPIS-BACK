@@ -15,7 +15,7 @@ namespace NpiManagement.Application.Npis.Commands;
 /// </summary>
 public sealed record RegisterAttachmentCommand(Guid NpiId, CurrentUser Actor, string ActorName, string FileName, string ContentType, long DeclaredSizeBytes, Stream Content, AttachmentContext Context);
 
-public sealed class RegisterAttachmentCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IFileStorage fileStorage, IAttachmentPolicy policy)
+public sealed class RegisterAttachmentCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IFileStorage fileStorage, IAttachmentPolicy policy, INotificationService notifications)
 {
     public async Task<AttachmentDto> HandleAsync(RegisterAttachmentCommand command, CancellationToken cancellationToken)
     {
@@ -48,10 +48,11 @@ public sealed class RegisterAttachmentCommandHandler(INpiRepository repository, 
 
         var actor = new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName);
         var attachment = npi.RegisterAttachment(actor, clock, sanitizedFileName, command.ContentType, stored.SizeBytes, stored.StorageKey, stored.Sha256Hash, command.Context);
+        ArtworkNotifier.NotifyIfNeeded(notifications, npi, command.Context, command.Actor.UserId);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new AttachmentDto(attachment.Id, attachment.FileName, attachment.ContentType, attachment.SizeBytes, attachment.Context.ToString(), attachment.Version, attachment.UploadedByUserId, attachment.UploadedAt);
+        return NpiMapper.ToAttachmentDto(attachment);
     }
 
     private static string FormatMaxSize(long maxSizeBytes) => $"{maxSizeBytes / (1024 * 1024)} MB";

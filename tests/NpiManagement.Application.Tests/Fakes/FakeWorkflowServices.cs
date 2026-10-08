@@ -41,4 +41,14 @@ public sealed class FakeUserDirectory : IUserDirectory
 
     public Task<IReadOnlyDictionary<Guid, string>> GetNamesAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyDictionary<Guid, string>>(Users.Where(u => userIds.Contains(u.Id)).ToDictionary(u => u.Id, u => u.FullName));
+
+    public Task<UserSummaryDto?> FindAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult(Users.FirstOrDefault(u => u.Id == userId));
+
+    /// <summary>Agrega un usuario activo del área indicada (las asignaciones exigen uno).</summary>
+    public FakeUserDirectory With(Guid id, AreaType area, string role = "", UserStatus status = UserStatus.Active)
+    {
+        Users.Add(new UserSummaryDto(id, $"Usuario {area}", $"{id:N}@bioflex.mx", role, area, status));
+        return this;
+    }
 }

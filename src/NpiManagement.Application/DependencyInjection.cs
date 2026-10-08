@@ -51,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<AddCommentCommandHandler>();
         services.AddScoped<GetNpiCommentsQueryHandler>();
         services.AddScoped<RegisterAttachmentCommandHandler>();
+        services.AddScoped<RegisterLinkCommandHandler>();
         services.AddScoped<GetAttachmentForDownloadQueryHandler>();
 
         // Fase 7 — tablero de control.

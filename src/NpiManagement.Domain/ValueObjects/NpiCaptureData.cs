@@ -31,6 +31,10 @@ public sealed record NpiCaptureData
     public string TipoEmpaque { get; init; } = string.Empty;
 
     // Producto
+    /// <summary>Unidad en que el vendedor capturó las medidas (mm, cm, pulg). Los valores siempre se guardan convertidos a mm; vacío = mm.</summary>
+    public string UnidadMedidas { get; init; } = string.Empty;
+    /// <summary>Unidad en que se capturó el calibre (micras, galgas, mils). Los valores siempre se guardan convertidos a micras; vacío = micras.</summary>
+    public string UnidadCalibre { get; init; } = string.Empty;
     public string Ancho { get; init; } = string.Empty;
     public string Alto { get; init; } = string.Empty;
     public string FuelleExtendido { get; init; } = string.Empty;
@@ -62,6 +66,15 @@ public sealed record NpiCaptureData
     public string PatronPerforado { get; init; } = "NO";
     public string ParcheRefuerzo { get; init; } = "NO";
     public string Suaje { get; init; } = "NO";
+    /// <summary>Columna "DIMENSIONES (mm)" de cada elemento en el formato VTS-FOR-01 (texto libre, ej. "2 mm").</summary>
+    public string ColgaderaDimensiones { get; init; } = string.Empty;
+    public string MuescaDimensiones { get; init; } = string.Empty;
+    public string PrecorteDimensiones { get; init; } = string.Empty;
+    public string PatronPerforadoDimensiones { get; init; } = string.Empty;
+    public string ParcheRefuerzoDimensiones { get; init; } = string.Empty;
+    public string SuajeDimensiones { get; init; } = string.Empty;
+    public string CierreDimensiones { get; init; } = string.Empty;
+    public string OtrosElementosDimensiones { get; init; } = string.Empty;
     public string AplicaPieDeCasa { get; init; } = "NO";
 
     // Empaque y Embalaje

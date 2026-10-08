@@ -12,7 +12,7 @@ public class NpiInformationRequestTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
-        npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
         npi.ValidateArtwork(Designer, clock); // DesignTimer corriendo
 
         npi.RequestInformation(Designer, clock, Calendar, InformationRequestType.Client, "Necesitamos el color Pantone exacto");
@@ -26,7 +26,7 @@ public class NpiInformationRequestTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
-        npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
         npi.ValidateArtwork(Designer, clock);
 
         npi.RequestInformation(Designer, clock, Calendar, InformationRequestType.Commercial, "¿Cuál es el contacto de compras?");
@@ -52,7 +52,7 @@ public class NpiInformationRequestTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
-        npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
         npi.ValidateArtwork(Designer, clock);
         npi.RequestInformation(Designer, clock, Calendar, InformationRequestType.Client, "Pregunta");
 
@@ -90,7 +90,7 @@ public class NpiInformationRequestTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
-        npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
         npi.ValidateArtwork(Designer, clock);
         npi.RequestInformation(Designer, clock, Calendar, InformationRequestType.Commercial, "Pregunta");
 

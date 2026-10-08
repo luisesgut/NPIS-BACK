@@ -27,7 +27,7 @@ public class RegisterAttachmentCommandHandlerTests
     public async Task Registers_a_valid_pdf_and_returns_its_metadata()
     {
         var (repo, npiId, creatorId) = await SeedNpiAsync();
-        var handler = new RegisterAttachmentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeFileStorage(), new FakeAttachmentPolicy());
+        var handler = new RegisterAttachmentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeFileStorage(), new FakeAttachmentPolicy(), new FakeNotificationService());
         var actor = new CurrentUser(creatorId, "UsuarioComercial", AreaType.Comercial);
 
         var result = await handler.HandleAsync(new RegisterAttachmentCommand(
@@ -46,7 +46,7 @@ public class RegisterAttachmentCommandHandlerTests
     public async Task Rejects_a_disallowed_content_type()
     {
         var (repo, npiId, creatorId) = await SeedNpiAsync();
-        var handler = new RegisterAttachmentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeFileStorage(), new FakeAttachmentPolicy());
+        var handler = new RegisterAttachmentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeFileStorage(), new FakeAttachmentPolicy(), new FakeNotificationService());
         var actor = new CurrentUser(creatorId, "UsuarioComercial", AreaType.Comercial);
 
         var act = async () => await handler.HandleAsync(new RegisterAttachmentCommand(
@@ -61,7 +61,7 @@ public class RegisterAttachmentCommandHandlerTests
     {
         var (repo, npiId, creatorId) = await SeedNpiAsync();
         var policy = new FakeAttachmentPolicy { MaxSizeBytes = 5 };
-        var handler = new RegisterAttachmentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeFileStorage(), policy);
+        var handler = new RegisterAttachmentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeFileStorage(), policy, new FakeNotificationService());
         var actor = new CurrentUser(creatorId, "UsuarioComercial", AreaType.Comercial);
 
         var act = async () => await handler.HandleAsync(new RegisterAttachmentCommand(
@@ -75,7 +75,7 @@ public class RegisterAttachmentCommandHandlerTests
     public async Task Rejects_content_whose_signature_does_not_match_the_declared_type()
     {
         var (repo, npiId, creatorId) = await SeedNpiAsync();
-        var handler = new RegisterAttachmentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeFileStorage(), new FakeAttachmentPolicy());
+        var handler = new RegisterAttachmentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeFileStorage(), new FakeAttachmentPolicy(), new FakeNotificationService());
         var actor = new CurrentUser(creatorId, "UsuarioComercial", AreaType.Comercial);
         var fakeJpegBytes = new byte[] { 0x00, 0x00, 0x00, 0x00 }; // no es realmente un JPEG
 
@@ -90,7 +90,7 @@ public class RegisterAttachmentCommandHandlerTests
     public async Task An_unrelated_user_cannot_attach_to_someone_elses_npi()
     {
         var (repo, npiId, _) = await SeedNpiAsync();
-        var handler = new RegisterAttachmentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeFileStorage(), new FakeAttachmentPolicy());
+        var handler = new RegisterAttachmentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeFileStorage(), new FakeAttachmentPolicy(), new FakeNotificationService());
         var stranger = new CurrentUser(Guid.NewGuid(), "UsuarioComercial", AreaType.Comercial);
 
         var act = async () => await handler.HandleAsync(new RegisterAttachmentCommand(

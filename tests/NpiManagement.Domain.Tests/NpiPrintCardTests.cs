@@ -20,7 +20,7 @@ public class NpiPrintCardTests
         var npi = CreateActive(clock);
         npi.AssignEngineering(Engineer.UserId, EngineeringAdmin, clock);
         if (assignDesign) npi.AssignDesign(Designer.UserId, DesignAdmin, clock);
-        if (engFeasible) npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        if (engFeasible) npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
         if (designFeasible && assignDesign) npi.ApproveDesignFeasibility(Designer, clock, null);
         if (artworkValidated && assignDesign) npi.ValidateArtwork(Designer, clock);
 
@@ -126,7 +126,7 @@ public class NpiPrintCardTests
         npi.SendPrintCardToClient(Commercial, clock);
 
         // El cliente pide cambios en vez de aprobar: la v1 queda con 2 aprobaciones, nunca las 3.
-        npi.RequestClientChanges(Commercial, clock, "El cliente pide otro color");
+        npi.RequestClientChanges(Commercial, clock, Calendar, "El cliente pide otro color");
         npi.CreatePrintCardVersion(Designer, clock, Calendar, "PC-0002", null, null);
 
         npi.PrintCardVersions.Should().HaveCount(2);

@@ -19,6 +19,9 @@ public sealed class GetAttachmentForDownloadQueryHandler(INpiRepository reposito
         var attachment = npi.Attachments.FirstOrDefault(a => a.Id == query.AttachmentId)
             ?? throw new NotFoundException("Attachment", query.AttachmentId);
 
+        if (attachment.IsLink)
+            throw new RequestValidationException("attachment-is-link", "Este adjunto es un link: ábrelo directamente desde la lista de adjuntos.");
+
         var content = await fileStorage.OpenReadAsync(attachment.StorageKey, cancellationToken);
         return new AttachmentDownload(content, attachment.FileName, attachment.ContentType);
     }

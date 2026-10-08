@@ -101,7 +101,7 @@ public sealed class RequestClientChangesCommandHandler(INpiRepository repository
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.RequestClientChanges(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.Description);
+        npi.RequestClientChanges(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Description);
         if (npi.AssignedDesignUserId is { } designerId)
             notifications.Notify(designerId, $"El cliente solicitó cambios al PrintCard del NPI {npi.NpiNumber?.Value}.", npi.Id, NotificationChannel.BellAndEmail);
 

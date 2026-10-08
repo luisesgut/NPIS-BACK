@@ -24,6 +24,8 @@ public sealed class AttachmentConfiguration : IEntityTypeConfiguration<Attachmen
         builder.Property(a => a.UploadedAt).IsRequired();
         builder.Property(a => a.UploadedByUserId).IsRequired();
         builder.Property(a => a.Version).IsRequired();
+        builder.Property(a => a.Url).HasMaxLength(2000);
+        builder.Ignore(a => a.IsLink);
 
         builder.Property<Guid>("NpiId").IsRequired();
         builder.HasIndex("NpiId");

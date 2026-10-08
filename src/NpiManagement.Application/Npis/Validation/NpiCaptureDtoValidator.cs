@@ -13,6 +13,10 @@ public sealed class NpiCaptureDtoValidator : AbstractValidator<NpiCaptureDto>
 {
     private static readonly string[] LongTextFields = [nameof(NpiCaptureDto.Observaciones), nameof(NpiCaptureDto.NotasEmpaqueEmbalaje)];
 
+    /// <summary>Unidades que el formulario ofrece; vacío = la unidad base (mm / micras).</summary>
+    public static readonly string[] UnidadesMedidas = ["", "mm", "cm", "pulg"];
+    public static readonly string[] UnidadesCalibre = ["", "micras", "galgas", "mils"];
+
     public NpiCaptureDtoValidator()
     {
         foreach (var property in typeof(NpiCaptureDto).GetProperties())
@@ -24,5 +28,10 @@ public sealed class NpiCaptureDtoValidator : AbstractValidator<NpiCaptureDto>
                 .WithName(property.Name)
                 .WithMessage($"{property.Name} no puede exceder {maxLength} caracteres.");
         }
+
+        RuleFor(x => x.UnidadMedidas).Must(u => UnidadesMedidas.Contains(u))
+            .WithMessage("Unidad de medidas no válida. Usa mm, cm o pulg.");
+        RuleFor(x => x.UnidadCalibre).Must(u => UnidadesCalibre.Contains(u))
+            .WithMessage("Unidad de calibre no válida. Usa micras, galgas o mils.");
     }
 }

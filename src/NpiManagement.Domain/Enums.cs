@@ -70,6 +70,8 @@ public enum AttachmentContext
     Insumos = 6,
     PrintCard = 7,
     ClientRejection = 8,
+    /// <summary>Artes o archivos de referencia del NPI (típicamente links a archivos pesados).</summary>
+    Artwork = 9,
 }
 
 public enum TimerStage

@@ -16,7 +16,7 @@ public sealed class RegisterSapPtCommandHandler(INpiRepository repository, IUnit
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.RegisterSapPt(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.CodigoPT, command.PtName);
+        npi.RegisterSapPt(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.CodigoPT, command.PtName);
         notifications.Notify(npi.AssignedCommercialUserId, $"NPI {npi.NpiNumber?.Value}: PT {command.CodigoPT} en SAP — registre el número de Pedido.", npi.Id, NotificationChannel.BellAndEmail);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -34,7 +34,7 @@ public sealed class RegisterSapOrderCommandHandler(INpiRepository repository, IU
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.RegisterSapOrder(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.PedidoSapNumber);
+        npi.RegisterSapOrder(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.PedidoSapNumber);
         if (npi.AssignedEngineeringUserId is { } engineerId)
             notifications.Notify(engineerId, $"NPI {npi.NpiNumber?.Value}: Pedido en SAP {command.PedidoSapNumber} registrado — puede crear la ET.", npi.Id, NotificationChannel.BellAndEmail);
 

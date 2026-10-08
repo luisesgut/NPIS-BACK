@@ -144,7 +144,7 @@ public sealed class Npi
     }
 
     /// <summary>Acción 3 — Enviar NPI. Primer envío requiere el folio ya asignado por Infrastructure (SEQUENCE de SQL Server).</summary>
-    public void Submit(Actor actor, IClock clock, IBusinessCalendar calendar, ValueObjects.NpiNumber? assignedNumberIfFirstSubmission = null)
+    public void Submit(Actor actor, IClock clock, IBusinessCalendar calendar, ValueObjects.NpiNumber? assignedNumberIfFirstSubmission = null, string? comment = null)
     {
         var now = clock.UtcNow;
 
@@ -169,12 +169,15 @@ public sealed class Npi
 
         if (LifecycleStatus == Domain.LifecycleStatus.Active && EngineeringAreaStatus == EngineeringAreaStatus.ChangesRequested)
         {
+            if (comment is { Length: > 2000 })
+                throw new NpiValidationException("resubmit-comment-too-long", "El comentario para Ingeniería no puede exceder 2000 caracteres.");
+            // Registra qué corrigió Comercial respecto a lo que Ingeniería vio al pedir los cambios.
+            PendingEngineeringChangeRequest?.Resolve(actor, now, comment, Capture);
+
             EngineeringAreaStatus = AssignedEngineeringUserId is not null ? EngineeringAreaStatus.Assigned : EngineeringAreaStatus.Requested;
 
-            EngineeringTimer = EngineeringTimer.StartOrResume(clock);
-            CommercialTimer = CommercialTimer.Pause(clock, calendar);
-            AppendTimerEvent(TimerStage.Engineering, TimerAction.Resume, now, actor.UserId);
-            AppendTimerEvent(TimerStage.Commercial, TimerAction.Pause, now, actor.UserId);
+            if (EngineeringHasPendingWork) ResumeTimer(TimerStage.Engineering, actor, clock, now);
+            PauseTimer(TimerStage.Commercial, actor, clock, calendar, now);
 
             Audit(actor, now, "NpiResubmittedAfterChanges", null);
             return;
@@ -216,7 +219,7 @@ public sealed class Npi
     }
 
     /// <summary>Acción 7 — Factibilidad de Ingeniería. Independiente de la de Diseño (decisión 1).</summary>
-    public void ApproveEngineeringFeasibility(Actor actor, IClock clock, string? note, IReadOnlyList<string>? confirmedFieldKeys = null)
+    public void ApproveEngineeringFeasibility(Actor actor, IClock clock, IBusinessCalendar calendar, string? note, IReadOnlyList<string>? confirmedFieldKeys = null)
     {
         EnsureNotTerminal();
         if (AssignedEngineeringUserId is null)
@@ -228,6 +231,9 @@ public sealed class Npi
         _feasibilityReviews.Add(new FeasibilityReview(Guid.NewGuid(), AreaType.Ingenieria, actor.UserId, actor.Name, now, note, confirmedFieldKeys));
         EngineeringAreaStatus = EngineeringAreaStatus.FeasibilityApproved;
 
+        // Con la factibilidad aprobada, la pelota pasa a Diseño/Comercial/cliente (PrintCard):
+        // Ingeniería no carga ese tiempo. Se reanuda al cargar el PrintCard en sistema.
+        PauseTimer(TimerStage.Engineering, actor, clock, calendar, now);
         TryStartDesignTimer(actor, clock, now);
 
         Audit(actor, now, "EngineeringFeasibilityApproved", note);
@@ -259,7 +265,7 @@ public sealed class Npi
             throw new NpiValidationException("change-request-empty", "Debe incluir una descripción o al menos un campo a modificar.");
 
         var now = clock.UtcNow;
-        _changeRequests.Add(new ChangeRequest(Guid.NewGuid(), actor.UserId, actor.Name, now, AreaType.Ingenieria, AreaType.Comercial, ChangeRequestOrigin.Internal, description, fieldKeys));
+        _changeRequests.Add(new ChangeRequest(Guid.NewGuid(), actor.UserId, actor.Name, now, AreaType.Ingenieria, AreaType.Comercial, ChangeRequestOrigin.Internal, description, fieldKeys, ChangeRequest.SnapshotOf(Capture)));
         EngineeringAreaStatus = EngineeringAreaStatus.ChangesRequested;
 
         EngineeringTimer = EngineeringTimer.Pause(clock, calendar);
@@ -302,6 +308,79 @@ public sealed class Npi
         TryStartDesignTimer(actor, clock, now);
 
         Audit(actor, now, "ArtworkValidated", null);
+    }
+
+    /// <summary>
+    /// Reanuda Diseño si ya había arrancado; si no, sólo lo arranca cuando se cumplen sus
+    /// condiciones (TryStartDesignTimer). Nunca lo arranca antes de tiempo ni reabre uno cerrado.
+    /// </summary>
+    private void ResumeDesignTimer(Actor actor, IClock clock, DateTimeOffset now)
+    {
+        if (!DesignTimer.HasStarted) { TryStartDesignTimer(actor, clock, now); return; }
+        if (DesignTimer.IsRunning || DesignTimer.IsClosed) return;
+        DesignTimer = DesignTimer.StartOrResume(clock);
+        AppendTimerEvent(TimerStage.Design, TimerAction.Resume, now, actor.UserId);
+    }
+
+    /// <summary>La última solicitud de cambios de Ingeniería a Comercial que aún no se atiende.</summary>
+    private ChangeRequest? PendingEngineeringChangeRequest =>
+        _changeRequests
+            .Where(c => c.FromArea == AreaType.Ingenieria && c.ToArea == AreaType.Comercial && !c.IsResolved)
+            .OrderByDescending(c => c.RequestedAt)
+            .FirstOrDefault();
+
+    /// <summary>
+    /// Tramos en que la pelota está en la cancha de Ingeniería: antes de su factibilidad, entre
+    /// el PrintCard cargado y el PT, y entre el Pedido SAP y la ET en SisPro. Fuera de ellos su
+    /// reloj va en pausa (espera a Diseño, al cliente o a Comercial).
+    /// </summary>
+    private bool EngineeringHasPendingWork =>
+        EngineeringFeasibility is null
+        || (PrintCardLoadedAt is not null && PtRegisteredAt is null)
+        || (PedidoSapRegisteredAt is not null && EtLoadedInSisproAt is null);
+
+    /// <summary>Reanuda un reloj que ya arrancó y está en pausa (nunca arranca uno nuevo ni reabre uno cerrado).</summary>
+    private void ResumeTimer(TimerStage stage, Actor actor, IClock clock, DateTimeOffset now)
+    {
+        var timer = stage switch
+        {
+            TimerStage.Commercial => CommercialTimer,
+            TimerStage.Design => DesignTimer,
+            TimerStage.Engineering => EngineeringTimer,
+            _ => GlobalTimer,
+        };
+        if (!timer.HasStarted || timer.IsRunning || timer.IsClosed) return;
+        var resumed = timer.StartOrResume(clock);
+        switch (stage)
+        {
+            case TimerStage.Commercial: CommercialTimer = resumed; break;
+            case TimerStage.Design: DesignTimer = resumed; break;
+            case TimerStage.Engineering: EngineeringTimer = resumed; break;
+            default: GlobalTimer = resumed; break;
+        }
+        AppendTimerEvent(stage, TimerAction.Resume, now, actor.UserId);
+    }
+
+    /// <summary>Pausa un reloj y registra el evento sólo si de verdad estaba corriendo (la Cronología no muestra pausas fantasma).</summary>
+    private void PauseTimer(TimerStage stage, Actor actor, IClock clock, IBusinessCalendar calendar, DateTimeOffset now)
+    {
+        var timer = stage switch
+        {
+            TimerStage.Commercial => CommercialTimer,
+            TimerStage.Design => DesignTimer,
+            TimerStage.Engineering => EngineeringTimer,
+            _ => GlobalTimer,
+        };
+        if (!timer.IsRunning) return;
+        var paused = timer.Pause(clock, calendar);
+        switch (stage)
+        {
+            case TimerStage.Commercial: CommercialTimer = paused; break;
+            case TimerStage.Design: DesignTimer = paused; break;
+            case TimerStage.Engineering: EngineeringTimer = paused; break;
+            default: GlobalTimer = paused; break;
+        }
+        AppendTimerEvent(stage, TimerAction.Pause, now, actor.UserId);
     }
 
     /// <summary>Arranca DesignTimer si ambas condiciones (Ing. factible + Artes Validadas) ya se cumplen (invariante 6).</summary>
@@ -394,7 +473,7 @@ public sealed class Npi
     }
 
     /// <summary>Acción 15 — Cliente solicita cambios (registrado por Comercial, no terminal).</summary>
-    public void RequestClientChanges(Actor actor, IClock clock, string description)
+    public void RequestClientChanges(Actor actor, IClock clock, IBusinessCalendar calendar, string description)
     {
         EnsureNotTerminal();
         if (string.IsNullOrWhiteSpace(description))
@@ -407,6 +486,11 @@ public sealed class Npi
         var now = clock.UtcNow;
         _changeRequests.Add(new ChangeRequest(Guid.NewGuid(), actor.UserId, actor.Name, now, AreaType.Comercial, AreaType.Diseno, ChangeRequestOrigin.ClientReported, description, []));
         DesignAreaStatus = ArtesValidadasAt is not null ? DesignAreaStatus.ArtesValidadas : DesignAreaStatus.FeasibilityApproved;
+
+        // Rehacer la versión es trabajo de Diseño: antes el reloj seguía corriendo para Comercial
+        // (lo había arrancado CreatePrintCardVersion) y Diseño quedaba en pausa.
+        PauseTimer(TimerStage.Commercial, actor, clock, calendar, now);
+        ResumeDesignTimer(actor, clock, now);
 
         Audit(actor, now, "ClientChangesRequested", description);
     }
@@ -447,12 +531,13 @@ public sealed class Npi
 
         DesignTimer = DesignTimer.Close(clock, calendar);
         AppendTimerEvent(TimerStage.Design, TimerAction.Close, now, actor.UserId, DesignTimer.AccumulatedBusinessMs);
+        ResumeTimer(TimerStage.Engineering, actor, clock, now); // le toca registrar el PT
 
         Audit(actor, now, "PrintCardLoadedInSystem", null);
     }
 
     /// <summary>Acción 18 — Registrar PT en SAP.</summary>
-    public void RegisterSapPt(Actor actor, IClock clock, string codigoPT, string? ptName)
+    public void RegisterSapPt(Actor actor, IClock clock, IBusinessCalendar calendar, string codigoPT, string? ptName)
     {
         EnsureNotTerminal();
         if (string.IsNullOrWhiteSpace(codigoPT))
@@ -468,12 +553,15 @@ public sealed class Npi
         PtRegisteredAt = now;
         PtRegisteredByUserId = actor.UserId;
         EngineeringAreaStatus = EngineeringAreaStatus.PtRegistered;
+        PauseTimer(TimerStage.Engineering, actor, clock, calendar, now); // espera el Pedido de Comercial
+        CommercialTimer = CommercialTimer.StartOrResume(clock);              // le toca registrar el Pedido
+        AppendTimerEvent(TimerStage.Commercial, TimerAction.Resume, now, actor.UserId);
 
         Audit(actor, now, "SapPtRegistered", codigoPT);
     }
 
     /// <summary>Acción 19 — Registrar Pedido en SAP.</summary>
-    public void RegisterSapOrder(Actor actor, IClock clock, string pedidoSapNumber)
+    public void RegisterSapOrder(Actor actor, IClock clock, IBusinessCalendar calendar, string pedidoSapNumber)
     {
         EnsureNotTerminal();
         if (string.IsNullOrWhiteSpace(pedidoSapNumber))
@@ -487,6 +575,8 @@ public sealed class Npi
         PedidoSapNumber = pedidoSapNumber;
         PedidoSapRegisteredAt = now;
         PedidoSapRegisteredByUserId = actor.UserId;
+        PauseTimer(TimerStage.Commercial, actor, clock, calendar, now);
+        ResumeTimer(TimerStage.Engineering, actor, clock, now); // le toca la ET
 
         Audit(actor, now, "SapOrderRegistered", pedidoSapNumber);
     }
@@ -567,6 +657,9 @@ public sealed class Npi
             DesignTimer = DesignTimer.Pause(clock, calendar);
             AppendTimerEvent(TimerStage.Design, TimerAction.Pause, now, actor.UserId, note: "Rechazo temporal por falta de insumos");
         }
+        // Resolverlo (acuerdo o rechazo total) le toca a Comercial: su reloj corre hasta entonces.
+        CommercialTimer = CommercialTimer.StartOrResume(clock);
+        AppendTimerEvent(TimerStage.Commercial, TimerAction.Resume, now, actor.UserId, note: "Rechazo temporal por falta de insumos");
 
         Audit(actor, now, "SuppliesTemporaryRejection", note);
     }
@@ -622,8 +715,7 @@ public sealed class Npi
         _informationRequests.Add(new InformationRequest(Guid.NewGuid(), type, text, actor.UserId, actor.Name, now));
         DesignAreaStatus = DesignAreaStatus.AwaitingInformation;
 
-        DesignTimer = DesignTimer.Pause(clock, calendar);
-        AppendTimerEvent(TimerStage.Design, TimerAction.Pause, now, actor.UserId);
+        PauseTimer(TimerStage.Design, actor, clock, calendar, now);
 
         if (type == InformationRequestType.Commercial)
         {
@@ -644,8 +736,7 @@ public sealed class Npi
         var now = clock.UtcNow;
         pending.Resolve(now, actor.UserId);
 
-        DesignTimer = DesignTimer.StartOrResume(clock);
-        AppendTimerEvent(TimerStage.Design, TimerAction.Resume, now, actor.UserId);
+        ResumeDesignTimer(actor, clock, now);
 
         Audit(actor, now, "ClientInformationReceived", null);
     }
@@ -662,10 +753,8 @@ public sealed class Npi
         var now = clock.UtcNow;
         pending.Resolve(now, actor.UserId, responseText);
 
-        CommercialTimer = CommercialTimer.Pause(clock, calendar);
-        DesignTimer = DesignTimer.StartOrResume(clock);
-        AppendTimerEvent(TimerStage.Commercial, TimerAction.Pause, now, actor.UserId);
-        AppendTimerEvent(TimerStage.Design, TimerAction.Resume, now, actor.UserId);
+        PauseTimer(TimerStage.Commercial, actor, clock, calendar, now);
+        ResumeDesignTimer(actor, clock, now);
 
         Audit(actor, now, "CommercialInformationSent", responseText);
     }
@@ -699,6 +788,20 @@ public sealed class Npi
         var attachment = new Attachment(Guid.NewGuid(), fileName, contentType, sizeBytes, storageKey, sha256Hash, actor.UserId, now, context, version);
         _attachments.Add(attachment);
         Audit(actor, now, "AttachmentUploaded", $"context={context};version={version}");
+        return attachment;
+    }
+
+    /// <summary>
+    /// Registra un link externo como adjunto (misma lista, contexto y versión que un archivo, para
+    /// que pueda servir también como evidencia). La URL ya viene validada por Application.
+    /// </summary>
+    public Attachment RegisterLink(Actor actor, IClock clock, string title, string url, AttachmentContext context)
+    {
+        var now = clock.UtcNow;
+        var version = _attachments.Count(a => a.Context == context) + 1;
+        var attachment = new Attachment(Guid.NewGuid(), title, Attachment.LinkContentType, 0, $"link:{Guid.NewGuid():N}", null, actor.UserId, now, context, version, url);
+        _attachments.Add(attachment);
+        Audit(actor, now, "LinkAdded", $"context={context};version={version}");
         return attachment;
     }
 

@@ -37,7 +37,7 @@ public static class NpiTestFactory
     {
         var npi = CreateActiveAssigned(clock);
         npi.ApproveDesignFeasibility(Designer, clock, null);
-        npi.ApproveEngineeringFeasibility(Engineer, clock, null);
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
         npi.ValidateArtwork(Designer, clock);
         return npi;
     }

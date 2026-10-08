@@ -1,12 +1,25 @@
+using System.Text.Json;
+using NpiManagement.Domain.Common;
+using NpiManagement.Domain.ValueObjects;
+
 namespace NpiManagement.Domain.Entities;
+
+/// <summary>Un campo de la captura que cambió al atender una solicitud de cambios (clave camelCase como en el frontend).</summary>
+public sealed record FieldChange(string Field, string Before, string After);
 
 /// <summary>
 /// Solicitud de cambios sobre un NPI. Tres orígenes posibles: Ingeniería→Comercial (rechazo con
 /// cambios), Comercial→Diseño (cambios reportados por el cliente, ChangeRequestOrigin.ClientReported),
 /// o cualquier otra interna. No es terminal — forma parte del ciclo normal del flujo.
+///
+/// Las de Ingeniería→Comercial guardan una foto de la captura al pedir los cambios; al reenviar,
+/// Comercial la "resuelve" y queda registrado qué campos cambió (antes → después) y su comentario,
+/// para que Ingeniería vea exactamente qué se corrigió.
 /// </summary>
 public sealed class ChangeRequest
 {
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
     public Guid Id { get; }
     public Guid RequestedByUserId { get; }
     public string RequestedByName { get; }
@@ -17,6 +30,20 @@ public sealed class ChangeRequest
     public string Description { get; }
     public IReadOnlyList<string> FieldKeys { get; }
 
+    /// <summary>Captura tal como estaba al pedir los cambios (JSON). null en solicitudes anteriores a esta función.</summary>
+    public string? CaptureSnapshotJson { get; private set; }
+
+    public DateTimeOffset? ResolvedAt { get; private set; }
+    public Guid? ResolvedByUserId { get; private set; }
+    public string? ResolvedByName { get; private set; }
+    public string? ResponseComment { get; private set; }
+    public string? ChangesAppliedJson { get; private set; }
+
+    public bool IsResolved => ResolvedAt is not null;
+
+    public IReadOnlyList<FieldChange> ChangesApplied =>
+        string.IsNullOrEmpty(ChangesAppliedJson) ? [] : JsonSerializer.Deserialize<List<FieldChange>>(ChangesAppliedJson, Json) ?? [];
+
     internal ChangeRequest(
         Guid id,
         Guid requestedByUserId,
@@ -26,7 +53,8 @@ public sealed class ChangeRequest
         AreaType toArea,
         ChangeRequestOrigin origin,
         string description,
-        IReadOnlyList<string> fieldKeys)
+        IReadOnlyList<string> fieldKeys,
+        string? captureSnapshotJson = null)
     {
         Id = id;
         RequestedByUserId = requestedByUserId;
@@ -37,5 +65,31 @@ public sealed class ChangeRequest
         Origin = origin;
         Description = description;
         FieldKeys = fieldKeys;
+        CaptureSnapshotJson = captureSnapshotJson;
+    }
+
+    internal static string SnapshotOf(NpiCaptureData capture) => JsonSerializer.Serialize(capture, Json);
+
+    /// <summary>Marca la solicitud como atendida y registra qué cambió respecto a la foto tomada al pedirla.</summary>
+    internal void Resolve(Actor actor, DateTimeOffset at, string? comment, NpiCaptureData currentCapture)
+    {
+        var changes = new List<FieldChange>();
+        if (CaptureSnapshotJson is not null && JsonSerializer.Deserialize<NpiCaptureData>(CaptureSnapshotJson, Json) is { } before)
+        {
+            foreach (var property in typeof(NpiCaptureData).GetProperties())
+            {
+                if (property.PropertyType != typeof(string)) continue;
+                var oldValue = (string?)property.GetValue(before) ?? string.Empty;
+                var newValue = (string?)property.GetValue(currentCapture) ?? string.Empty;
+                if (oldValue != newValue)
+                    changes.Add(new FieldChange(char.ToLowerInvariant(property.Name[0]) + property.Name[1..], oldValue, newValue));
+            }
+        }
+
+        ResolvedAt = at;
+        ResolvedByUserId = actor.UserId;
+        ResolvedByName = actor.Name;
+        ResponseComment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
+        ChangesAppliedJson = JsonSerializer.Serialize(changes, Json);
     }
 }

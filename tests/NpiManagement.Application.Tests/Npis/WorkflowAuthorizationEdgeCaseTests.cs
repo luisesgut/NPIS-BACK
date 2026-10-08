@@ -26,13 +26,13 @@ public class WorkflowAuthorizationEdgeCaseTests
         var calendar = new MexicoBusinessCalendar();
         var numbers = new FakeNpiNumberGenerator();
         var notifications = new FakeNotificationService();
-        var users = new FakeUserDirectory();
+        var users = new FakeUserDirectory().With(EngineerId, AreaType.Ingenieria, "UsuarioIngenieria");
 
-        var npiId = await new CreateNpiDraftCommandHandler(repo, uow, clock)
+        var npiId = await new CreateNpiDraftCommandHandler(repo, uow, clock, users)
             .HandleAsync(new CreateNpiDraftCommand(CommercialId, "UsuarioComercial", "Comercial", new NpiCaptureDto(), Priority.Media, null), CancellationToken.None);
         await new SubmitNpiCommandHandler(repo, uow, clock, calendar, numbers, notifications, users)
             .HandleAsync(new SubmitNpiCommand(npiId, Commercial, "Comercial"), CancellationToken.None);
-        await new AssignEngineeringCommandHandler(repo, uow, clock, calendar, notifications)
+        await new AssignEngineeringCommandHandler(repo, uow, clock, calendar, notifications, users)
             .HandleAsync(new AssignEngineeringCommand(npiId, new CurrentUser(Guid.NewGuid(), "AdminIngenieria", AreaType.Ingenieria), "Admin", EngineerId), CancellationToken.None);
 
         return (repo, uow, clock, calendar, npiId);

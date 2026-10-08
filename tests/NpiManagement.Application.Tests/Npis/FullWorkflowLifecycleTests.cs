@@ -36,10 +36,10 @@ public class FullWorkflowLifecycleTests
         var calendar = new MexicoBusinessCalendar();
         var numbers = new FakeNpiNumberGenerator();
         var notifications = new FakeNotificationService();
-        var users = new FakeUserDirectory();
+        var users = new FakeUserDirectory().With(EngineerId, AreaType.Ingenieria, "UsuarioIngenieria").With(DesignerId, AreaType.Diseno, "UsuarioDiseno");
 
         // --- 1. Crear borrador ---
-        var createHandler = new CreateNpiDraftCommandHandler(repo, uow, clock);
+        var createHandler = new CreateNpiDraftCommandHandler(repo, uow, clock, users);
         var npiId = await createHandler.HandleAsync(
             new CreateNpiDraftCommand(CommercialId, "UsuarioComercial", "Comercial Uno", new NpiCaptureDto { Cliente = "ACME" }, Priority.Media, null),
             CancellationToken.None);
@@ -51,9 +51,9 @@ public class FullWorkflowLifecycleTests
         afterSubmit.LifecycleStatus.Should().Be("Active");
 
         // --- 3. Asignaciones ---
-        await new AssignEngineeringCommandHandler(repo, uow, clock, calendar, notifications)
+        await new AssignEngineeringCommandHandler(repo, uow, clock, calendar, notifications, users)
             .HandleAsync(new AssignEngineeringCommand(npiId, EngineeringAdmin, "Admin Ing", EngineerId), CancellationToken.None);
-        await new AssignDesignCommandHandler(repo, uow, clock, calendar, notifications)
+        await new AssignDesignCommandHandler(repo, uow, clock, calendar, notifications, users)
             .HandleAsync(new AssignDesignCommand(npiId, DesignAdmin, "Admin Diseño", DesignerId), CancellationToken.None);
 
         // --- 4. Factibilidades independientes (decisión 1) ---
@@ -111,15 +111,15 @@ public class FullWorkflowLifecycleTests
         var calendar = new MexicoBusinessCalendar();
         var numbers = new FakeNpiNumberGenerator();
         var notifications = new FakeNotificationService();
-        var users = new FakeUserDirectory();
+        var users = new FakeUserDirectory().With(EngineerId, AreaType.Ingenieria, "UsuarioIngenieria").With(DesignerId, AreaType.Diseno, "UsuarioDiseno");
 
-        var createHandler = new CreateNpiDraftCommandHandler(repo, uow, clock);
+        var createHandler = new CreateNpiDraftCommandHandler(repo, uow, clock, users);
         var npiId = await createHandler.HandleAsync(
             new CreateNpiDraftCommand(CommercialId, "UsuarioComercial", "Comercial Uno", new NpiCaptureDto(), Priority.Media, null),
             CancellationToken.None);
         await new SubmitNpiCommandHandler(repo, uow, clock, calendar, numbers, notifications, users)
             .HandleAsync(new SubmitNpiCommand(npiId, Commercial, "Comercial Uno"), CancellationToken.None);
-        await new AssignEngineeringCommandHandler(repo, uow, clock, calendar, notifications)
+        await new AssignEngineeringCommandHandler(repo, uow, clock, calendar, notifications, users)
             .HandleAsync(new AssignEngineeringCommand(npiId, EngineeringAdmin, "Admin Ing", EngineerId), CancellationToken.None);
 
         var stranger = new CurrentUser(Guid.NewGuid(), "UsuarioIngenieria", AreaType.Ingenieria);

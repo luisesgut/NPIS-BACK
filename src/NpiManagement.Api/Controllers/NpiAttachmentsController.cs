@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NpiManagement.Api.Contracts.Npis;
 using NpiManagement.Api.Extensions;
 using NpiManagement.Application.Npis.Commands;
 using NpiManagement.Application.Npis.Dtos;
@@ -18,6 +19,7 @@ namespace NpiManagement.Api.Controllers;
 [Authorize]
 public sealed class NpiAttachmentsController(
     RegisterAttachmentCommandHandler registerHandler,
+    RegisterLinkCommandHandler registerLinkHandler,
     GetAttachmentForDownloadQueryHandler downloadHandler) : ControllerBase
 {
     /// <summary>Límite razonable de tamaño de request para evitar que un cliente intente enviar
@@ -29,6 +31,15 @@ public sealed class NpiAttachmentsController(
         await using var stream = file.OpenReadStream();
         var command = new RegisterAttachmentCommand(id, User.ToCurrentUser(), User.DisplayName(), file.FileName, file.ContentType, file.Length, stream, context);
         var attachment = await registerHandler.HandleAsync(command, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, attachment);
+    }
+
+    /// <summary>Agrega un link externo (artes pesadas) como adjunto. Sólo Comercial y Diseño.</summary>
+    [HttpPost("links")]
+    public async Task<ActionResult<AttachmentDto>> AddLink(Guid id, AddLinkRequest request, CancellationToken cancellationToken)
+    {
+        var command = new RegisterLinkCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Url, request.Title, request.Context);
+        var attachment = await registerLinkHandler.HandleAsync(command, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, attachment);
     }
 

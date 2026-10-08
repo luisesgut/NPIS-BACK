@@ -197,6 +197,10 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("UploadedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Url")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<int>("Version")
                         .HasColumnType("int");
 
@@ -256,6 +260,12 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CaptureSnapshotJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ChangesAppliedJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(4000)
@@ -289,6 +299,20 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("RequestedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ResolvedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ResolvedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ResponseComment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("ToArea")
                         .IsRequired()
@@ -1440,6 +1464,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
+                            b1.Property<string>("CierreDimensiones")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("Cliente")
                                 .IsRequired()
                                 .HasMaxLength(200)
@@ -1451,6 +1480,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("Colgadera")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("ColgaderaDimensiones")
                                 .IsRequired()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
@@ -1575,6 +1609,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
+                            b1.Property<string>("MuescaDimensiones")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("MuestrasFisicas")
                                 .IsRequired()
                                 .HasMaxLength(200)
@@ -1610,12 +1649,27 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
+                            b1.Property<string>("OtrosElementosDimensiones")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("ParcheRefuerzo")
                                 .IsRequired()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
+                            b1.Property<string>("ParcheRefuerzoDimensiones")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("PatronPerforado")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("PatronPerforadoDimensiones")
                                 .IsRequired()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
@@ -1660,6 +1714,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
+                            b1.Property<string>("PrecorteDimensiones")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("PruebaColor")
                                 .IsRequired()
                                 .HasMaxLength(200)
@@ -1686,6 +1745,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("Suaje")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("SuajeDimensiones")
                                 .IsRequired()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
@@ -1736,6 +1800,16 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("TipoTinta")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("UnidadCalibre")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("UnidadMedidas")
                                 .IsRequired()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");

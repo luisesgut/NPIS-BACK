@@ -29,6 +29,10 @@ public sealed record NpiCaptureDto
     public string TipoTinta { get; init; } = string.Empty;
     public string TipoEmpaque { get; init; } = string.Empty;
 
+    /// <summary>Unidad en que el vendedor capturó las medidas (mm, cm, pulg). Los valores siempre se guardan convertidos a mm; vacío = mm.</summary>
+    public string UnidadMedidas { get; init; } = string.Empty;
+    /// <summary>Unidad en que se capturó el calibre (micras, galgas, mils). Los valores siempre se guardan convertidos a micras; vacío = micras.</summary>
+    public string UnidadCalibre { get; init; } = string.Empty;
     public string Ancho { get; init; } = string.Empty;
     public string Alto { get; init; } = string.Empty;
     public string FuelleExtendido { get; init; } = string.Empty;
@@ -59,6 +63,15 @@ public sealed record NpiCaptureDto
     public string PatronPerforado { get; init; } = "NO";
     public string ParcheRefuerzo { get; init; } = "NO";
     public string Suaje { get; init; } = "NO";
+    /// <summary>Columna "DIMENSIONES (mm)" de cada elemento en el formato VTS-FOR-01 (texto libre, ej. "2 mm").</summary>
+    public string ColgaderaDimensiones { get; init; } = string.Empty;
+    public string MuescaDimensiones { get; init; } = string.Empty;
+    public string PrecorteDimensiones { get; init; } = string.Empty;
+    public string PatronPerforadoDimensiones { get; init; } = string.Empty;
+    public string ParcheRefuerzoDimensiones { get; init; } = string.Empty;
+    public string SuajeDimensiones { get; init; } = string.Empty;
+    public string CierreDimensiones { get; init; } = string.Empty;
+    public string OtrosElementosDimensiones { get; init; } = string.Empty;
     public string AplicaPieDeCasa { get; init; } = "NO";
 
     public string FiguraEmbob { get; init; } = string.Empty;
@@ -96,6 +109,7 @@ public sealed record NpiCaptureDto
         ContactoCompras = ContactoCompras, ContactoClienteDiseno = ContactoClienteDiseno, EjecutivoVenta = EjecutivoVenta,
         Formato = Formato, Acabado = Acabado, Mercado = Mercado, SubMercado = SubMercado, UnidadVenta = UnidadVenta, TipoEntrada = TipoEntrada,
         CategoriaSAP = CategoriaSAP, TipoImpresion = TipoImpresion, TipoTinta = TipoTinta, TipoEmpaque = TipoEmpaque,
+        UnidadMedidas = UnidadMedidas, UnidadCalibre = UnidadCalibre,
         Ancho = Ancho, Alto = Alto, FuelleExtendido = FuelleExtendido, SolapaPestana = SolapaPestana, Fuelles = Fuelles,
         PiTipoPelicula = PiTipoPelicula, TerminadoPI = TerminadoPI, PiCalibre = PiCalibre, FormulaLDPE_PI = FormulaLDPE_PI,
         PplTipoPelicula = PplTipoPelicula, TerminadoPPL = TerminadoPPL, PplCalibre = PplCalibre, FormulaLDPE_PPL = FormulaLDPE_PPL,
@@ -104,6 +118,7 @@ public sealed record NpiCaptureDto
         Perforaciones = Perforaciones, NumeroPerforaciones = NumeroPerforaciones, DiametroPerforaciones = DiametroPerforaciones,
         Muesca = Muesca, Precorte = Precorte, PatronPerforado = PatronPerforado, ParcheRefuerzo = ParcheRefuerzo,
         Suaje = Suaje, AplicaPieDeCasa = AplicaPieDeCasa,
+        ColgaderaDimensiones = ColgaderaDimensiones, MuescaDimensiones = MuescaDimensiones, PrecorteDimensiones = PrecorteDimensiones, PatronPerforadoDimensiones = PatronPerforadoDimensiones, ParcheRefuerzoDimensiones = ParcheRefuerzoDimensiones, SuajeDimensiones = SuajeDimensiones, CierreDimensiones = CierreDimensiones, OtrosElementosDimensiones = OtrosElementosDimensiones,
         FiguraEmbob = FiguraEmbob, DiametroBobina = DiametroBobina, PesoBobina = PesoBobina,
         BobinasPorTarima = BobinasPorTarima, AlturaTarimaMaxBobina = AlturaTarimaMaxBobina, MaxUniones = MaxUniones,
         Core = Core, TaponCore = TaponCore, DestareCore = DestareCore, DimTarimaBobina = DimTarimaBobina, PiezasCajaBulto = PiezasCajaBulto,
@@ -121,6 +136,7 @@ public sealed record NpiCaptureDto
         ContactoCompras = c.ContactoCompras, ContactoClienteDiseno = c.ContactoClienteDiseno, EjecutivoVenta = c.EjecutivoVenta,
         Formato = c.Formato, Acabado = c.Acabado, Mercado = c.Mercado, SubMercado = c.SubMercado, UnidadVenta = c.UnidadVenta, TipoEntrada = c.TipoEntrada,
         CategoriaSAP = c.CategoriaSAP, TipoImpresion = c.TipoImpresion, TipoTinta = c.TipoTinta, TipoEmpaque = c.TipoEmpaque,
+        UnidadMedidas = c.UnidadMedidas, UnidadCalibre = c.UnidadCalibre,
         Ancho = c.Ancho, Alto = c.Alto, FuelleExtendido = c.FuelleExtendido, SolapaPestana = c.SolapaPestana, Fuelles = c.Fuelles,
         PiTipoPelicula = c.PiTipoPelicula, TerminadoPI = c.TerminadoPI, PiCalibre = c.PiCalibre, FormulaLDPE_PI = c.FormulaLDPE_PI,
         PplTipoPelicula = c.PplTipoPelicula, TerminadoPPL = c.TerminadoPPL, PplCalibre = c.PplCalibre, FormulaLDPE_PPL = c.FormulaLDPE_PPL,
@@ -129,6 +145,7 @@ public sealed record NpiCaptureDto
         Perforaciones = c.Perforaciones, NumeroPerforaciones = c.NumeroPerforaciones, DiametroPerforaciones = c.DiametroPerforaciones,
         Muesca = c.Muesca, Precorte = c.Precorte, PatronPerforado = c.PatronPerforado, ParcheRefuerzo = c.ParcheRefuerzo,
         Suaje = c.Suaje, AplicaPieDeCasa = c.AplicaPieDeCasa,
+        ColgaderaDimensiones = c.ColgaderaDimensiones, MuescaDimensiones = c.MuescaDimensiones, PrecorteDimensiones = c.PrecorteDimensiones, PatronPerforadoDimensiones = c.PatronPerforadoDimensiones, ParcheRefuerzoDimensiones = c.ParcheRefuerzoDimensiones, SuajeDimensiones = c.SuajeDimensiones, CierreDimensiones = c.CierreDimensiones, OtrosElementosDimensiones = c.OtrosElementosDimensiones,
         FiguraEmbob = c.FiguraEmbob, DiametroBobina = c.DiametroBobina, PesoBobina = c.PesoBobina,
         BobinasPorTarima = c.BobinasPorTarima, AlturaTarimaMaxBobina = c.AlturaTarimaMaxBobina, MaxUniones = c.MaxUniones,
         Core = c.Core, TaponCore = c.TaponCore, DestareCore = c.DestareCore, DimTarimaBobina = c.DimTarimaBobina, PiezasCajaBulto = c.PiezasCajaBulto,

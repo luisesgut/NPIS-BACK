@@ -19,7 +19,7 @@ public sealed class RequestInformationCommandHandler(INpiRepository repository, 
 
         npi.RequestInformation(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Type, command.Text);
         if (command.Type == InformationRequestType.Commercial)
-            notifications.Notify(npi.AssignedCommercialUserId, $"Diseño solicita información para el NPI {npi.NpiNumber?.Value}.", npi.Id, NotificationChannel.BellAndEmail);
+            notifications.Notify(npi.AssignedCommercialUserId, NotificationText.InformationRequested(npi.NpiNumber?.Value, command.Text), npi.Id, NotificationChannel.BellAndEmail);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
@@ -55,7 +55,7 @@ public sealed class RespondCommercialInformationCommandHandler(INpiRepository re
 
         npi.RespondCommercialInformation(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.ResponseText);
         if (npi.AssignedDesignUserId is { } designerId)
-            notifications.Notify(designerId, $"Comercial envió información solicitada para el NPI {npi.NpiNumber?.Value}.", npi.Id, NotificationChannel.BellAndEmail);
+            notifications.Notify(designerId, NotificationText.InformationAnswered(npi.NpiNumber?.Value, command.ResponseText), npi.Id, NotificationChannel.BellAndEmail);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));

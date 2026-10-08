@@ -52,7 +52,7 @@ public class NpiAggregatePersistenceTests(SqlServerFixture fixture)
             npi.RespondCommercialInformation(comActor, clock, TestDataFactory.Calendar, "Es Juan Pérez, ext. 123");
 
             // Ambas factibilidades (independientes, decisión 1) + Artes Validadas.
-            npi.ApproveEngineeringFeasibility(engActor, clock, "Ingeniería factible");
+            npi.ApproveEngineeringFeasibility(engActor, clock, TestDataFactory.Calendar, "Ingeniería factible");
             npi.ApproveDesignFeasibility(desActor, clock, "Diseño factible");
             npi.ValidateArtwork(desActor, clock);
 

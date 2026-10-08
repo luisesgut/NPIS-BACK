@@ -7,7 +7,8 @@ using NpiManagement.Domain.Common;
 namespace NpiManagement.Application.Npis.Commands;
 
 /// <summary>Acción 3 de workflow.md — Enviar NPI (primer envío asigna folio; reenvío tras cambios reanuda Ingeniería).</summary>
-public sealed record SubmitNpiCommand(Guid NpiId, CurrentUser Actor, string ActorName);
+/// <param name="Comment">Sólo al reenviar tras cambios: qué corrigió Comercial, para Ingeniería.</param>
+public sealed record SubmitNpiCommand(Guid NpiId, CurrentUser Actor, string ActorName, string? Comment = null);
 
 public sealed class SubmitNpiCommandHandler(
     INpiRepository repository,
@@ -30,7 +31,7 @@ public sealed class SubmitNpiCommandHandler(
         var isFirstSubmission = npi.NpiNumber is null;
         var number = isFirstSubmission ? await numberGenerator.NextAsync(cancellationToken) : null;
 
-        npi.Submit(actor, clock, calendar, number);
+        npi.Submit(actor, clock, calendar, number, command.Comment);
 
         if (isFirstSubmission)
         {
@@ -51,7 +52,8 @@ public sealed class SubmitNpiCommandHandler(
         }
         else if (npi.AssignedEngineeringUserId is { } engineerId2)
         {
-            notifications.Notify(engineerId2, $"El NPI {npi.NpiNumber?.Value} fue reenviado con los cambios solicitados.", npi.Id, NotificationChannel.BellAndEmail);
+            var resolved = npi.ChangeRequests.Where(c => c.IsResolved).OrderByDescending(c => c.ResolvedAt).FirstOrDefault();
+            notifications.Notify(engineerId2, NotificationText.Resubmitted(npi.NpiNumber?.Value, resolved?.ChangesApplied.Count ?? 0, resolved?.ResponseComment), npi.Id, NotificationChannel.BellAndEmail);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

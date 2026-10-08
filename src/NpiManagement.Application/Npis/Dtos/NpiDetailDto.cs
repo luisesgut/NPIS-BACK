@@ -4,7 +4,13 @@ public sealed record TimerDto(bool HasStarted, bool IsRunning, bool IsClosed, lo
 
 public sealed record CommentDto(Guid Id, Guid AuthorUserId, string AuthorName, string Text, DateTimeOffset CreatedAt);
 
-public sealed record ChangeRequestDto(Guid Id, Guid RequestedByUserId, string RequestedByName, DateTimeOffset RequestedAt, string FromArea, string ToArea, string Origin, string Description, IReadOnlyList<string> FieldKeys);
+public sealed record FieldChangeDto(string Field, string Before, string After);
+
+/// <summary>ResolvedAt/ChangesApplied: cuándo y qué corrigió Comercial al reenviar (sólo solicitudes de Ingeniería).</summary>
+public sealed record ChangeRequestDto(
+    Guid Id, Guid RequestedByUserId, string RequestedByName, DateTimeOffset RequestedAt, string FromArea, string ToArea, string Origin,
+    string Description, IReadOnlyList<string> FieldKeys,
+    DateTimeOffset? ResolvedAt, string? ResolvedByName, string? ResponseComment, IReadOnlyList<FieldChangeDto> ChangesApplied);
 
 public sealed record InformationRequestDto(Guid Id, string Type, string Status, string Text, Guid RequestedByUserId, string RequestedByName, DateTimeOffset RequestedAt, DateTimeOffset? ResolvedAt, Guid? ResolvedByUserId, string? ResponseText);
 
@@ -14,7 +20,8 @@ public sealed record PrintCardApprovalDto(Guid Id, string Role, Guid ByUserId, s
 
 public sealed record PrintCardVersionDto(Guid Id, int VersionNumber, string Code, Guid? AttachmentId, Guid UploadedByUserId, string UploadedByName, DateTimeOffset UploadedAt, string? Note, IReadOnlyList<PrintCardApprovalDto> Approvals);
 
-public sealed record AttachmentDto(Guid Id, string FileName, string ContentType, long SizeBytes, string Context, int Version, Guid UploadedByUserId, DateTimeOffset UploadedAt);
+/// <summary>Url != null: el adjunto es un link externo y se abre directamente, no se descarga.</summary>
+public sealed record AttachmentDto(Guid Id, string FileName, string ContentType, long SizeBytes, string Context, int Version, Guid UploadedByUserId, DateTimeOffset UploadedAt, string? Url);
 
 public sealed record TimerEventDto(Guid Id, string Stage, string Action, DateTimeOffset OccurredAt, Guid? ActorUserId, long? DurationMsAtEvent, string? FromStage, string? ToStage, string? Note);
 

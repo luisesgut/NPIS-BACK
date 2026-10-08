@@ -39,4 +39,13 @@ public sealed class EfUserDirectory(NpiManagementDbContext dbContext, UserManage
 
         return names;
     }
+
+    public async Task<UserSummaryDto?> FindAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var user = await dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user is null) return null;
+
+        var roles = await userManager.GetRolesAsync(user);
+        return new UserSummaryDto(user.Id, user.FullName, user.Email ?? string.Empty, roles.FirstOrDefault() ?? string.Empty, user.Area, user.Status);
+    }
 }
