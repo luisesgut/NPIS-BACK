@@ -46,6 +46,30 @@ public sealed class MexicoBusinessCalendar : IBusinessCalendar
         return !Holidays.Contains(date);
     }
 
+    public bool IsBusinessTime(DateTimeOffset instant)
+    {
+        var local = instant.ToOffset(Offset);
+        return IsBusinessDay(DateOnly.FromDateTime(local.DateTime)) && local.Hour >= StartHour && local.Hour < EndHour;
+    }
+
+    public DateTimeOffset NextBoundary(DateTimeOffset instant)
+    {
+        var local = instant.ToOffset(Offset);
+        var day = DateOnly.FromDateTime(local.DateTime);
+        if (IsBusinessTime(instant)) return At(day, EndHour);
+
+        // Antes de abrir un día hábil, abre hoy; si no, el siguiente día hábil.
+        if (IsBusinessDay(day) && local.Hour < StartHour) return At(day, StartHour);
+        for (var i = 1; i <= MaxDaysScanned; i++)
+        {
+            var next = day.AddDays(i);
+            if (IsBusinessDay(next)) return At(next, StartHour);
+        }
+        return instant.AddDays(MaxDaysScanned);
+    }
+
+    private static DateTimeOffset At(DateOnly day, int hour) => new(day.Year, day.Month, day.Day, hour, 0, 0, Offset);
+
     public long BusinessMillisecondsBetween(DateTimeOffset start, DateTimeOffset end)
     {
         if (end <= start) return 0;

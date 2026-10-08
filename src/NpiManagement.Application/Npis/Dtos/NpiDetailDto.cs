@@ -1,6 +1,13 @@
 namespace NpiManagement.Application.Npis.Dtos;
 
-public sealed record TimerDto(bool HasStarted, bool IsRunning, bool IsClosed, long ElapsedMs);
+/// <summary>
+/// Cronómetro calculado en el servidor. ElapsedMs es el tiempo hábil hasta el momento de la respuesta.
+/// IsTicking: en marcha y en horario hábil ahora mismo (sólo así el front suma segundos).
+/// MsUntilChange: cuánto falta para que IsTicking cambie (cierre o apertura de jornada); el front
+/// deja de sumar ahí y vuelve a pedir el dato. Son duraciones relativas a propósito: así no importa
+/// si el reloj de cada computadora está adelantado o atrasado.
+/// </summary>
+public sealed record TimerDto(bool HasStarted, bool IsRunning, bool IsClosed, long ElapsedMs, bool IsTicking = false, long? MsUntilChange = null);
 
 /// <summary>Mensaje del chat del NPI (antes "comentario"). MentionedUserIds: a quiénes se mencionó con @.</summary>
 public sealed record CommentDto(Guid Id, Guid NpiId, Guid AuthorUserId, string AuthorName, string Text, DateTimeOffset CreatedAt, IReadOnlyList<Guid> MentionedUserIds);

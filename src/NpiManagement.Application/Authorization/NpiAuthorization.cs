@@ -27,6 +27,9 @@ public static class NpiAuthorization
     private static readonly HashSet<string> AdminRoles =
         ["AdminTotal", "AdminComercial", "AdminIngenieria", "AdminDiseno"];
 
+    /// <summary>Los administradores (total y de área) ven todos los NPIs.</summary>
+    public static bool SeesAllNpis(CurrentUser user) => AdminRoles.Contains(user.Role);
+
     /// <summary>Alcance único usado tanto para lectura (detalle/listado/comentarios) como para operar el recurso — ver authorization-matrix.md §1-2.</summary>
     public static bool CanAccess(CurrentUser user, NpiOwnership npi)
     {

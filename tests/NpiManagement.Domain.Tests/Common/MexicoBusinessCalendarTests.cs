@@ -81,4 +81,23 @@ public class MexicoBusinessCalendarTests
         // lunes + martes + miércoles completos = 3 * 9h
         _calendar.BusinessMillisecondsBetween(mondayStart, wednesdayEnd).Should().Be((long)TimeSpan.FromHours(27).TotalMilliseconds);
     }
+
+    [Fact]
+    public void IsBusinessTime_only_inside_the_working_window_of_a_business_day()
+    {
+        _calendar.IsBusinessTime(MxLocal(2026, 10, 8, 10)).Should().BeTrue();   // jueves
+        _calendar.IsBusinessTime(MxLocal(2026, 10, 8, 8, 59)).Should().BeFalse();
+        _calendar.IsBusinessTime(MxLocal(2026, 10, 8, 18)).Should().BeFalse();
+        _calendar.IsBusinessTime(MxLocal(2026, 10, 10, 11)).Should().BeFalse(); // sábado
+    }
+
+    [Theory]
+    [InlineData(2026, 10, 8, 10, 2026, 10, 8, 18)]   // en horario: cierra hoy a las 18
+    [InlineData(2026, 10, 8, 7, 2026, 10, 8, 9)]     // antes de abrir: abre hoy a las 9
+    [InlineData(2026, 10, 9, 19, 2026, 10, 12, 9)]   // viernes en la noche: lunes a las 9
+    [InlineData(2026, 11, 13, 19, 2026, 11, 17, 9)]  // puente: el lunes 16 es festivo
+    public void NextBoundary_is_the_next_open_or_close(int y, int m, int d, int h, int ey, int em, int ed, int eh)
+    {
+        _calendar.NextBoundary(MxLocal(y, m, d, h)).Should().Be(MxLocal(ey, em, ed, eh));
+    }
 }

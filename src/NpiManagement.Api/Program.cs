@@ -62,6 +62,7 @@ builder.Services.AddSignalR()
     .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, UserIdFromTokenProvider>();
 builder.Services.AddScoped<IChatRealtime, SignalRChatRealtime>();
+builder.Services.AddSingleton<IRealtimeEvents, SignalRRealtimeEvents>();
 
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddProblemDetails();

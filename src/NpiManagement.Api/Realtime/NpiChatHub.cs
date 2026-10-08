@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using NpiManagement.Api.Extensions;
 using NpiManagement.Application.Abstractions;
+using NpiManagement.Application.Authorization;
 using NpiManagement.Application.Npis.Dtos;
 using NpiManagement.Application.Npis.Queries;
 
@@ -17,6 +18,8 @@ namespace NpiManagement.Api.Realtime;
 /// Eventos que recibe el cliente:
 ///  - MessagePosted(CommentDto) — a quienes tienen abierto ese NPI.
 ///  - ChatActivity({ npiId })    — a los participantes y mencionados, estén donde estén.
+///  - NpiChanged({ npiIds })     — algo cambió en esos NPIs (estatus, cronómetros, asignación, adjuntos…).
+///  - NotificationsChanged()    — llegó o se leyó una notificación del usuario.
 /// </summary>
 [Authorize]
 public sealed class NpiChatHub(ChatAccessQueryHandler access) : Hub
@@ -24,6 +27,16 @@ public sealed class NpiChatHub(ChatAccessQueryHandler access) : Hub
     public const string Path = "/hubs/chat";
 
     public static string GroupFor(Guid npiId) => $"npi-{npiId:N}";
+
+    /// <summary>Administradores: ven todos los NPIs, así que reciben el aviso de cualquier cambio.</summary>
+    public const string AdminsGroup = "admins";
+
+    public override async Task OnConnectedAsync()
+    {
+        if (NpiAuthorization.SeesAllNpis(Context.User!.ToCurrentUser()))
+            await Groups.AddToGroupAsync(Context.ConnectionId, AdminsGroup);
+        await base.OnConnectedAsync();
+    }
 
     /// <summary>Misma autorización que el detalle del NPI; si no puede verlo, se responde igual que si no existiera.</summary>
     public async Task JoinNpi(Guid npiId)
@@ -70,6 +83,42 @@ public sealed class SignalRChatRealtime(IHubContext<NpiChatHub> hub, ILogger<Sig
         catch (Exception ex)
         {
             logger.LogWarning(ex, "No se pudo avisar en tiempo real del mensaje {MessageId} del NPI {NpiId}", message.Id, message.NpiId);
+        }
+    }
+}
+
+/// <summary>Avisos de cambios de NPIs y notificaciones (ver <see cref="IRealtimeEvents"/>). Sólo ids: cada cliente vuelve a consultar.</summary>
+public sealed class SignalRRealtimeEvents(IHubContext<NpiChatHub> hub, ILogger<SignalRRealtimeEvents> logger) : IRealtimeEvents
+{
+    public async Task NpisChangedAsync(IReadOnlyCollection<NpiChange> changes)
+    {
+        try
+        {
+            var allIds = changes.Select(c => c.NpiId).ToList();
+            await hub.Clients.Group(NpiChatHub.AdminsGroup).SendAsync("NpiChanged", new { npiIds = allIds });
+
+            // Un aviso por usuario con sólo los NPIs en los que participa.
+            var byUser = changes
+                .SelectMany(c => c.ParticipantIds.Select(userId => (userId, c.NpiId)))
+                .GroupBy(x => x.userId, x => x.NpiId);
+            foreach (var group in byUser)
+                await hub.Clients.User(UserIdFromTokenProvider.Key(group.Key)).SendAsync("NpiChanged", new { npiIds = group.Distinct().ToList() });
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "No se pudo avisar en tiempo real del cambio de {Count} NPI(s)", changes.Count);
+        }
+    }
+
+    public async Task NotificationsChangedAsync(IReadOnlyCollection<Guid> userIds)
+    {
+        try
+        {
+            await hub.Clients.Users(userIds.Select(UserIdFromTokenProvider.Key).ToList()).SendAsync("NotificationsChanged");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "No se pudo avisar en tiempo real de notificaciones nuevas");
         }
     }
 }

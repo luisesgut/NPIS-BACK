@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NpiManagement.Application.Abstractions;
 using NpiManagement.Domain.Common;
 using NpiManagement.Infrastructure.Auth;
@@ -57,6 +58,8 @@ public static class DependencyInjection
         services.AddScoped<INpiCaptureHistoryStore, EfNpiCaptureHistoryStore>();
         services.AddScoped<IFeedbackService, FeedbackService>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        // La API lo reemplaza por SignalR; aquí queda el "sin tiempo real" por si se usa Infrastructure sin la API.
+        services.TryAddSingleton<IRealtimeEvents, NullRealtimeEvents>();
 
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.AddScoped<IJwtTokenService, JwtTokenService>();

@@ -10,4 +10,14 @@ public interface IBusinessCalendar
 
     /// <summary>Milisegundos de tiempo hábil entre dos instantes UTC (0 si end &lt;= start).</summary>
     long BusinessMillisecondsBetween(DateTimeOffset start, DateTimeOffset end);
+
+    /// <summary>Si en ese instante corre el tiempo hábil (un cronómetro en marcha avanza).</summary>
+    bool IsBusinessTime(DateTimeOffset instant);
+
+    /// <summary>
+    /// Próximo instante en que cambia <see cref="IsBusinessTime"/>: el cierre de la jornada si es hora
+    /// hábil, o el inicio de la siguiente jornada hábil si no. Lo usa el front para saber hasta cuándo
+    /// puede seguir sumando segundos sin preguntar al servidor.
+    /// </summary>
+    DateTimeOffset NextBoundary(DateTimeOffset instant);
 }

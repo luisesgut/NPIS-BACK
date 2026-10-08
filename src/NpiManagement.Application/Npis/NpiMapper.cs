@@ -46,6 +46,13 @@ public static class NpiMapper
     public static AuditEventDto ToAuditEventDto(Domain.Entities.AuditEvent e) =>
         new(e.Id, e.ActorUserId, e.ActorRole, e.OccurredAt, e.Action, e.Details);
 
-    public static TimerDto ToTimerDto(TimerState timer, IClock clock, IBusinessCalendar calendar) =>
-        new(timer.HasStarted, timer.IsRunning, timer.IsClosed, timer.ElapsedMs(clock, calendar));
+    public static TimerDto ToTimerDto(TimerState timer, IClock clock, IBusinessCalendar calendar)
+    {
+        var now = clock.UtcNow;
+        if (!timer.IsRunning)
+            return new(timer.HasStarted, false, timer.IsClosed, timer.ElapsedMs(clock, calendar));
+
+        var msUntilChange = (long)(calendar.NextBoundary(now) - now).TotalMilliseconds;
+        return new(timer.HasStarted, true, timer.IsClosed, timer.ElapsedMs(clock, calendar), calendar.IsBusinessTime(now), msUntilChange);
+    }
 }
