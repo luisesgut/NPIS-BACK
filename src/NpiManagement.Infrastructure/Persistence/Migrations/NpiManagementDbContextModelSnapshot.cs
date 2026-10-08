@@ -993,6 +993,51 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("Catalogs", (string)null);
                 });
 
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.CatalogChangeLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("CatalogId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CatalogKey")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ChangedByName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("OldValue")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogId", "ChangedAt");
+
+                    b.ToTable("CatalogChangeLogs", (string)null);
+                });
+
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.CatalogOption", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1988,6 +2033,15 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Navigation("SuppliesAgreement");
 
                     b.Navigation("SuppliesTemporaryRejection");
+                });
+
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.CatalogChangeLog", b =>
+                {
+                    b.HasOne("NpiManagement.Infrastructure.Persistence.Entities.Catalog", null)
+                        .WithMany()
+                        .HasForeignKey("CatalogId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.CatalogOption", b =>

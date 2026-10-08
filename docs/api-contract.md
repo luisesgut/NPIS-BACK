@@ -131,8 +131,14 @@ Los adjuntos se suben **antes** de la acción que los referencia (p. ej. subir e
 |---|---|---|
 | `GET /api/quotations/{numero}` | `QuotationResponse` (campos "verdes") o `404` | Comercial (admin/usuario) + `AdminTotal` |
 | `GET /api/catalogs` | `[{ key, displayName, options: [{ value, isActive }] }]` | Cualquier usuario autenticado |
-| `POST /api/catalogs/{key}/options` (administración) | `{ value, displayOrder? }` | Sólo `AdminTotal` |
-| `PATCH /api/catalogs/{key}/options/{optionId}` (activar/desactivar) | `{ isActive }` | Sólo `AdminTotal` |
+| `GET /api/catalogs/admin` | `[{ id, key, displayName, hint?, options: [{ id, value, displayOrder, isActive, protectedReason?, usageCount }] }]` | Ingeniería (`AdminTotal`, `AdminIngenieria`, `UsuarioIngenieria`) |
+| `POST /api/catalogs/{catalogId}/options` | `{ value }` → `201` con la opción | Ingeniería |
+| `PUT /api/catalogs/options/{optionId}` (renombrar) | `{ value }` → `204` | Ingeniería |
+| `POST /api/catalogs/options/{optionId}/active` | `{ isActive }` → `204` | Ingeniería |
+| `POST /api/catalogs/{catalogId}/order` | `{ optionIds }` (todas, en orden) → `204` | Ingeniería |
+| `GET /api/catalogs/changes?catalogKey=` | últimos 200 cambios `{ catalogKey, action, oldValue, newValue, changedByName, changedAt }` | Ingeniería |
+
+Reglas de administración: no se permiten duplicados ignorando mayúsculas, acentos y espacios (`catalog-option-duplicate`); las opciones que usan las reglas del formulario (`TIPO DE PRODUCTO`: BOBINA/BOLSA/POUCH; `ACABADO`: SIN IMPRESION) no se renombran ni desactivan (`catalog-option-protected`, ver `CatalogRules.cs`); renombrar o desactivar sólo afecta capturas nuevas — los NPIs conservan el texto capturado. No se borran opciones: se desactivan. Cada cambio queda en `CatalogChangeLogs`.
 
 ## 9. Dashboard y métricas
 
