@@ -41,13 +41,15 @@ public sealed class PrintCardVersion
     internal void SetCommercialChecklist(IEnumerable<ChecklistItem> items) => CommercialChecklistJson = JsonSerializer.Serialize(items.ToList(), Json);
 
     /// <summary>Palomea (o despalomea) un punto. Devuelve false si el renglón no es de esta versión.</summary>
-    internal bool SetCommercialChecklistItemDone(Guid itemId, bool done, Actor actor, DateTimeOffset at)
+    internal bool SetCommercialChecklistItemDone(Guid itemId, bool done, Actor actor, DateTimeOffset at, string? comment = null)
     {
         var items = CommercialChecklist.ToList();
         var index = items.FindIndex(i => i.Id == itemId);
         if (index < 0) return false;
+        // El comentario de cada punto (2026-11-09): lo que respondió el cliente o lo que se hizo. Al
+        // despalomear se conserva, para no perderlo si se vuelve a palomear.
         items[index] = done
-            ? items[index] with { DoneAt = at, DoneByUserId = actor.UserId, DoneByName = actor.Name }
+            ? items[index] with { DoneAt = at, DoneByUserId = actor.UserId, DoneByName = actor.Name, Comment = ChecklistItem.CleanComment(comment) ?? items[index].Comment }
             : items[index] with { DoneAt = null, DoneByUserId = null, DoneByName = null };
         SetCommercialChecklist(items);
         return true;

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using NpiManagement.Domain.Common;
+using NpiManagement.Domain.Exceptions;
 using NpiManagement.Domain.ValueObjects;
 
 namespace NpiManagement.Domain.Entities;
@@ -8,9 +9,21 @@ namespace NpiManagement.Domain.Entities;
 public sealed record FieldChange(string Field, string Before, string After);
 
 /// <summary>Un cambio puntual que pidió el cliente sobre el PrintCard; Diseño lo palomea cuando ya está aplicado.</summary>
-public sealed record ChecklistItem(Guid Id, string Text, DateTimeOffset? DoneAt = null, Guid? DoneByUserId = null, string? DoneByName = null)
+public sealed record ChecklistItem(Guid Id, string Text, DateTimeOffset? DoneAt = null, Guid? DoneByUserId = null, string? DoneByName = null, string? Comment = null)
 {
+    public const int CommentMaxLength = 1000;
+
     public bool IsDone => DoneAt is not null;
+
+    /// <summary>Comentario recortado (null si viene vacío); falla si es demasiado largo.</summary>
+    public static string? CleanComment(string? comment)
+    {
+        var text = comment?.Trim();
+        if (string.IsNullOrEmpty(text)) return null;
+        if (text.Length > CommentMaxLength)
+            throw new NpiValidationException("checklist-comment-too-long", $"El comentario no puede exceder {CommentMaxLength} caracteres.");
+        return text;
+    }
 }
 
 /// <summary>
@@ -99,13 +112,15 @@ public sealed class ChangeRequest
     internal void SetChecklist(IEnumerable<ChecklistItem> items) => ChecklistJson = JsonSerializer.Serialize(items.ToList(), Json);
 
     /// <summary>Palomea (o despalomea) un cambio. Devuelve false si el renglón no es de esta solicitud.</summary>
-    internal bool SetChecklistItemDone(Guid itemId, bool done, Actor actor, DateTimeOffset at)
+    internal bool SetChecklistItemDone(Guid itemId, bool done, Actor actor, DateTimeOffset at, string? comment = null)
     {
         var items = Checklist.ToList();
         var index = items.FindIndex(i => i.Id == itemId);
         if (index < 0) return false;
+        // El comentario de cada punto (2026-11-09): lo que respondió el cliente o lo que se hizo. Al
+        // despalomear se conserva, para no perderlo si se vuelve a palomear.
         items[index] = done
-            ? items[index] with { DoneAt = at, DoneByUserId = actor.UserId, DoneByName = actor.Name }
+            ? items[index] with { DoneAt = at, DoneByUserId = actor.UserId, DoneByName = actor.Name, Comment = ChecklistItem.CleanComment(comment) ?? items[index].Comment }
             : items[index] with { DoneAt = null, DoneByUserId = null, DoneByName = null };
         SetChecklist(items);
         return true;

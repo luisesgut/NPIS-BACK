@@ -59,5 +59,5 @@ public sealed class NpiDesignReviewController(
     [HttpPost("artwork-observations/{itemId:guid}")]
     [Authorize(Policy = "AreaComercial")]
     public Task<NpiDetailDto> SetArtworkObservation(Guid id, Guid itemId, ClientChangeItemRequest request, CancellationToken cancellationToken) =>
-        setArtworkObservationHandler.HandleAsync(new SetArtworkObservationCommand(id, User.ToCurrentUser(), User.DisplayName(), itemId, request.Done), cancellationToken);
+        setArtworkObservationHandler.HandleAsync(new SetArtworkObservationCommand(id, User.ToCurrentUser(), User.DisplayName(), itemId, request.Done, request.Comment), cancellationToken);
 }

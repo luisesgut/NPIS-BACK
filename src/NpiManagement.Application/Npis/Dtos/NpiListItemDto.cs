@@ -33,6 +33,21 @@ public sealed record NpiListItemDto(
     string? AssignedCommercialName = null,
     string? AssignedEngineeringName = null,
     string? AssignedDesignName = null,
-    /// <summary>Código de la versión vigente del PrintCard (lo captura Diseño) y código PT de SAP (Ingeniería).</summary>
+    /// <summary>Código del PrintCard (el de la versión final si ya hay; si no, el de la más reciente) y código PT de SAP.</summary>
     string? PrintCardCode = null,
-    string? CodigoPT = null);
+    string? CodigoPT = null,
+    /// <summary>Número de la versión final del PrintCard (la cargada en sistema); null mientras no hay.</summary>
+    int? PrintCardFinalVersion = null,
+    /// <summary>
+    /// Con quién está la versión vigente del PrintCard (2026-11-09; Comercial no distinguía "en aprobación"):
+    /// "Ingenieria" (la revisa), "PorEnviar" (Ingeniería la liberó; Comercial la manda), "Cliente" (enviada,
+    /// falta su respuesta), "Aprobado" (el cliente la aprobó; falta cargarla), "RechazadoIngenieria",
+    /// "CambiosCliente" (el cliente pidió cambios), "Rehacer" (se retiró porque cambió la información). Null si no aplica.
+    /// </summary>
+    string? PrintCardStep = null,
+    /// <summary>A quién espera Diseño con una solicitud de información: "Comercial", "Ingenieria", "Ambas" o null.</summary>
+    string? PendingInfoFrom = null,
+    /// <summary>Ingeniería debe reconfirmar su factibilidad (Comercial cambió campos que ya revisó).</summary>
+    bool PendingReconfirmation = false,
+    /// <summary>Comercial abrió "Modificar NPI" y no lo ha reenviado.</summary>
+    bool CommercialEditing = false);

@@ -101,10 +101,12 @@ public static class NpiTurns
         if (f.PtRegistered && !f.SapOrderRegistered) Add(AreaType.Comercial, RegisterSapOrder);
 
         // ===== Ingeniería =====
-        if (!f.EngineerAssigned) Add(AreaType.Ingenieria, AssignEngineer);
+        // Mientras Comercial atiende los cambios que pidió Ingeniería, su reloj está en pausa (Npi.RequestEngineeringChanges):
+        // no le toca ni asignar ni revisar el PrintCard que estaba esperando (NPI-0041, 2026-11-09).
+        if (!f.EngineerAssigned) { if (!f.PendingEngineeringChanges) Add(AreaType.Ingenieria, AssignEngineer); }
         else if (!f.EngineeringFeasibility && !f.PendingEngineeringChanges && !f.SuppliesTemporaryRejection) Add(AreaType.Ingenieria, ReviewEngineeringFeasibility);
         if (f.PendingEngineeringReconfirmation && !f.PendingEngineeringChanges) Add(AreaType.Ingenieria, ReconfirmFeasibility);
-        if (printCardWithEngineering) Add(AreaType.Ingenieria, ReviewPrintCard);
+        if (printCardWithEngineering && !f.PendingEngineeringChanges) Add(AreaType.Ingenieria, ReviewPrintCard);
         if (f.PrintCardLoaded && !f.PtRegistered && !f.PendingEngineeringChanges && !f.PendingEngineeringReconfirmation && !f.PendingCommercialEdit) Add(AreaType.Ingenieria, RegisterPt);
         if (f.SapOrderRegistered && !f.EtCreated) Add(AreaType.Ingenieria, CreateEt);
         if (f.EtCreated && !f.EtLoaded) Add(AreaType.Ingenieria, LoadEtInSispro);

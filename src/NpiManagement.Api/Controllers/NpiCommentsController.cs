@@ -40,6 +40,7 @@ public sealed class NpiCommentsController(
 
     /// <summary>El usuario abrió (o tiene abierto) el chat: se marcan como leídos sus mensajes y su aviso agrupado.</summary>
     [HttpPost("read")]
+    [AllowForReadOnlyRole]
     public async Task<IActionResult> MarkRead(Guid id, CancellationToken cancellationToken)
     {
         await markReadHandler.HandleAsync(new MarkChatReadCommand(id, User.ToCurrentUser()), cancellationToken);

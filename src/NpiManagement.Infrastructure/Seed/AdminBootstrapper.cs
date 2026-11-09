@@ -33,19 +33,20 @@ public static class AdminBootstrapper
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
-        var email = configuration["Bootstrap:AdminEmail"];
-        var password = configuration["Bootstrap:AdminPassword"];
-
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
-            return;
-
-        // Los roles deben existir antes de poder asignar ninguno. En Development ya los creó el
-        // seeder; en Producción esta puede ser la primera vez.
+        // Los roles deben existir antes de poder asignar ninguno. Se aseguran SIEMPRE al arrancar
+        // (antes sólo con Bootstrap configurado): así un rol nuevo, como Director (2026-11-09),
+        // aparece en producción con sólo publicar, sin script.
         foreach (var role in ApplicationRoles.All)
         {
             if (!await roleManager.RoleExistsAsync(role))
                 await roleManager.CreateAsync(new IdentityRole<Guid>(role));
         }
+
+        var email = configuration["Bootstrap:AdminEmail"];
+        var password = configuration["Bootstrap:AdminPassword"];
+
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            return;
 
         var existingAdmins = await userManager.GetUsersInRoleAsync(ApplicationRoles.AdminTotal);
         if (existingAdmins.Count > 0)

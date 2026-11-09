@@ -16,6 +16,7 @@ namespace NpiManagement.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/auth")]
+[AllowForReadOnlyRole]
 public sealed class AuthController(IAuthService authService, IUserAdminService userAdminService) : ControllerBase
 {
     [HttpPost("login")]

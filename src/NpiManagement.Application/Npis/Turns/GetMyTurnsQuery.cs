@@ -19,6 +19,24 @@ public interface INpiTurnReader
 }
 
 /// <summary>
+/// Qué NPIs entran en "Tu turno" de alguien. Igual que lo que puede ver, salvo el admin de Comercial
+/// (2026-11-09): ve todos los NPIs, pero en "Tu turno" sólo los suyos (los que capturó o tiene
+/// asignados), porque con los de todo Comercial se le llenaba de cosas que no le tocan. Los admins de
+/// Ingeniería y Diseño siguen viendo toda su área: ellos asignan y reparten.
+/// </summary>
+public static class TurnScope
+{
+    public static bool IsRestricted(CurrentUser actor) => actor.Role == ApplicationRoles.AdminComercial;
+
+    public static Expression<Func<Npi, bool>> For(CurrentUser actor)
+    {
+        if (!IsRestricted(actor)) return NpiAuthorization.BuildAccessPredicate(actor);
+        var userId = actor.UserId;
+        return npi => npi.CreatedByUserId == userId || npi.AssignedCommercialUserId == userId;
+    }
+}
+
+/// <summary>
 /// "Tu turno" de un área. Un usuario normal sólo ve lo suyo (la regla de acceso ya lo limita a sus
 /// NPIs); el admin del área ve toda su área, incluido lo que falta asignar. AdminTotal elige el área.
 /// </summary>
@@ -30,7 +48,7 @@ public sealed class GetMyTurnsQueryHandler(INpiTurnReader reader)
     {
         var area = query.Actor.Area == AreaType.Total ? query.Area : query.Actor.Area;
         var isAdmin = NpiAuthorization.SeesAllNpis(query.Actor);
-        var turns = await reader.ListAsync(NpiAuthorization.BuildAccessPredicate(query.Actor), cancellationToken);
+        var turns = await reader.ListAsync(TurnScope.For(query.Actor), cancellationToken);
         return turns
             .Where(t => area is null || t.Area == area.ToString())
             .Where(t => isAdmin || !NpiTurns.AdminOnly.Contains(t.Action))

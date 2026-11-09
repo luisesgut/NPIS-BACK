@@ -59,11 +59,21 @@ public sealed class Npi
     public Guid? PrintCardLoadedByUserId { get; private set; }
     public Guid? PrintCardLoadedVersionId { get; private set; }
 
+    /// <summary>
+    /// La versión final del PrintCard: la que Diseño cargó en sistema (con las 3 aprobaciones). null
+    /// mientras no se carga. Los NPIs cargados antes de guardar la versión toman la más reciente.
+    /// </summary>
+    public PrintCardVersion? FinalPrintCardVersion =>
+        PrintCardLoadedAt is null ? null : _printCardVersions.FirstOrDefault(v => v.Id == PrintCardLoadedVersionId) ?? CurrentPrintCardVersion;
+
     public DateTimeOffset? PrintCardSentToClientAt { get; private set; }
     public Guid? PrintCardSentToClientByUserId { get; private set; }
 
     public string? CodigoPT { get; private set; }
     public string? PtName { get; private set; }
+    /// <summary>Tabla copiada de Excel/SAP al cargar el PT (texto separado por tabuladores, 2026-11-09). null si no se pegó.</summary>
+    public string? PtSapTable { get; private set; }
+    public const int PtSapTableMaxLength = 20000;
     public DateTimeOffset? PtRegisteredAt { get; private set; }
     public Guid? PtRegisteredByUserId { get; private set; }
 
@@ -629,12 +639,12 @@ public sealed class Npi
     }
 
     /// <summary>Comercial palomea (o despalomea) una observación del rechazo de artes.</summary>
-    public void SetArtworkObservationDone(Actor actor, IClock clock, Guid itemId, bool done)
+    public void SetArtworkObservationDone(Actor actor, IClock clock, Guid itemId, bool done, string? comment = null)
     {
         EnsureActive();
         var pending = PendingArtworkRejection
             ?? throw new InvalidNpiTransitionException("no-pending-artwork-rejection", "No hay artes rechazadas pendientes.");
-        if (!pending.SetChecklistItemDone(itemId, done, actor, clock.UtcNow))
+        if (!pending.SetChecklistItemDone(itemId, done, actor, clock.UtcNow, comment))
             throw new NpiValidationException("artwork-observation-not-found", "Esa observación no pertenece al rechazo de artes pendiente.");
     }
 
@@ -1010,7 +1020,7 @@ public sealed class Npi
         EngineeringFeasibility is null
         || _informationRequests.Any(r => r.Type == InformationRequestType.Engineering && r.Status == InformationRequestStatus.Pending)
         || (PendingEngineeringReconfirmation is not null && PendingEngineeringChangeRequest is null)
-        || PrintCardAwaitingEngineering
+        || (PrintCardAwaitingEngineering && PendingEngineeringChangeRequest is null)
         || (PrintCardLoadedAt is not null && PtRegisteredAt is null && PendingEngineeringChangeRequest is null && PendingCommercialEdit is null)
         || (PedidoSapRegisteredAt is not null && EtLoadedInSisproAt is null);
 
@@ -1317,14 +1327,14 @@ public sealed class Npi
     }
 
     /// <summary>Comercial palomea (o despalomea) un punto que Diseño le pidió revisar con el cliente en la versión vigente.</summary>
-    public void SetPrintCardObservationDone(Actor actor, IClock clock, Guid itemId, bool done)
+    public void SetPrintCardObservationDone(Actor actor, IClock clock, Guid itemId, bool done, string? comment = null)
     {
         EnsureActive();
         var version = CurrentPrintCardVersion
             ?? throw new InvalidNpiTransitionException("no-printcard-version", "No existe una versión de PrintCard.");
         if (version.IsRejected || version.HasApprovalFrom(ApproverRole.Client))
             throw new InvalidNpiTransitionException("printcard-observations-closed", "Esta versión ya no está con el cliente.");
-        if (!version.SetCommercialChecklistItemDone(itemId, done, actor, clock.UtcNow))
+        if (!version.SetCommercialChecklistItemDone(itemId, done, actor, clock.UtcNow, comment))
             throw new NpiValidationException("printcard-observation-not-found", "Ese punto no pertenece a la versión vigente del PrintCard.");
     }
 
@@ -1422,12 +1432,12 @@ public sealed class Npi
     }
 
     /// <summary>Diseño palomea (o despalomea) un cambio que pidió el cliente.</summary>
-    public void SetClientChangeItemDone(Actor actor, IClock clock, Guid itemId, bool done)
+    public void SetClientChangeItemDone(Actor actor, IClock clock, Guid itemId, bool done, string? comment = null)
     {
         EnsureNotTerminal();
         var request = PendingClientChangeRequest
             ?? throw new InvalidNpiTransitionException("no-pending-client-changes", "No hay cambios del cliente pendientes.");
-        if (!request.SetChecklistItemDone(itemId, done, actor, clock.UtcNow))
+        if (!request.SetChecklistItemDone(itemId, done, actor, clock.UtcNow, comment))
             throw new NpiValidationException("client-change-item-not-found", "Ese cambio no pertenece a la solicitud pendiente del cliente.");
     }
 
@@ -1465,7 +1475,7 @@ public sealed class Npi
     }
 
     /// <summary>Acción 18 — Registrar PT en SAP.</summary>
-    public void RegisterSapPt(Actor actor, IClock clock, IBusinessCalendar calendar, string codigoPT, string? ptName)
+    public void RegisterSapPt(Actor actor, IClock clock, IBusinessCalendar calendar, string codigoPT, string? ptName, string? sapTable = null)
     {
         EnsureNotTerminal();
         EnsureNoClosureUnderReview(AreaType.Ingenieria);
@@ -1477,10 +1487,14 @@ public sealed class Npi
             throw new InvalidNpiTransitionException("pt-already-registered", "El PT ya fue registrado en SAP.");
         if (PendingEngineeringChangeRequest is not null || PendingEngineeringReconfirmation is not null || PendingCommercialEdit is not null)
             throw new InvalidNpiTransitionException("engineering-changes-open", "Antes de cargar el PT, Comercial debe atender los cambios y tú reconfirmar la factibilidad.");
+        var table = string.IsNullOrWhiteSpace(sapTable) ? null : sapTable.Trim('\r', '\n');
+        if (table is { Length: > PtSapTableMaxLength })
+            throw new NpiValidationException("pt-sap-table-too-long", "La tabla pegada es demasiado grande: pega sólo las filas del PT.");
 
         var now = clock.UtcNow;
         CodigoPT = codigoPT;
         PtName = ptName;
+        PtSapTable = table;
         PtRegisteredAt = now;
         PtRegisteredByUserId = actor.UserId;
         EngineeringAreaStatus = EngineeringAreaStatus.PtRegistered;

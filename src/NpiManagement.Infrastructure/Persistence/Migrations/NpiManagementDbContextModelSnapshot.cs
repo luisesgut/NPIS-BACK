@@ -946,6 +946,9 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("PtRegisteredByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("PtSapTable")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateOnly>("RequestDate")
                         .HasColumnType("date");
 
@@ -1259,6 +1262,44 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("CatalogOptions", (string)null);
+                });
+
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.ClientRecipient", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Cliente")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<bool>("Selected")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Cliente", "Email")
+                        .IsUnique();
+
+                    b.ToTable("ClientRecipients", (string)null);
                 });
 
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.CoreBobina", b =>
@@ -2403,6 +2444,15 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Catalog");
+                });
+
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.ClientRecipient", b =>
+                {
+                    b.HasOne("NpiManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.FeedbackReport", b =>

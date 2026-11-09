@@ -19,7 +19,8 @@ public sealed class ApproveEngineeringFeasibilityCommandHandler(INpiRepository r
 
         npi.ApproveEngineeringFeasibility(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Note, command.ConfirmedFieldKeys);
         if (npi.AssignedDesignUserId is { } designerId)
-            notifications.Notify(designerId, $"Ingeniería aprobó la factibilidad del NPI {npi.NpiNumber?.Value}.", npi.Id);
+            // Con la nota: Diseño debe enterarse de lo que Ingeniería observó (2026-11-09).
+            notifications.Notify(designerId, NotificationText.EngineeringFeasibilityApproved(npi.NpiNumber?.Value, command.Note), npi.Id);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));

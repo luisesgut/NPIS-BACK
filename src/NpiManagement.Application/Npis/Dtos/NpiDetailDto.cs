@@ -28,7 +28,7 @@ public sealed record ChangeRequestDto(
     DateTimeOffset? WithdrawnAt = null);
 
 /// <summary>Un cambio que pidió el cliente sobre el PrintCard; DoneAt != null cuando Diseño ya lo palomeó.</summary>
-public sealed record ChecklistItemDto(Guid Id, string Text, DateTimeOffset? DoneAt, string? DoneByName);
+public sealed record ChecklistItemDto(Guid Id, string Text, DateTimeOffset? DoneAt, string? DoneByName, string? Comment);
 
 public sealed record InformationRequestDto(Guid Id, string Type, string Status, string Text, Guid RequestedByUserId, string RequestedByName, DateTimeOffset RequestedAt, DateTimeOffset? ResolvedAt, Guid? ResolvedByUserId, string? ResponseText, IReadOnlyList<Guid>? ImageAttachmentIds = null);
 
@@ -113,7 +113,11 @@ public sealed record NpiDetailDto(
     /// <summary>Por qué se cerró (rechazo o cancelación): el motivo escrito, quién (su rol) y cuándo. null si sigue abierto.</summary>
     ClosingInfoDto? Closing = null,
     /// <summary>Indicaciones del admin de Diseño para el diseñador.</summary>
-    string? DesignInstructions = null);
+    string? DesignInstructions = null,
+    /// <summary>Tabla copiada de Excel/SAP al cargar el PT (separada por tabuladores).</summary>
+    string? PtSapTable = null,
+    /// <summary>Id de la versión final del PrintCard (la cargada en sistema); null mientras no hay.</summary>
+    Guid? PrintCardFinalVersionId = null);
 
 /// <summary>Cierre del NPI: Note es el motivo que se escribió (puede faltar si el admin cerró sin nota); ByRole, el rol de quien lo cerró.</summary>
 public sealed record ClosingInfoDto(string? Note, string ByRole, DateTimeOffset At);

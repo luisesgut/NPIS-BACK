@@ -270,6 +270,26 @@ public class NpiPrintCardTests
     }
 
     [Fact]
+    public void Each_checklist_item_keeps_its_own_comment()
+    {
+        var clock = TestClock.MondayMorning();
+        var npi = WithClientChanges(clock, "Logo más grande", "Quitar el pre corte");
+        var first = ClientRequest(npi).Checklist[0].Id;
+
+        npi.SetClientChangeItemDone(Designer, clock, first, true, "  Se agrandó 20 %  ");
+        ClientRequest(npi).Checklist[0].Comment.Should().Be("Se agrandó 20 %");
+        ClientRequest(npi).Checklist[1].Comment.Should().BeNull();
+
+        // Al despalomear no se pierde; al volver a palomear sin comentario, se queda el que tenía.
+        npi.SetClientChangeItemDone(Designer, clock, first, false);
+        npi.SetClientChangeItemDone(Designer, clock, first, true);
+        ClientRequest(npi).Checklist[0].Comment.Should().Be("Se agrandó 20 %");
+
+        var largo = () => npi.SetClientChangeItemDone(Designer, clock, first, true, new string('x', ChecklistItem.CommentMaxLength + 1));
+        largo.Should().Throw<NpiValidationException>().Which.Code.Should().Be("checklist-comment-too-long");
+    }
+
+    [Fact]
     public void Client_changes_accept_the_annotated_pdf_and_screenshots()
     {
         var clock = TestClock.MondayMorning();

@@ -25,7 +25,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddControllers(options => options.Filters.Add<QuotePriceRedactionFilter>())
+// Metas del dashboard (días hábiles): "Dashboard:Metas" en appsettings; lo que falte toma el valor por omisión.
+builder.Services.AddSingleton(builder.Configuration.GetSection("Dashboard:Metas").Get<NpiManagement.Application.Dashboard.DashboardGoals>() ?? new NpiManagement.Application.Dashboard.DashboardGoals());
+
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<QuotePriceRedactionFilter>();
+    options.Filters.Add<NpiManagement.Api.ReadOnlyRoleFilter>();
+})
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 // Registra el esquema de seguridad Bearer en el documento para que Swagger UI muestre el botón

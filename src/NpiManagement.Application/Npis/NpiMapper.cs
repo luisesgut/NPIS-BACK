@@ -31,14 +31,14 @@ public static class NpiMapper
         npi.Attachments.Select(ToAttachmentDto).ToList(),
         npi.ChangeRequests.Select(cr => new ChangeRequestDto(cr.Id, cr.RequestedByUserId, cr.RequestedByName, cr.RequestedAt, cr.FromArea.ToString(), cr.ToArea.ToString(), cr.Origin.ToString(), cr.Description, cr.FieldKeys,
             cr.ResolvedAt, cr.ResolvedByName, cr.ResponseComment, cr.ChangesApplied.Select(c => new FieldChangeDto(c.Field, c.Before, c.After)).ToList(), cr.EvidenceAttachmentId,
-            cr.Checklist.Select(i => new ChecklistItemDto(i.Id, i.Text, i.DoneAt, i.DoneByName)).ToList(), cr.FieldNotes, cr.ImageAttachmentIds, cr.WithdrawnAt)).ToList(),
+            cr.Checklist.Select(i => new ChecklistItemDto(i.Id, i.Text, i.DoneAt, i.DoneByName, i.Comment)).ToList(), cr.FieldNotes, cr.ImageAttachmentIds, cr.WithdrawnAt)).ToList(),
         npi.InformationRequests.Select(r => new InformationRequestDto(r.Id, r.Type.ToString(), r.Status.ToString(), r.Text, r.RequestedByUserId, r.RequestedByName, r.RequestedAt, r.ResolvedAt, r.ResolvedByUserId, r.ResponseText, r.ImageAttachmentIds)).ToList(),
         npi.FeasibilityReviews.Select(f => new FeasibilityReviewDto(f.Id, f.Area.ToString(), f.ApprovedByUserId, f.ApprovedByName, f.ApprovedAt, f.Note, f.ConfirmedFieldKeys)).ToList(),
         npi.PrintCardVersions.OrderBy(v => v.VersionNumber).Select(v => new PrintCardVersionDto(
             v.Id, v.VersionNumber, v.Code, v.AttachmentId, v.UploadedByUserId, v.UploadedByName, v.UploadedAt, v.Note,
             v.Approvals.Select(a => new PrintCardApprovalDto(a.Id, a.Role.ToString(), a.ByUserId, a.ByName, a.At, a.Note, a.EvidenceAttachmentId)).ToList(),
             v.RejectedAt, v.RejectedByName, v.RejectionReason, v.RejectionEvidenceAttachmentId,
-            v.CommercialChecklist.Select(i => new ChecklistItemDto(i.Id, i.Text, i.DoneAt, i.DoneByName)).ToList()))
+            v.CommercialChecklist.Select(i => new ChecklistItemDto(i.Id, i.Text, i.DoneAt, i.DoneByName, i.Comment)).ToList()))
             .ToList(),
         npi.SisproQuotes.OrderBy(q => q.VersionNumber).Select(ToSisproQuoteDto).ToList(),
         npi.ClosureProposals.OrderBy(p => p.ProposedAt).Select(p => new ClosureProposalDto(
@@ -47,7 +47,9 @@ public static class NpiMapper
             p.DecidedByName, p.DecidedAt, p.DecisionNote)).ToList(),
         npi.UndoableLastAction is { } undo ? new UndoableActionDto(undo.Action, undo.Details, undo.ActorUserId, undo.OccurredAt) : null,
         npi.ClosingEvent is { } closing ? new ClosingInfoDto(closing.Details, closing.ActorRole, closing.OccurredAt) : null,
-        npi.DesignInstructions);
+        npi.DesignInstructions,
+        npi.PtSapTable,
+        npi.FinalPrintCardVersion?.Id);
 
     private static readonly System.Text.Json.JsonSerializerOptions SnapshotJson = new(System.Text.Json.JsonSerializerDefaults.Web);
 

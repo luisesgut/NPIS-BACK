@@ -10,10 +10,15 @@ namespace NpiManagement.Api.Controllers;
 [ApiController]
 [Route("api/npis/turns")]
 [Authorize]
-public sealed class NpiTurnsController(GetMyTurnsQueryHandler handler) : ControllerBase
+public sealed class NpiTurnsController(GetMyTurnsQueryHandler handler, NpiSituationResolver situations) : ControllerBase
 {
     /// <summary>area sólo aplica a AdminTotal (los demás ven siempre la suya).</summary>
     [HttpGet]
     public Task<IReadOnlyList<TurnItemDto>> Get([FromQuery] AreaType? area, CancellationToken cancellationToken) =>
         handler.HandleAsync(new GetMyTurnsQuery(User.ToCurrentUser(), area), cancellationToken);
+
+    /// <summary>Contadores de los chips "¿Qué necesita?" y "¿Dónde está?" de los paneles (sólo NPIs activos).</summary>
+    [HttpGet("situations")]
+    public Task<NpiSituationCountsDto> Situations([FromQuery] AreaType? area, CancellationToken cancellationToken) =>
+        situations.CountAsync(User.ToCurrentUser(), area, cancellationToken);
 }

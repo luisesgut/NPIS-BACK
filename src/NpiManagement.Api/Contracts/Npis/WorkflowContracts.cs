@@ -43,13 +43,15 @@ public sealed record DescriptionRequest([Required] string Description);
 /// <summary>AttachmentIds: capturas, fotos o PDF (adjuntos del NPI) que mandó el cliente con sus cambios.</summary>
 public sealed record ClientChangesRequest(string? Description, IReadOnlyList<string>? Items, IReadOnlyList<Guid>? AttachmentIds = null);
 
-public sealed record ClientChangeItemRequest(bool Done);
+/// <param name="Comment">Comentario del punto al palomearlo (opcional; 2026-11-09).</param>
+public sealed record ClientChangeItemRequest(bool Done, string? Comment = null);
 
 public sealed record RejectPrintCardRequest([Required] string Reason, Guid? EvidenceAttachmentId);
 
 public sealed record RejectByClientRequest([Required] string Comment, Guid? EvidenceAttachmentId);
 
-public sealed record RegisterSapPtRequest([Required] string CodigoPT, string? PtName);
+/// <summary>SapTable: tabla copiada de Excel/SAP (texto separado por tabuladores), opcional.</summary>
+public sealed record RegisterSapPtRequest([Required] string CodigoPT, string? PtName, string? SapTable = null);
 
 public sealed record RegisterSapOrderRequest([Required] string PedidoSapNumber);
 

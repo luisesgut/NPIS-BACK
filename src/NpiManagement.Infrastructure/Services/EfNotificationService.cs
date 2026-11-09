@@ -92,4 +92,16 @@ public sealed class EfNotificationService(
         notification.ReadAt = clock.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task MarkAllReadAsync(Guid recipientUserId, CancellationToken cancellationToken)
+    {
+        var unread = await dbContext.Notifications
+            .Where(n => n.RecipientUserId == recipientUserId && n.ReadAt == null)
+            .ToListAsync(cancellationToken);
+        if (unread.Count == 0) return;
+
+        var now = clock.UtcNow;
+        foreach (var notification in unread) notification.ReadAt = now;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

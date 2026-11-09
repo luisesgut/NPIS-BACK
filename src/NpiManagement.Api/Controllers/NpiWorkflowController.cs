@@ -103,7 +103,7 @@ public sealed class NpiWorkflowController(
     [HttpPost("register-sap-pt")]
     [Authorize(Policy = "AreaIngenieria")]
     public Task<NpiDetailDto> RegisterSapPt(Guid id, RegisterSapPtRequest request, CancellationToken cancellationToken) =>
-        registerSapPtHandler.HandleAsync(new RegisterSapPtCommand(id, User.ToCurrentUser(), User.DisplayName(), request.CodigoPT, request.PtName), cancellationToken);
+        registerSapPtHandler.HandleAsync(new RegisterSapPtCommand(id, User.ToCurrentUser(), User.DisplayName(), request.CodigoPT, request.PtName, request.SapTable), cancellationToken);
 
     [HttpPost("register-sap-order")]
     [Authorize(Policy = "AreaComercial")]

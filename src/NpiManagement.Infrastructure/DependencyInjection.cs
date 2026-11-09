@@ -65,6 +65,7 @@ public static class DependencyInjection
         services.AddScoped<NpiManagement.Application.Npis.Turns.INpiTurnReader, EfNpiTurnReader>();
         services.AddScoped<INpiListReader, EfNpiListReader>();
         services.AddScoped<IDashboardReader, EfDashboardReader>();
+        services.AddScoped<NpiManagement.Application.Dashboard.IDashboardOverviewReader, EfDashboardOverviewReader>();
         services.AddScoped<NpiManagement.Application.Clients.IClientNameStore, EfClientNameStore>();
         services.AddScoped<IUserDirectory, EfUserDirectory>();
         services.AddScoped<IUserAdminService, UserAdminService>();
@@ -72,6 +73,7 @@ public static class DependencyInjection
         services.AddScoped<ICatalogAdminService, EfCatalogAdminService>();
         services.AddScoped<IBobinaCatalogStore, EfBobinaCatalogStore>();
         services.AddScoped<INotificationService, EfNotificationService>();
+        services.AddScoped<NpiManagement.Application.ClientRecipients.IClientRecipientStore, EfClientRecipientStore>();
         services.AddScoped<INpiChatStore, EfNpiChatStore>();
         services.AddScoped<INpiCaptureHistoryStore, EfNpiCaptureHistoryStore>();
         services.AddScoped<IFeedbackService, FeedbackService>();

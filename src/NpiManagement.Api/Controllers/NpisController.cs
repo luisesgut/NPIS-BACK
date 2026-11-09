@@ -75,9 +75,12 @@ public sealed class NpisController(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] string? pendingClosureArea = null,
+        [FromQuery] string? situation = null,
+        [FromQuery] string? stage = null,
+        [FromQuery] string? area = null,
         CancellationToken cancellationToken = default)
     {
-        var filter = new NpiListFilter(search, lifecycleStatus, assignedToUserId, createdByUserId, priority, cliente, page, pageSize, pendingClosureArea);
+        var filter = new NpiListFilter(search, lifecycleStatus, assignedToUserId, createdByUserId, priority, cliente, page, pageSize, pendingClosureArea, situation, stage, area);
         var result = await listHandler.HandleAsync(new ListNpisQuery(filter, User.ToCurrentUser()), cancellationToken);
         return Ok(result);
     }

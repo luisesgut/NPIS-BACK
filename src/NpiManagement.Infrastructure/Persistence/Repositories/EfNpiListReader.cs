@@ -22,6 +22,10 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
     {
         var query = dbContext.Npis.AsNoTracking().Where(accessPredicate);
 
+        // "¿Qué necesita?" / "¿Dónde está?": el handler ya los resolvió a ids (salen de los turnos).
+        if (filter.OnlyIds is { } onlyIds)
+            query = query.Where(n => onlyIds.Contains(n.Id));
+
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
             var term = filter.Search.Trim();
@@ -127,7 +131,26 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                 n.ArtClassification,
                 n.HasLabValues,
                 PrintCardCode = n.PrintCardVersions.OrderByDescending(v => v.VersionNumber).Select(v => v.Code).FirstOrDefault(),
+                LatestPrintCardNumber = n.PrintCardVersions.Max(v => (int?)v.VersionNumber),
+                // La versión vigente (la de número más alto): ¿rechazada?, ¿la liberó Ingeniería?, ¿la aprobó el cliente?
+                CurrentPrintCard = n.PrintCardVersions.OrderByDescending(v => v.VersionNumber).Select(v => new
+                {
+                    v.UploadedAt,
+                    v.RejectionReason,
+                    Rejected = v.RejectedAt != null,
+                    EngineeringApproved = v.Approvals.Any(a => a.Role == ApproverRole.Engineering),
+                    ClientApproved = v.Approvals.Any(a => a.Role == ApproverRole.Client),
+                }).FirstOrDefault(),
+                // La versión final: la que se cargó en sistema (Npi.FinalPrintCardVersion).
+                LoadedPrintCardCode = n.PrintCardVersions.Where(v => v.Id == n.PrintCardLoadedVersionId).Select(v => v.Code).FirstOrDefault(),
+                LoadedPrintCardNumber = n.PrintCardVersions.Where(v => v.Id == n.PrintCardLoadedVersionId).Select(v => (int?)v.VersionNumber).FirstOrDefault(),
                 n.CodigoPT,
+                // Para que la etapa diga quién pidió qué (2026-11-09).
+                LatestOpenClientChangeAt = n.ChangeRequests.Where(c => c.Origin == ChangeRequestOrigin.ClientReported && c.ResolvedAt == null).Max(c => (DateTimeOffset?)c.RequestedAt),
+                PendingCommercialInfo = n.InformationRequests.Any(i => i.Type == InformationRequestType.Commercial && i.Status == InformationRequestStatus.Pending),
+                PendingEngineeringInfo = n.InformationRequests.Any(i => i.Type == InformationRequestType.Engineering && i.Status == InformationRequestStatus.Pending),
+                PendingReconfirmation = n.ChangeRequests.Any(c => c.Origin == ChangeRequestOrigin.Reconfirmation && c.ResolvedAt == null),
+                CommercialEditing = n.ChangeRequests.Any(c => c.Origin == ChangeRequestOrigin.CommercialEdit && c.ResolvedAt == null),
             })
             .ToListAsync(cancellationToken);
 
@@ -158,10 +181,41 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                 IsTerminal(r.LifecycleStatus) ? null : r.PendingClosureArea?.ToString(),
                 r.ArtClassification?.ToString(), r.HasLabValues,
                 NameOf(r.AssignedCommercialUserId), NameOf(r.AssignedEngineeringUserId), NameOf(r.AssignedDesignUserId),
-                r.PrintCardCode, r.CodigoPT))
+                r.PrintCardLoaded ? r.LoadedPrintCardCode ?? r.PrintCardCode : r.PrintCardCode, r.CodigoPT,
+                r.PrintCardLoaded ? r.LoadedPrintCardNumber ?? r.LatestPrintCardNumber : null,
+                PrintCardStepOf(r.CurrentPrintCard is null ? null : new PrintCardFacts(
+                        r.CurrentPrintCard.Rejected, r.CurrentPrintCard.RejectionReason,
+                        // Igual que Npi.PendingClientChangeRequest: los cambios anteriores a la versión vigente ya los atendió esa versión.
+                        r.LatestOpenClientChangeAt is { } changeAt && changeAt >= r.CurrentPrintCard.UploadedAt,
+                        r.CurrentPrintCard.EngineeringApproved, r.PrintCardSentToClient, r.CurrentPrintCard.ClientApproved),
+                    r.PrintCardLoaded),
+                (r.PendingCommercialInfo, r.PendingEngineeringInfo) switch
+                {
+                    (true, true) => "Ambas",
+                    (true, false) => "Comercial",
+                    (false, true) => "Ingenieria",
+                    _ => null,
+                },
+                r.PendingReconfirmation, r.CommercialEditing))
             .ToList();
 
         return new PagedResult<NpiListItemDto>(items, page, pageSize, totalCount);
+    }
+
+    private sealed record PrintCardFacts(bool Rejected, string? RejectionReason, bool ClientChanges, bool EngineeringApproved, bool SentToClient, bool ClientApproved);
+
+    // Versiones retiradas porque cambió la información (no porque Ingeniería las rechazara).
+    private static readonly HashSet<string> RetiredReasons =
+        [Npi.PrintCardRetiredByDesignReason, Npi.PrintCardRetiredByEngineeringReason, Npi.PrintCardRetiredByCommercialReason];
+
+    private static string? PrintCardStepOf(PrintCardFacts? pc, bool loaded)
+    {
+        if (pc is null || loaded) return null;
+        if (pc.ClientChanges) return "CambiosCliente";
+        if (pc.Rejected) return pc.RejectionReason is { } reason && RetiredReasons.Contains(reason) ? "Rehacer" : "RechazadoIngenieria";
+        if (pc.ClientApproved) return "Aprobado";
+        if (!pc.EngineeringApproved) return "Ingenieria";
+        return pc.SentToClient ? "Cliente" : "PorEnviar";
     }
 
     private static bool IsTerminal(LifecycleStatus status) =>

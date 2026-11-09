@@ -23,6 +23,7 @@ public sealed class FeedbackController(IFeedbackService feedbackService) : Contr
     /// aplica el servicio con la misma política que los adjuntos del NPI.
     /// </summary>
     [HttpPost]
+    [AllowForReadOnlyRole]
     [RequestSizeLimit(12 * 1024 * 1024)]
     [EnableRateLimiting("feedback")]
     public async Task<IActionResult> Submit([FromForm] SubmitFeedbackForm form, CancellationToken cancellationToken)

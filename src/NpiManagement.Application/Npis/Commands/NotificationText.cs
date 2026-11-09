@@ -71,6 +71,12 @@ public static class NotificationText
         return text + reminder;
     }
 
+    public static string EngineeringFeasibilityApproved(string? npiNumber, string? note)
+    {
+        var text = $"Ingeniería aprobó la factibilidad del NPI {npiNumber}.";
+        return string.IsNullOrWhiteSpace(note) ? text : $"{text} Nota: {Clip(note)}";
+    }
+
     public static string Reconfirmed(string? npiNumber, string? note)
     {
         var text = $"Ingeniería reconfirmó la factibilidad del NPI {npiNumber} con los cambios de Comercial.";

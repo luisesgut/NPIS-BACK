@@ -113,7 +113,7 @@ public sealed class RequestClientChangesCommandHandler(INpiRepository repository
 }
 
 /// <summary>Diseño palomea (o despalomea) un cambio que pidió el cliente sobre el PrintCard.</summary>
-public sealed record SetClientChangeItemCommand(Guid NpiId, CurrentUser Actor, string ActorName, Guid ItemId, bool Done);
+public sealed record SetClientChangeItemCommand(Guid NpiId, CurrentUser Actor, string ActorName, Guid ItemId, bool Done, string? Comment = null);
 
 public sealed class SetClientChangeItemCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar)
 {
@@ -122,7 +122,7 @@ public sealed class SetClientChangeItemCommandHandler(INpiRepository repository,
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.SetClientChangeItemDone(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.ItemId, command.Done);
+        npi.SetClientChangeItemDone(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.ItemId, command.Done, command.Comment);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
@@ -205,7 +205,7 @@ public sealed class RejectArtworkCommandHandler(INpiRepository repository, IUnit
 }
 
 /// <summary>Comercial palomea una observación del rechazo de artes.</summary>
-public sealed record SetArtworkObservationCommand(Guid NpiId, CurrentUser Actor, string ActorName, Guid ItemId, bool Done);
+public sealed record SetArtworkObservationCommand(Guid NpiId, CurrentUser Actor, string ActorName, Guid ItemId, bool Done, string? Comment = null);
 
 public sealed class SetArtworkObservationCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar)
 {
@@ -214,7 +214,7 @@ public sealed class SetArtworkObservationCommandHandler(INpiRepository repositor
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.SetArtworkObservationDone(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.ItemId, command.Done);
+        npi.SetArtworkObservationDone(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.ItemId, command.Done, command.Comment);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
@@ -222,7 +222,7 @@ public sealed class SetArtworkObservationCommandHandler(INpiRepository repositor
 }
 
 /// <summary>Comercial palomea un punto que Diseño le pidió revisar con el cliente en el PrintCard vigente.</summary>
-public sealed record SetPrintCardObservationCommand(Guid NpiId, CurrentUser Actor, string ActorName, Guid ItemId, bool Done);
+public sealed record SetPrintCardObservationCommand(Guid NpiId, CurrentUser Actor, string ActorName, Guid ItemId, bool Done, string? Comment = null);
 
 public sealed class SetPrintCardObservationCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar)
 {
@@ -231,7 +231,7 @@ public sealed class SetPrintCardObservationCommandHandler(INpiRepository reposit
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.SetPrintCardObservationDone(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.ItemId, command.Done);
+        npi.SetPrintCardObservationDone(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.ItemId, command.Done, command.Comment);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));

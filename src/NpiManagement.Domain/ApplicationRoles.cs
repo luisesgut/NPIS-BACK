@@ -15,9 +15,11 @@ public static class ApplicationRoles
     public const string UsuarioComercial = "UsuarioComercial";
     public const string UsuarioIngenieria = "UsuarioIngenieria";
     public const string UsuarioDiseno = "UsuarioDiseno";
+    /// <summary>Dirección (2026-11-09): ve todos los NPIs y el dashboard de dirección; sólo consulta (ReadOnlyRoleFilter en la API).</summary>
+    public const string Director = "Director";
 
     public static readonly string[] All =
-        [AdminTotal, AdminComercial, AdminIngenieria, AdminDiseno, UsuarioComercial, UsuarioIngenieria, UsuarioDiseno];
+        [AdminTotal, AdminComercial, AdminIngenieria, AdminDiseno, UsuarioComercial, UsuarioIngenieria, UsuarioDiseno, Director];
 
     /// <summary>
     /// Área que corresponde a cada rol. La autorización de todo el workflow se apoya en la pareja
@@ -34,6 +36,7 @@ public static class ApplicationRoles
         [UsuarioComercial] = AreaType.Comercial,
         [UsuarioIngenieria] = AreaType.Ingenieria,
         [UsuarioDiseno] = AreaType.Diseno,
+        [Director] = AreaType.Total,
     };
 
     public static bool Exists(string role) => AreaByRole.ContainsKey(role);

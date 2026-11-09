@@ -40,7 +40,7 @@ public sealed class NpiPrintCardWorkflowController(
     [HttpPost("printcard-observations/{itemId:guid}")]
     [Authorize(Policy = "AreaComercial")]
     public Task<NpiDetailDto> SetPrintCardObservation(Guid id, Guid itemId, ClientChangeItemRequest request, CancellationToken cancellationToken) =>
-        setPrintCardObservationHandler.HandleAsync(new SetPrintCardObservationCommand(id, User.ToCurrentUser(), User.DisplayName(), itemId, request.Done), cancellationToken);
+        setPrintCardObservationHandler.HandleAsync(new SetPrintCardObservationCommand(id, User.ToCurrentUser(), User.DisplayName(), itemId, request.Done, request.Comment), cancellationToken);
 
     [HttpPost("printcard-approvals")]
     public Task<NpiDetailDto> Approve(Guid id, ApprovePrintCardRequest request, CancellationToken cancellationToken) =>
@@ -74,5 +74,5 @@ public sealed class NpiPrintCardWorkflowController(
     [HttpPost("client-change-items/{itemId:guid}")]
     [Authorize(Policy = "AreaDiseno")]
     public Task<NpiDetailDto> SetClientChangeItem(Guid id, Guid itemId, ClientChangeItemRequest request, CancellationToken cancellationToken) =>
-        setClientChangeItemHandler.HandleAsync(new SetClientChangeItemCommand(id, User.ToCurrentUser(), User.DisplayName(), itemId, request.Done), cancellationToken);
+        setClientChangeItemHandler.HandleAsync(new SetClientChangeItemCommand(id, User.ToCurrentUser(), User.DisplayName(), itemId, request.Done, request.Comment), cancellationToken);
 }

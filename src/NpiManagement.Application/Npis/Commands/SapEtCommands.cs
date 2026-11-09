@@ -7,7 +7,7 @@ using NpiManagement.Domain.Common;
 namespace NpiManagement.Application.Npis.Commands;
 
 /// <summary>Acción 18 de workflow.md — Registrar PT en SAP.</summary>
-public sealed record RegisterSapPtCommand(Guid NpiId, CurrentUser Actor, string ActorName, string CodigoPT, string? PtName);
+public sealed record RegisterSapPtCommand(Guid NpiId, CurrentUser Actor, string ActorName, string CodigoPT, string? PtName, string? SapTable = null);
 
 public sealed class RegisterSapPtCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
 {
@@ -16,7 +16,7 @@ public sealed class RegisterSapPtCommandHandler(INpiRepository repository, IUnit
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.RegisterSapPt(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.CodigoPT, command.PtName);
+        npi.RegisterSapPt(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.CodigoPT, command.PtName, command.SapTable);
         notifications.Notify(npi.AssignedCommercialUserId, $"NPI {npi.NpiNumber?.Value}: PT {command.CodigoPT} en SAP — registre el número de Pedido.", npi.Id, NotificationChannel.BellAndEmail);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

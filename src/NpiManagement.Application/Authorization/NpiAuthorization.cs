@@ -27,13 +27,16 @@ public static class NpiAuthorization
     private static readonly HashSet<string> AdminRoles =
         ["AdminTotal", "AdminComercial", "AdminIngenieria", "AdminDiseno"];
 
-    /// <summary>Los administradores (total y de área) ven todos los NPIs.</summary>
-    public static bool SeesAllNpis(CurrentUser user) => AdminRoles.Contains(user.Role);
+    /// <summary>Los administradores (total y de área) y el Director (sólo consulta) ven todos los NPIs.</summary>
+    public static bool SeesAllNpis(CurrentUser user) => AdminRoles.Contains(user.Role) || IsDirector(user);
+
+    /// <summary>Dirección: ve todo, no opera nada (las escrituras las bloquea ReadOnlyRoleFilter en la API).</summary>
+    public static bool IsDirector(CurrentUser user) => user.Role == ApplicationRoles.Director;
 
     /// <summary>Alcance único usado tanto para lectura (detalle/listado/comentarios) como para operar el recurso — ver authorization-matrix.md §1-2.</summary>
     public static bool CanAccess(CurrentUser user, NpiOwnership npi)
     {
-        if (AdminRoles.Contains(user.Role)) return true;
+        if (AdminRoles.Contains(user.Role) || IsDirector(user)) return true;
 
         return user.Role switch
         {
@@ -84,7 +87,7 @@ public static class NpiAuthorization
     /// </summary>
     public static Expression<Func<Npi, bool>> BuildAccessPredicate(CurrentUser user)
     {
-        if (AdminRoles.Contains(user.Role))
+        if (AdminRoles.Contains(user.Role) || IsDirector(user))
             return _ => true;
 
         return user.Role switch

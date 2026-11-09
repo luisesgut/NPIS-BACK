@@ -45,6 +45,8 @@ public static class DependencyInjection
         services.AddScoped<CorrectChangeRequestAreaCommandHandler>();
         services.AddScoped<DeleteNpiCommandHandler>();
         services.AddScoped<NpiManagement.Application.Npis.Turns.GetMyTurnsQueryHandler>();
+        services.AddScoped<NpiManagement.Application.ClientRecipients.ClientRecipientsService>();
+        services.AddScoped<NpiManagement.Application.Npis.Turns.NpiSituationResolver>();
         services.AddScoped<ResolveArtworkRejectionCommandHandler>();
         services.AddScoped<ValidateArtworkCommandHandler>();
         services.AddScoped<CreatePrintCardVersionCommandHandler>();
@@ -94,6 +96,8 @@ public static class DependencyInjection
 
         // Fase 7 — tablero de control.
         services.AddScoped<GetDashboardSummaryQueryHandler>();
+        // Dashboard por rol (2026-11-09). Las metas se registran en la API desde "Dashboard:Metas".
+        services.AddScoped<NpiManagement.Application.Dashboard.DashboardOverviewQueryHandler>();
 
         // Nombres de cliente: listado para sugerencias y unificar duplicados (2026-11-04).
         services.AddScoped<NpiManagement.Application.Clients.ListClientNamesQueryHandler>();

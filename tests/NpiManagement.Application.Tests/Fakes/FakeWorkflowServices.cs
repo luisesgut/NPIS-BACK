@@ -48,6 +48,8 @@ public sealed class FakeNotificationService : INotificationService
         Task.FromResult<IReadOnlyList<NotificationDto>>([]);
 
     public Task MarkReadAsync(Guid notificationId, Guid recipientUserId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task MarkAllReadAsync(Guid recipientUserId, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 public sealed class FakeUserDirectory : IUserDirectory

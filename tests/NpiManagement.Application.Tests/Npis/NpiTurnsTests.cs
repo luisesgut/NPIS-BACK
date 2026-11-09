@@ -39,6 +39,18 @@ public sealed class NpiTurnsTests
     }
 
     [Fact]
+    public void Changes_requested_by_engineering_pause_assignment_and_printcard_review()
+    {
+        // Pidió cambios antes de asignar ingeniero: asigna cuando Comercial reenvíe.
+        ActionsOf(Active(engineer: false) with { PendingEngineeringChanges = true }, AreaType.Ingenieria).Should().BeEmpty();
+
+        // Tenía un PrintCard por revisar y pidió cambios sin rehacerlo: espera a Comercial.
+        var reviewing = Active() with { EngineeringFeasibility = true, DesignFeasibility = true, ArtesValidadas = true, HasPrintCard = true };
+        ActionsOf(reviewing with { PendingEngineeringChanges = true }, AreaType.Ingenieria).Should().BeEmpty();
+        ActionsOf(reviewing with { PendingEngineeringChanges = true }, AreaType.Comercial).Should().Equal(NpiTurns.AttendEngineeringChanges);
+    }
+
+    [Fact]
     public void The_printcard_goes_engineering_then_commercial_then_design()
     {
         var ready = Active() with { EngineeringFeasibility = true, DesignFeasibility = true, ArtesValidadas = true };

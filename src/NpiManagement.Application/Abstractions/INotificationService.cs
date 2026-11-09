@@ -49,4 +49,7 @@ public interface INotificationService
     Task<IReadOnlyList<NotificationDto>> ListAsync(Guid recipientUserId, bool unreadOnly, CancellationToken cancellationToken);
 
     Task MarkReadAsync(Guid notificationId, Guid recipientUserId, CancellationToken cancellationToken);
+
+    /// <summary>"Marcar todas como leídas" de la campana (2026-11-09).</summary>
+    Task MarkAllReadAsync(Guid recipientUserId, CancellationToken cancellationToken);
 }
