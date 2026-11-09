@@ -22,15 +22,16 @@ public class TimerScenarioTests
         npi.DesignTimer.IsRunning.Should().BeTrue();
 
         clock.Advance(Step);                                            // Diseño trabaja el PrintCard
-        npi.CreatePrintCardVersion(Designer, clock, Calendar, "PC-1", null, null);
-        npi.DesignTimer.IsRunning.Should().BeFalse("Diseño espera aprobaciones");
-        npi.CommercialTimer.IsRunning.Should().BeTrue("Comercial gestiona el PrintCard con el cliente");
+        npi.CreatePrintCardVersion(Designer, clock, Calendar, "PC-1", File(npi, clock), null);
+        npi.DesignTimer.IsRunning.Should().BeFalse("Diseño espera la revisión de Ingeniería");
+        npi.EngineeringTimer.IsRunning.Should().BeTrue("Ingeniería revisa el PrintCard");
+        npi.CommercialTimer.IsRunning.Should().BeFalse("Comercial aún no tiene nada que llevar al cliente");
 
-        npi.ApprovePrintCard(Designer, clock, Calendar, ApproverRole.Design, null, null);
         npi.ApprovePrintCard(Engineer, clock, Calendar, ApproverRole.Engineering, null, null);
+        npi.CommercialTimer.IsRunning.Should().BeTrue("Comercial gestiona el PrintCard con el cliente");
         npi.SendPrintCardToClient(Commercial, clock);
         clock.Advance(Step);                                            // esperando al cliente
-        npi.ApprovePrintCard(Commercial, clock, Calendar, ApproverRole.Client, null, Guid.NewGuid());
+        npi.ApprovePrintCard(Commercial, clock, Calendar, ApproverRole.Client, null, File(npi, clock, AttachmentContext.ClientApproval));
         npi.CommercialTimer.IsRunning.Should().BeFalse();
         npi.DesignTimer.IsRunning.Should().BeTrue("Diseño carga el PrintCard");
 
@@ -75,16 +76,37 @@ public class TimerScenarioTests
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateReadyForPrintCard(clock);
-        npi.CreatePrintCardVersion(Designer, clock, Calendar, "PC-1", null, null);
+        npi.CreatePrintCardVersion(Designer, clock, Calendar, "PC-1", File(npi, clock), null);
+        npi.ApprovePrintCard(Engineer, clock, Calendar, ApproverRole.Engineering, null, null);
         npi.SendPrintCardToClient(Commercial, clock);
 
         clock.Advance(Step);                                            // esperando al cliente: Comercial
-        npi.RequestClientChanges(Commercial, clock, Calendar, "Cambiar color del logo");
+        npi.RequestClientChanges(Commercial, clock, Calendar, null, ["Cambiar color del logo"]);
         clock.Advance(Step);                                            // Diseño hace la v2
-        npi.CreatePrintCardVersion(Designer, clock, Calendar, "PC-1", null, null);
+        var item = npi.ChangeRequests.Single(c => c.Origin == ChangeRequestOrigin.ClientReported).Checklist[0];
+        npi.SetClientChangeItemDone(Designer, clock, item.Id, true);
+        npi.CreatePrintCardVersion(Designer, clock, Calendar, "PC-1", File(npi, clock), null);
 
         npi.CommercialTimer.AccumulatedBusinessMs.Should().Be(HalfHour, "el tiempo de rehacer la versión es de Diseño, no de Comercial");
         npi.DesignTimer.AccumulatedBusinessMs.Should().Be(HalfHour);
+    }
+
+    [Fact]
+    public void Engineering_review_of_the_printcard_is_charged_to_engineering_and_a_rejection_goes_back_to_design()
+    {
+        var clock = TestClock.MondayMorning();
+        var npi = CreateReadyForPrintCard(clock);
+        npi.CreatePrintCardVersion(Designer, clock, Calendar, "PC-1", File(npi, clock), null);
+        var engineeringBefore = npi.EngineeringTimer.AccumulatedBusinessMs;
+
+        clock.Advance(Step);                                            // Ingeniería revisa
+        npi.RejectPrintCard(Engineer, clock, Calendar, "Falta el código de barras", null);
+        clock.Advance(Step);                                            // Diseño corrige
+
+        npi.EngineeringTimer.AccumulatedBusinessMs.Should().Be(engineeringBefore + HalfHour);
+        npi.EngineeringTimer.IsRunning.Should().BeFalse();
+        npi.DesignTimer.IsRunning.Should().BeTrue();
+        npi.CommercialTimer.IsRunning.Should().BeFalse();
     }
 
     [Fact]
@@ -120,18 +142,19 @@ public class TimerScenarioTests
         var npi = CreateActiveAssigned(clock);
 
         clock.Advance(Step);                                            // 1) factibilidad: Ingeniería
-        npi.ApproveDesignFeasibility(Designer, clock, null);
+        npi.ApproveDesignFeasibility(Designer, clock, null, ArtClassification.A);
         npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
-        npi.EngineeringTimer.IsRunning.Should().BeFalse("ahora la pelota la tiene Diseño");
+        npi.EngineeringTimer.IsRunning.Should().BeFalse("ahora la pelota la tiene Comercial (cotizar)");
         npi.ValidateArtwork(Designer, clock);
+        LinkQuote(npi, clock);                                          // cotización y aceptación al instante
+        npi.AcceptSisproQuote(Commercial, clock, Calendar, null, null);
 
         clock.Advance(Step);                                            // Diseño trabaja el PrintCard (no es de Ingeniería)
-        npi.CreatePrintCardVersion(Designer, clock, Calendar, "PC-1", null, null);
-        npi.ApprovePrintCard(Designer, clock, Calendar, ApproverRole.Design, null, null);
+        npi.CreatePrintCardVersion(Designer, clock, Calendar, "PC-1", File(npi, clock), null);
         npi.ApprovePrintCard(Engineer, clock, Calendar, ApproverRole.Engineering, null, null);
         npi.SendPrintCardToClient(Commercial, clock);
         clock.Advance(Step);                                            // esperando al cliente (no es de Ingeniería)
-        npi.ApprovePrintCard(Commercial, clock, Calendar, ApproverRole.Client, null, Guid.NewGuid());
+        npi.ApprovePrintCard(Commercial, clock, Calendar, ApproverRole.Client, null, File(npi, clock, AttachmentContext.ClientApproval));
         npi.LoadPrintCardIntoSystem(Designer, clock, Calendar);
         npi.EngineeringTimer.IsRunning.Should().BeTrue("le toca registrar el PT");
 

@@ -17,4 +17,6 @@ public sealed record DashboardSummaryDto(
     IReadOnlyDictionary<string, double?> AverageGlobalDurationBusinessMsByPriority,
     double? AverageEngineeringDurationBusinessMs,
     double SlaCompliancePercent,
-    IReadOnlyDictionary<string, int> CountsByClient);
+    IReadOnlyDictionary<string, int> CountsByClient,
+    double? AverageCommercialDurationBusinessMs,
+    double? AverageDesignDurationBusinessMs);

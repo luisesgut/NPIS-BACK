@@ -30,13 +30,19 @@ public sealed class NpiRepository(NpiManagementDbContext dbContext) : INpiReposi
     public void SetExpectedRowVersion(Npi npi, byte[] expectedRowVersion) =>
         dbContext.Entry(npi).Property("RowVersion").OriginalValue = expectedRowVersion;
 
+    // AsSplitQuery: con 7 colecciones en un solo JOIN, SQL devuelve el producto de todas (bitácora ×
+    // eventos de cronómetro × adjuntos × aprobaciones…) y un NPI avanzado tardaba muchísimo en abrir.
+    // Separadas, cada colección es su propia consulta y crece en suma, no en multiplicación.
     private IQueryable<Npi> Query() =>
         dbContext.Npis
+            .AsSplitQuery()
             .Include(n => n.Attachments)
             .Include(n => n.ChangeRequests)
             .Include(n => n.InformationRequests)
             .Include(n => n.FeasibilityReviews)
             .Include(n => n.PrintCardVersions).ThenInclude(v => v.Approvals)
+            .Include(n => n.SisproQuotes)
+            .Include(n => n.ClosureProposals)
             .Include(n => n.TimerEventLog)
             .Include(n => n.AuditLog);
 }

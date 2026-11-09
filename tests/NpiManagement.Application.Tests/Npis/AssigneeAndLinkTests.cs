@@ -103,11 +103,38 @@ public sealed class AssigneeAndLinkTests
         var clock = TestClock.Default();
         var calendar = new MexicoBusinessCalendar();
         var notifications = new FakeNotificationService();
+        repo.AddArtwork(npiId);
         await new SubmitNpiCommandHandler(repo, uow, clock, calendar, new FakeNpiNumberGenerator(), notifications, users)
             .HandleAsync(new SubmitNpiCommand(npiId, Commercial, "Comercial"), CancellationToken.None);
         await new AssignDesignCommandHandler(repo, uow, clock, calendar, notifications, users)
-            .HandleAsync(new AssignDesignCommand(npiId, new CurrentUser(Guid.NewGuid(), "AdminDiseno", AreaType.Diseno), "Admin Dis", designerId), CancellationToken.None);
+            .HandleAsync(new AssignDesignCommand(npiId, new CurrentUser(Guid.NewGuid(), "AdminDiseno", AreaType.Diseno), "Admin Dis", designerId, ArtClassification.C, false), CancellationToken.None);
         return (repo, npiId, designerId);
+    }
+
+    [Fact]
+    public async Task The_first_design_assignment_requires_the_art_classification_and_tells_the_designer()
+    {
+        var designerId = Guid.NewGuid();
+        var users = new FakeUserDirectory().With(designerId, AreaType.Diseno, "UsuarioDiseno");
+        var (repo, npiId) = await NewDraftAsync(users);
+        var uow = new FakeUnitOfWork();
+        var clock = TestClock.Default();
+        var calendar = new MexicoBusinessCalendar();
+        var notifications = new FakeNotificationService();
+        repo.AddArtwork(npiId);
+        await new SubmitNpiCommandHandler(repo, uow, clock, calendar, new FakeNpiNumberGenerator(), new FakeNotificationService(), users)
+            .HandleAsync(new SubmitNpiCommand(npiId, Commercial, "Comercial"), CancellationToken.None);
+        var handler = new AssignDesignCommandHandler(repo, uow, clock, calendar, notifications, users);
+        var admin = new CurrentUser(Guid.NewGuid(), "AdminDiseno", AreaType.Diseno);
+
+        var withoutClassification = () => handler.HandleAsync(new AssignDesignCommand(npiId, admin, "Admin Dis", designerId), CancellationToken.None);
+        (await withoutClassification.Should().ThrowAsync<NpiManagement.Domain.Exceptions.NpiValidationException>()).Which.Code.Should().Be("art-classification-required");
+
+        await handler.HandleAsync(new AssignDesignCommand(npiId, admin, "Admin Dis", designerId, ArtClassification.AA, false), CancellationToken.None);
+        notifications.Sent.Should().ContainSingle(n => n.RecipientUserId == designerId).Which.Message.Should().Contain("arte AA");
+
+        // Ya clasificado, reasignar no vuelve a pedirlo.
+        await handler.HandleAsync(new AssignDesignCommand(npiId, admin, "Admin Dis", designerId), CancellationToken.None);
     }
 
     [Fact]
@@ -122,6 +149,25 @@ public sealed class AssigneeAndLinkTests
         var sent = notifications.Sent.Should().ContainSingle().Subject;
         sent.RecipientUserId.Should().Be(designerId);
         sent.Message.Should().Contain("artes");
+    }
+
+    [Fact]
+    public async Task Artwork_on_an_npi_without_designer_notifies_the_design_admins()
+    {
+        var adminId = Guid.NewGuid();
+        var users = new FakeUserDirectory().With(adminId, AreaType.Diseno, "AdminDiseno").With(Guid.NewGuid(), AreaType.Ingenieria, "AdminIngenieria");
+        var (repo, npiId) = await NewDraftAsync(users);
+        repo.AddArtwork(npiId);
+        await new SubmitNpiCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new MexicoBusinessCalendar(), new FakeNpiNumberGenerator(), new FakeNotificationService(), users)
+            .HandleAsync(new SubmitNpiCommand(npiId, Commercial, "Comercial"), CancellationToken.None);
+        var notifications = new FakeNotificationService();
+        var handler = new RegisterLinkCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), notifications, users);
+
+        await handler.HandleAsync(new RegisterLinkCommand(npiId, Commercial, "Comercial", "https://example.com/artes", "Artes", AttachmentContext.Artwork), CancellationToken.None);
+
+        var sent = notifications.Sent.Should().ContainSingle().Subject;
+        sent.RecipientUserId.Should().Be(adminId);
+        sent.Message.Should().Contain("sin diseñador");
     }
 
     [Fact]

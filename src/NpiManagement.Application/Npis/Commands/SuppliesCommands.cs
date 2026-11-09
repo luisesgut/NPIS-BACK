@@ -2,6 +2,7 @@ using NpiManagement.Application.Abstractions;
 using NpiManagement.Application.Authorization;
 using NpiManagement.Application.Exceptions;
 using NpiManagement.Application.Npis.Dtos;
+using NpiManagement.Domain;
 using NpiManagement.Domain.Common;
 
 namespace NpiManagement.Application.Npis.Commands;
@@ -44,21 +45,18 @@ public sealed class ResolveSuppliesAgreementCommandHandler(INpiRepository reposi
 }
 
 /// <summary>Acción 24 de workflow.md — Rechazo total por falta de insumos (terminal).</summary>
-public sealed record RejectSuppliesTotalCommand(Guid NpiId, CurrentUser Actor, string ActorName);
+/// <remarks>Un usuario comercial (no admin) sólo lo propone (nota obligatoria): lo cierra AdminComercial o AdminTotal.</remarks>
+public sealed record RejectSuppliesTotalCommand(Guid NpiId, CurrentUser Actor, string ActorName, string? Note = null);
 
-public sealed class RejectSuppliesTotalCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
+public sealed class RejectSuppliesTotalCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications, IUserDirectory userDirectory)
 {
     public async Task<NpiDetailDto> HandleAsync(RejectSuppliesTotalCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.RejectSuppliesTotal(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar);
-
-        var recipients = new List<Guid>();
-        if (npi.AssignedEngineeringUserId is { } engineerId) recipients.Add(engineerId);
-        if (npi.AssignedDesignUserId is { } designerId) recipients.Add(designerId);
-        notifications.NotifyMany(recipients, $"NPI {npi.NpiNumber?.Value} cerrado por rechazo total de insumos.", npi.Id, NotificationChannel.BellAndEmail);
+        await Closure.CloseOrProposeAsync(npi, TerminalReason.SuppliesRejectionTotal, command.Actor, command.ActorName, command.Note, null,
+            actor => npi.RejectSuppliesTotal(actor, clock, calendar, command.Note), clock, notifications, userDirectory, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));

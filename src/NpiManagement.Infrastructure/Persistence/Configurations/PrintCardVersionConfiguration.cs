@@ -19,6 +19,15 @@ public sealed class PrintCardVersionConfiguration : IEntityTypeConfiguration<Pri
         builder.Property(v => v.UploadedByName).HasMaxLength(200).IsRequired();
         builder.Property(v => v.UploadedAt).IsRequired();
         builder.Property(v => v.Note).HasMaxLength(2000);
+        builder.Property(v => v.RejectedAt);
+        builder.Property(v => v.RejectedByUserId);
+        builder.Property(v => v.RejectedByName).HasMaxLength(200);
+        builder.Property(v => v.RejectionReason).HasMaxLength(2000);
+        builder.Property(v => v.RejectionEvidenceAttachmentId);
+        builder.Ignore(v => v.IsRejected);
+        builder.Ignore(v => v.IsFullyApproved);
+        builder.Property(v => v.CommercialChecklistJson);
+        builder.Ignore(v => v.CommercialChecklist);
 
         builder.Property<Guid>("NpiId").IsRequired();
         builder.HasIndex("NpiId");

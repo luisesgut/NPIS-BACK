@@ -4,7 +4,11 @@ using NpiManagement.Application.Abstractions;
 
 namespace NpiManagement.Api.Controllers;
 
-/// <summary>Búsqueda de cotizaciones por número, para precargar los campos "verdes" del NPI (docs/api-contract.md §8).</summary>
+/// <summary>
+/// Consulta de una cotización de SISPRO por número, para precargar la captura del NPI ("Importar
+/// desde SISPRO"). 404 si no existe; 503 si SISPRO no responde o no está configurado. Los precios
+/// sólo los ve Comercial (QuotePriceRedactionFilter).
+/// </summary>
 [ApiController]
 [Route("api/quotations")]
 [Authorize(Policy = "QuotationsRead")]

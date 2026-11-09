@@ -165,6 +165,16 @@ Formato breve: Contexto → Decisión → Consecuencias. Numeradas para referenc
 **Decisión:** se añade una acción mínima `cancel` (Draft o Active → Cancelled), reservada a `AdminComercial`/`AdminTotal`, con `reason` obligatorio, para que el valor del enum sea alcanzable.
 **Consecuencias:** es una adición no solicitada explícitamente por ninguna de las 11 decisiones ni por el catálogo de endpoints original — se documenta como tal y se registra en `assumptions-and-ambiguities.md` como punto no bloqueante sujeto a confirmación/ajuste del propietario (¿quién más debería poder cancelar? ¿aplica también sobre NPIs con factibilidades ya aprobadas, o sólo en etapas tempranas?).
 
+### ADR-025 — Cotización en SISPRO ligada al NPI (2026-10-27)
+**Contexto:** en la junta con Comercial se vio que el flujo real es NPI → factibilidad → cotización, y que pedir el número de cotización al inicio obligaba a cotizar antes de saber si el producto era viable. TI decidió que el cotizador oficial es SISPRO (el Excel de Comercial queda descartado) y autorizó leer su API interna (sin documentar; los únicos endpoints públicos son de pedidos) con una cuenta que TI captura en el servidor.
+**Decisión:**
+1. `IQuotationProvider` (ADR-018) pasa a leer SISPRO (`SisproClient` + `SisproQuotationMapper`): `POST /api/auth` → token; `GET /api/cotizacion/{n}`. **Solo lectura.** La tabla local `Quotations` sale del modelo (no se borra de la base).
+2. El mapeo valida cada valor contra los catálogos vigentes, marca lo traducido por regla (`CamposInferidos`) y no llena ancho/alto: SISPRO guarda imposición, no la medida de la bolsa. Ingeniería mantiene `SisproMaterialEquivalences` para confirmar traducciones.
+3. Etapa nueva en el agregado (`SisproQuoteLink`, versionada): Comercial liga la cotización **después** de la factibilidad de Ingeniería; se compara la estructura cotizada contra la captura; el cliente acepta, pide ajuste (se liga otra) o rechaza (terminal `PriceRejection`). Cambiar la estructura después de cotizar invalida la cotización.
+4. El primer PrintCard (y el reloj de Diseño) espera a que el cliente acepte el precio. Los NPIs que ya tenían PrintCard no se detienen.
+5. Los precios sólo los ve Comercial y AdminTotal (`QuotePriceRedactionFilter`, global).
+**Consecuencias:** la ruta pasa de 8 a 10 etapas (`NpiStageMilestones` y `npiStages.ts`). Dependemos de una API interna que puede cambiar sin aviso en una actualización de SISPRO: si falla, el NPI sigue funcionando con captura manual (503 con mensaje). Pendiente pedir al proveedor endpoints públicos de lectura de cotización y materiales para cambiar a un contrato estable.
+
 ---
 
 ## Resumen de decisiones tomadas en esta ronda (para referencia rápida)

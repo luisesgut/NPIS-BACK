@@ -27,7 +27,7 @@ public class CreateNpiDraftCommandHandlerTests
         var stored = await repository.GetByIdAsync(id, CancellationToken.None);
         stored.Should().NotBeNull();
         stored!.LifecycleStatus.Should().Be(LifecycleStatus.Draft);
-        stored.Capture.Cliente.Should().Be("Cliente X");
+        stored.Capture.Cliente.Should().Be("CLIENTE X", "los clientes se guardan en mayúsculas");
         stored.CreatedByUserId.Should().Be(actorId);
         unitOfWork.SaveChangesCallCount.Should().Be(1);
     }

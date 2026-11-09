@@ -7,6 +7,12 @@ public sealed class FakeFileStorage : IFileStorage
 {
     private readonly Dictionary<string, byte[]> _store = [];
 
+    public Task DeleteAsync(string storageKey, CancellationToken cancellationToken)
+    {
+        _store.Remove(storageKey);
+        return Task.CompletedTask;
+    }
+
     public Task<StoredFile> SaveAsync(Stream content, string sanitizedFileName, CancellationToken cancellationToken)
     {
         using var buffer = new MemoryStream();

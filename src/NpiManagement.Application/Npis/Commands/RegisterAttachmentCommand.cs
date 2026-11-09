@@ -15,7 +15,7 @@ namespace NpiManagement.Application.Npis.Commands;
 /// </summary>
 public sealed record RegisterAttachmentCommand(Guid NpiId, CurrentUser Actor, string ActorName, string FileName, string ContentType, long DeclaredSizeBytes, Stream Content, AttachmentContext Context);
 
-public sealed class RegisterAttachmentCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IFileStorage fileStorage, IAttachmentPolicy policy, INotificationService notifications)
+public sealed class RegisterAttachmentCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IFileStorage fileStorage, IAttachmentPolicy policy, INotificationService notifications, IUserDirectory? userDirectory = null)
 {
     public async Task<AttachmentDto> HandleAsync(RegisterAttachmentCommand command, CancellationToken cancellationToken)
     {
@@ -48,7 +48,7 @@ public sealed class RegisterAttachmentCommandHandler(INpiRepository repository, 
 
         var actor = new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName);
         var attachment = npi.RegisterAttachment(actor, clock, sanitizedFileName, command.ContentType, stored.SizeBytes, stored.StorageKey, stored.Sha256Hash, command.Context);
-        ArtworkNotifier.NotifyIfNeeded(notifications, npi, command.Context, command.Actor.UserId);
+        await ArtworkNotifier.NotifyIfNeededAsync(notifications, userDirectory, npi, command.Context, command.Actor.UserId, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

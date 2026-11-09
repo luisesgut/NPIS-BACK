@@ -25,14 +25,35 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
             var term = filter.Search.Trim();
+            // También por el nombre de quien lo tiene asignado (Comercial, Ingeniería o Diseño).
+            var usersMatching = dbContext.Users.Where(u => EF.Functions.Like(u.FullName, $"%{term}%")).Select(u => u.Id);
             query = query.Where(n =>
                 EF.Functions.Like(n.Capture.Cliente, $"%{term}%") ||
                 EF.Functions.Like(n.Capture.NumeroCotizacion, $"%{term}%") ||
-                EF.Functions.Like(n.Capture.DescripcionProducto, $"%{term}%"));
+                EF.Functions.Like(n.Capture.DescripcionProducto, $"%{term}%") ||
+                // Por código de PrintCard (cualquier versión) o código PT.
+                n.PrintCardVersions.Any(v => EF.Functions.Like(v.Code, $"%{term}%")) ||
+                EF.Functions.Like(n.CodigoPT, $"%{term}%") ||
+                usersMatching.Any(id => id == n.AssignedCommercialUserId || id == n.AssignedEngineeringUserId || id == n.AssignedDesignUserId));
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.LifecycleStatus) && Enum.TryParse<LifecycleStatus>(filter.LifecycleStatus, true, out var status))
-            query = query.Where(n => n.LifecycleStatus == status);
+        if (!string.IsNullOrWhiteSpace(filter.LifecycleStatus))
+        {
+            var statuses = filter.LifecycleStatus
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(s => Enum.TryParse<LifecycleStatus>(s, true, out var status) ? status : (LifecycleStatus?)null)
+                .OfType<LifecycleStatus>()
+                .Distinct()
+                .ToList();
+            if (statuses.Count > 0)
+                query = query.Where(n => statuses.Contains(n.LifecycleStatus));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Cliente))
+        {
+            var cliente = filter.Cliente.Trim();
+            query = query.Where(n => n.Capture.Cliente == cliente);
+        }
 
         if (!string.IsNullOrWhiteSpace(filter.Priority) && Enum.TryParse<Priority>(filter.Priority, true, out var priority))
             query = query.Where(n => n.Priority == priority);
@@ -45,6 +66,15 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                 n.AssignedCommercialUserId == assignedTo ||
                 n.AssignedEngineeringUserId == assignedTo ||
                 n.AssignedDesignUserId == assignedTo);
+
+        if (!string.IsNullOrWhiteSpace(filter.PendingClosureArea))
+        {
+            // Sólo NPIs activos: al cerrarse por otra vía, la propuesta queda sin efecto.
+            query = query.Where(n => n.LifecycleStatus == LifecycleStatus.Active);
+            query = Enum.TryParse<AreaType>(filter.PendingClosureArea, true, out var closureArea)
+                ? query.Where(n => n.ClosureProposals.Any(p => p.Status == ClosureProposalStatus.Pending && p.Area == closureArea))
+                : query.Where(n => n.ClosureProposals.Any(p => p.Status == ClosureProposalStatus.Pending));
+        }
 
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -88,8 +118,30 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                 PtRegistered = n.PtRegisteredAt != null,
                 SapOrderRegistered = n.PedidoSapNumber != null,
                 EtLoadedInSispro = n.EtLoadedInSisproAt != null,
+                // Mismo criterio que NpiStageMilestones.CountsAsLinked / Npi.SisproQuoteAccepted: una
+                // aceptada impide ligar otra, así que "existe una aceptada" equivale a "la vigente está aceptada".
+                SisproQuoteLinked = n.SisproQuotes.Any(q => q.Status != SisproQuoteStatus.Superseded && q.Status != SisproQuoteStatus.Invalidated),
+                SisproQuoteAccepted = n.SisproQuotes.Any(q => q.Status == SisproQuoteStatus.Accepted),
+                HasPrintCard = n.PrintCardVersions.Any(),
+                PendingClosureArea = n.ClosureProposals.Where(p => p.Status == ClosureProposalStatus.Pending).Select(p => (AreaType?)p.Area).FirstOrDefault(),
+                n.ArtClassification,
+                n.HasLabValues,
+                PrintCardCode = n.PrintCardVersions.OrderByDescending(v => v.VersionNumber).Select(v => v.Code).FirstOrDefault(),
+                n.CodigoPT,
             })
             .ToListAsync(cancellationToken);
+
+        // Nombres de los responsables de la página, en una sola consulta.
+        var userIds = rows
+            .SelectMany(r => new[] { (Guid?)r.AssignedCommercialUserId, r.AssignedEngineeringUserId, r.AssignedDesignUserId })
+            .OfType<Guid>()
+            .Distinct()
+            .ToList();
+        var names = await dbContext.Users.AsNoTracking()
+            .Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.FullName })
+            .ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
+        string? NameOf(Guid? id) => id is { } value && names.TryGetValue(value, out var name) ? name : null;
 
         var items = rows.Select(r => new NpiListItemDto(
                 r.Id, r.NpiNumber?.Value, r.Priority.ToString(), r.LifecycleStatus.ToString(),
@@ -100,9 +152,18 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                 NpiMapper.ToTimerDto(r.EngineeringTimer, clock, calendar), NpiMapper.ToTimerDto(r.DesignTimer, clock, calendar),
                 new NpiStageMilestones(
                     r.EngineeringFeasibilityApproved, r.DesignFeasibilityApproved, r.PrintCardSentToClient, r.ClientApprovedPrintCard,
-                    r.PrintCardLoaded, r.PtRegistered, r.SapOrderRegistered, r.EtLoadedInSispro).CompletedStages))
+                    r.PrintCardLoaded, r.PtRegistered, r.SapOrderRegistered, r.EtLoadedInSispro,
+                    r.SisproQuoteLinked, r.SisproQuoteAccepted, r.HasPrintCard).CompletedStages,
+                // Un NPI ya cerrado no espera visto bueno (el dominio deja sin efecto la propuesta al cerrarse).
+                IsTerminal(r.LifecycleStatus) ? null : r.PendingClosureArea?.ToString(),
+                r.ArtClassification?.ToString(), r.HasLabValues,
+                NameOf(r.AssignedCommercialUserId), NameOf(r.AssignedEngineeringUserId), NameOf(r.AssignedDesignUserId),
+                r.PrintCardCode, r.CodigoPT))
             .ToList();
 
         return new PagedResult<NpiListItemDto>(items, page, pageSize, totalCount);
     }
+
+    private static bool IsTerminal(LifecycleStatus status) =>
+        status is LifecycleStatus.Completed or LifecycleStatus.Rejected or LifecycleStatus.Cancelled;
 }

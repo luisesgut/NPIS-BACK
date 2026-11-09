@@ -69,6 +69,12 @@ public sealed class TimerState : IEquatable<TimerState>
         return new TimerState(paused.StartAt, clock.UtcNow, paused.AccumulatedBusinessMs, null);
     }
 
+    /// <summary>
+    /// Reabre un cronómetro cerrado, en pausa y con su acumulado intacto (sólo al reabrir un NPI que se
+    /// cerró por error; el tiempo que estuvo cerrado no se cuenta).
+    /// </summary>
+    public TimerState Reopen() => IsClosed ? new TimerState(StartAt, null, AccumulatedBusinessMs, null) : this;
+
     /// <summary>Tiempo hábil transcurrido hasta ahora (acumulado + tramo activo si corre).</summary>
     public long ElapsedMs(IClock clock, IBusinessCalendar calendar)
     {

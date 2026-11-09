@@ -23,7 +23,7 @@ public sealed class NpiManagementDbContext : IdentityDbContext<ApplicationUser, 
     }
 
     public DbSet<Npi> Npis => Set<Npi>();
-    public DbSet<Quotation> Quotations => Set<Quotation>();
+    public DbSet<SisproMaterialEquivalence> SisproMaterialEquivalences => Set<SisproMaterialEquivalence>();
     public DbSet<Catalog> Catalogs => Set<Catalog>();
     public DbSet<CatalogOption> CatalogOptions => Set<CatalogOption>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -33,6 +33,10 @@ public sealed class NpiManagementDbContext : IdentityDbContext<ApplicationUser, 
     public DbSet<NpiManagement.Domain.Entities.NpiComment> NpiComments => Set<NpiManagement.Domain.Entities.NpiComment>();
     public DbSet<NpiChatRead> NpiChatReads => Set<NpiChatRead>();
     public DbSet<NpiManagement.Domain.Entities.CaptureChange> NpiCaptureChanges => Set<NpiManagement.Domain.Entities.CaptureChange>();
+    public DbSet<MaterialBobina> MaterialesBobina => Set<MaterialBobina>();
+    public DbSet<CoreBobina> CoresBobina => Set<CoreBobina>();
+    public DbSet<ParametrosBobina> ParametrosBobina => Set<ParametrosBobina>();
+    public DbSet<NpiMaterialExacto> NpiMaterialesExactos => Set<NpiMaterialExacto>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

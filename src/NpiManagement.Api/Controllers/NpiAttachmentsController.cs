@@ -20,7 +20,8 @@ namespace NpiManagement.Api.Controllers;
 public sealed class NpiAttachmentsController(
     RegisterAttachmentCommandHandler registerHandler,
     RegisterLinkCommandHandler registerLinkHandler,
-    GetAttachmentForDownloadQueryHandler downloadHandler) : ControllerBase
+    GetAttachmentForDownloadQueryHandler downloadHandler,
+    DeleteAttachmentCommandHandler deleteHandler) : ControllerBase
 {
     /// <summary>Límite razonable de tamaño de request para evitar que un cliente intente enviar
     /// un archivo enorme antes de que la validación de negocio (IAttachmentPolicy) lo rechace.</summary>
@@ -41,6 +42,14 @@ public sealed class NpiAttachmentsController(
         var command = new RegisterLinkCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Url, request.Title, request.Context);
         var attachment = await registerLinkHandler.HandleAsync(command, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, attachment);
+    }
+
+    /// <summary>Elimina un adjunto subido por error (quien lo subió o AdminTotal; no si es evidencia de algo).</summary>
+    [HttpDelete("{attachmentId:guid}")]
+    public async Task<IActionResult> Delete(Guid id, Guid attachmentId, CancellationToken cancellationToken)
+    {
+        await deleteHandler.HandleAsync(new DeleteAttachmentCommand(id, attachmentId, User.ToCurrentUser(), User.DisplayName()), cancellationToken);
+        return NoContent();
     }
 
     [HttpGet("{attachmentId:guid}/download")]

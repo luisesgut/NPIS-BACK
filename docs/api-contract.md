@@ -66,10 +66,10 @@ Todas: `POST /api/npis/{id}/{accion}`, responden `200` con `NpiDetailResponse` a
 | `POST /api/npis/{id}/reassign-commercial` | `{ userId }` |
 | `POST /api/npis/{id}/engineering-feasibility` | `{ note?, attachmentIds? }` |
 | `POST /api/npis/{id}/design-feasibility` | `{ note?, attachmentIds? }` |
-| `POST /api/npis/{id}/request-changes` | `{ description, fieldKeys?, attachmentIds? }` |
+| `POST /api/npis/{id}/request-changes` | `{ description, fieldKeys?, fieldNotes?, redoPrintCard?, imageAttachmentIds? }` |
 | `POST /api/npis/{id}/reject-no-feasibility` | `{ note? }` |
 | `POST /api/npis/{id}/validate-artwork` | `{}` (409 `artwork-rejection-pending` si hay artes rechazadas sin corregir) |
-| `POST /api/npis/{id}/request-design-changes` | `{ description, fieldKeys? }` — Diseño rechaza con cambios (no terminal; antes de su factibilidad; `description` obligatoria). Comercial corrige y reenvía con `submit`, que atiende a la vez lo pendiente de Ingeniería y de Diseño. Ingeniería sigue en paralelo |
+| `POST /api/npis/{id}/request-design-changes` | `{ description, fieldKeys?, fieldNotes?, imageAttachmentIds? }` — Diseño rechaza con cambios (no terminal; antes de su factibilidad; `description` obligatoria). Comercial corrige y reenvía con `submit`, que atiende a la vez lo pendiente de Ingeniería y de Diseño. Ingeniería sigue en paralelo |
 | `POST /api/npis/{id}/reject-design-no-feasibility` | `{ note }` — terminal, `terminalReason = DesignNoFeasibility`; `note` obligatoria |
 | `POST /api/npis/{id}/reject-artwork` | `{ reason, evidenceAttachmentId? }` — Diseño rechaza las artes (antes de validarlas). Queda como `ChangeRequest` con `origin = ArtworkRejected` |
 | `POST /api/npis/{id}/resolve-artwork-rejection` | `{ note? }` — Comercial: exige artes nuevas (contexto `Artwork`) subidas después del rechazo |
@@ -86,9 +86,10 @@ Todas: `POST /api/npis/{id}/{accion}`, responden `200` con `NpiDetailResponse` a
 | `POST /api/npis/{id}/reject-supplies-temporary` | `{ note? }` |
 | `POST /api/npis/{id}/resolve-supplies-agreement` | `{ text, evidenceAttachmentId }` |
 | `POST /api/npis/{id}/reject-supplies-total` | `{ note? }` |
-| `POST /api/npis/{id}/request-information` | `{ type: "Client"\|"Commercial", text, attachmentId? }` |
+| `POST /api/npis/{id}/request-information` | `{ type: "Client"\|"Commercial"\|"Engineering", text, imageAttachmentIds? }` |
 | `POST /api/npis/{id}/resolve-client-information` | `{}` |
 | `POST /api/npis/{id}/respond-commercial-information` | `{ responseText, responseAttachmentId? }` |
+| `POST /api/npis/{id}/respond-engineering-information` | `{ responseText }` |
 | `POST /api/npis/{id}/cancel` | `{ reason }` |
 
 ## 5. Chat del NPI (antes "Comentarios")
@@ -139,6 +140,21 @@ Los adjuntos se suben **antes** de la acción que los referencia (p. ej. subir e
 | `GET /api/catalogs/changes?catalogKey=` | últimos 200 cambios `{ catalogKey, action, oldValue, newValue, changedByName, changedAt }` | Ingeniería |
 
 Reglas de administración: no se permiten duplicados ignorando mayúsculas, acentos y espacios (`catalog-option-duplicate`); las opciones que usan las reglas del formulario (`TIPO DE PRODUCTO`: BOBINA/BOLSA/POUCH; `ACABADO`: SIN IMPRESION) no se renombran ni desactivan (`catalog-option-protected`, ver `CatalogRules.cs`); renombrar o desactivar sólo afecta capturas nuevas — los NPIs conservan el texto capturado. No se borran opciones: se desactivan. Cada cambio queda en `CatalogChangeLogs`.
+
+### 8.1 Nombres de cliente (2026-11-04)
+
+El cliente sigue siendo texto libre en la captura; estos endpoints evitan y corrigen duplicados
+("Mr. Lucky" / "Mr Lucky").
+
+| Método/Ruta | Request / Response | Autorización |
+|---|---|---|
+| `GET /api/clients` | `[{ name, npiCount }]`: nombres distintos de `Capture_Cliente` en todos los NPIs, con su conteo | Cualquier usuario autenticado (sugerencias al capturar) |
+| `POST /api/clients/merge` | `{ from: string[], to }` → `{ updatedNpis }` | `AreaIngenieria` (`AdminTotal`, `AdminIngenieria`, `UsuarioIngenieria`) |
+
+`merge` cambia `Capture_Cliente` de todos los NPIs con alguno de `from` por `to` (recortado, máx. 200)
+en una transacción. **No** deja entrada en la bitácora del NPI ni toca relojes o estatus: es limpieza
+del dato, no un evento del flujo. Errores `400`: `ClientNameRequired`, `ClientNameTooLong`,
+`ClientNamesRequired`, `TooManyClientNames` (máx. 50 nombres).
 
 ## 9. Dashboard y métricas
 
@@ -219,3 +235,37 @@ los suyos; la bandeja completa, las capturas y el cambio de estado son **exclusi
 - Ningún endpoint permite `PUT/PATCH /api/npis/{id}` con un campo `status`/`lifecycleStatus` de escritura libre.
 - Ningún DTO de respuesta expone entidades de EF Core directamente (todas son proyecciones/DTOs explícitos).
 - Ningún endpoint acepta `userId`, `role`, `area`, `createdAt`, o cualquier dato de identidad/tiempo "confiando en el cliente" — el actor siempre sale del token; las fechas de servidor siempre las genera `IClock`.
+
+### Imágenes en solicitudes (2026-11-04)
+
+`imageAttachmentIds` (opcional, máx. 10) en `request-changes`, `request-design-changes` y
+`request-information`: capturas de pantalla o fotos que ya se subieron como adjuntos del NPI
+(`POST /attachments`, contexto `ChangeRequest` o `InfoRequest`). Deben ser imagen (JPG/PNG) de ese
+mismo NPI (`request-image-not-image`, `request-image-not-found`, `too-many-request-images`). Se
+devuelven en `ChangeRequestDto.imageAttachmentIds` e `InformationRequestDto.imageAttachmentIds`.
+Columna `ImageAttachmentIdsCsv` (migración `AddRequestImages`).
+
+### Corregir o retirar una solicitud ya enviada (2026-11-04)
+
+Mientras nadie la ha atendido. Todas regresan `NpiDetailDto` y avisan (campana + correo) a quien la iba a atender.
+
+| Método/Ruta | Body | Quién |
+|---|---|---|
+| `POST /api/npis/{id}/information-requests/{requestId}/edit` | `{ text, addImageAttachmentIds? }` | Diseño (`AreaDiseno`) |
+| `POST /api/npis/{id}/information-requests/{requestId}/withdraw` | — | Diseño |
+| `POST /api/npis/{id}/change-requests/{requestId}/edit` | `{ description, fieldKeys, fieldNotes?, addImageAttachmentIds? }` (reemplaza campos, comentarios y motivo; las imágenes se suman) | El área que la pidió (Ingeniería o Diseño) |
+| `POST /api/npis/{id}/change-requests/{requestId}/withdraw` | — | El área que la pidió |
+
+Retirar: la solicitud de información queda `Status = "Withdrawn"`; la de cambios queda con `withdrawnAt`
+(y `resolvedAt`, sin cambios aplicados). Si al pedirla se retiró el PrintCard, regresa como estaba; los
+estatus y relojes se recalculan. Errores `409`: `information-request-not-pending`, `change-request-not-pending`.
+
+Además, Diseño puede tener **una solicitud de información pendiente por tipo** a la vez (p. ej. una a
+Comercial y otra a Ingeniería); su reloj sólo regresa cuando ya no espera ninguna.
+
+### Revisión del admin de Diseño antes de asignar y adjuntos (2026-11-09)
+
+- `validate-artwork`, `reject-artwork` y `request-design-changes`: el admin de Diseño (o AdminTotal) ya puede usarlos **sin diseñador asignado**; un diseñador sigue necesitando estar asignado (`design-not-assigned`).
+- `POST /api/npis/{id}/design-instructions` `{ text }` → `NpiDetailDto`: indicaciones del admin de Diseño para el diseñador (máx. 2000; vacío las quita). Sólo admins de Diseño (`design-instructions-admin-only`). Se devuelven en `NpiDetailDto.designInstructions`. Migración `AddDesignInstructions`.
+- `DELETE /api/npis/{id}/attachments/{attachmentId}` → `204`: quien lo subió o AdminTotal, con el NPI abierto. No se puede si el adjunto es evidencia de algo (PrintCard, aprobaciones, solicitudes, acuerdos, cierres): `409 attachment-in-use`; de otro usuario: `409 attachment-not-yours`. El archivo NO se borra del servidor: sólo sale de la lista; `AttachmentDeleted` en la bitácora guarda su nombre y su clave en disco.
+- `POST /api/npis/{id}/printcard-file` `{ attachmentId }` → `NpiDetailDto`: Diseño reemplaza el archivo del PrintCard vigente (misma versión) mientras Ingeniería no lo ha aprobado ni rechazado y no está cargado (`printcard-already-reviewed`). Avisa al ingeniero asignado; `PrintCardFileReplaced` en la bitácora con el archivo anterior y el nuevo.

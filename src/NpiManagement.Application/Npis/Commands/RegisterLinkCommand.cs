@@ -14,7 +14,7 @@ namespace NpiManagement.Application.Npis.Commands;
 /// </summary>
 public sealed record RegisterLinkCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Url, string? Title, AttachmentContext Context);
 
-public sealed class RegisterLinkCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, INotificationService notifications)
+public sealed class RegisterLinkCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, INotificationService notifications, IUserDirectory? userDirectory = null)
 {
     public const int MaxUrlLength = 2000;
     public const int MaxTitleLength = 200;
@@ -40,7 +40,7 @@ public sealed class RegisterLinkCommandHandler(INpiRepository repository, IUnitO
 
         var actor = new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName);
         var attachment = npi.RegisterLink(actor, clock, title, url, command.Context);
-        ArtworkNotifier.NotifyIfNeeded(notifications, npi, command.Context, command.Actor.UserId);
+        await ArtworkNotifier.NotifyIfNeededAsync(notifications, userDirectory, npi, command.Context, command.Actor.UserId, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

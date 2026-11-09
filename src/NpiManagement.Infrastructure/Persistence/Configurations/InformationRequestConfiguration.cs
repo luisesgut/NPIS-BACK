@@ -21,6 +21,9 @@ public sealed class InformationRequestConfiguration : IEntityTypeConfiguration<I
         builder.Property(r => r.ResolvedAt);
         builder.Property(r => r.ResolvedByUserId);
         builder.Property(r => r.ResponseText).HasMaxLength(4000);
+        // Ids de adjuntos (imágenes) separados por coma: máx. 10 GUID = 369 caracteres.
+        builder.Property(r => r.ImageAttachmentIdsCsv).HasMaxLength(400);
+        builder.Ignore(r => r.ImageAttachmentIds);
 
         builder.Property<Guid>("NpiId").IsRequired();
         builder.HasIndex("NpiId");

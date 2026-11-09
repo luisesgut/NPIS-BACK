@@ -9,12 +9,35 @@ namespace NpiManagement.Domain.ValueObjects;
 /// </summary>
 public sealed record NpiCaptureData
 {
+    /// <summary>
+    /// Nombres que se guardan en MAYÚSCULAS (2026-11-09): cada asesor los escribía a su manera
+    /// ("Mr Lucky" / "MR LUCKY"). Respeta acentos y Ñ. Observaciones y notas se quedan como se escriben.
+    /// Al comparar capturas (CaptureDiff) estos campos ignoran mayúsculas: pasarlos a mayúsculas no es un cambio.
+    /// </summary>
+    public static readonly IReadOnlySet<string> UppercaseFields = new HashSet<string>
+    {
+        nameof(Cliente), nameof(Descripcion), nameof(DescripcionProducto), nameof(NombreExtranjeroProducto),
+        nameof(CodigoProdCliente), nameof(ContactoCompras), nameof(ContactoClienteDiseno),
+    };
+
+    public NpiCaptureData WithUppercaseNames() => this with
+    {
+        Cliente = Cliente.ToUpperInvariant(),
+        Descripcion = Descripcion.ToUpperInvariant(),
+        DescripcionProducto = DescripcionProducto.ToUpperInvariant(),
+        NombreExtranjeroProducto = NombreExtranjeroProducto.ToUpperInvariant(),
+        CodigoProdCliente = CodigoProdCliente.ToUpperInvariant(),
+        ContactoCompras = ContactoCompras.ToUpperInvariant(),
+        ContactoClienteDiseno = ContactoClienteDiseno.ToUpperInvariant(),
+    };
+
     // Información General (incluye snapshot de cotización — campos "verdes")
     public string NumeroCotizacion { get; init; } = string.Empty;
     public string Cliente { get; init; } = string.Empty;
     public string TipoProducto { get; init; } = string.Empty;
     public string Descripcion { get; init; } = string.Empty;
     public string DescripcionProducto { get; init; } = string.Empty;
+    public string NombreExtranjeroProducto { get; init; } = string.Empty;
     public string CodigoProdCliente { get; init; } = string.Empty;
     public string ContactoCompras { get; init; } = string.Empty;
     public string ContactoClienteDiseno { get; init; } = string.Empty;
@@ -28,6 +51,10 @@ public sealed record NpiCaptureData
     public string CategoriaSAP { get; init; } = string.Empty;
     public string TipoImpresion { get; init; } = string.Empty;
     public string TipoTinta { get; init; } = string.Empty;
+    /// <summary>Desarrollo (circunferencia, mm) de la manga de impresión flexo; opción del catálogo DESARROLLO MANGA.</summary>
+    public string DesarrolloManga { get; init; } = string.Empty;
+    /// <summary>Prensas donde hay manga de ese desarrollo (las que propuso el buscador de mangas), p. ej. "BOBST 1, VISION 1/2".</summary>
+    public string PrensaManga { get; init; } = string.Empty;
     public string TipoEmpaque { get; init; } = string.Empty;
 
     // Producto
@@ -39,6 +66,10 @@ public sealed record NpiCaptureData
     public string Alto { get; init; } = string.Empty;
     public string FuelleExtendido { get; init; } = string.Empty;
     public string SolapaPestana { get; init; } = string.Empty;
+    /// <summary>Dónde va la solapa: "ARRIBA" o "ABAJO". Vacío = arriba (los NPIs anteriores a 2026-11-04).</summary>
+    public string UbicacionSolapa { get; init; } = string.Empty;
+    /// <summary>Labio (mm) de la bolsa wicket.</summary>
+    public string Labio { get; init; } = string.Empty;
     public string Fuelles { get; init; } = string.Empty;
     public string PiTipoPelicula { get; init; } = string.Empty;
     public string TerminadoPI { get; init; } = string.Empty;
@@ -63,6 +94,8 @@ public sealed record NpiCaptureData
     public string DiametroPerforaciones { get; init; } = string.Empty;
     public string Muesca { get; init; } = "NO";
     public string Precorte { get; init; } = "NO";
+    public string PrecorteZipper { get; init; } = "NO";
+    public string PrecorteWicket { get; init; } = "NO";
     public string PatronPerforado { get; init; } = "NO";
     public string ParcheRefuerzo { get; init; } = "NO";
     public string Suaje { get; init; } = "NO";
@@ -81,14 +114,20 @@ public sealed record NpiCaptureData
     public string FiguraEmbob { get; init; } = string.Empty;
     public string DiametroBobina { get; init; } = string.Empty;
     public string PesoBobina { get; init; } = string.Empty;
+    /// <summary>Largo de una pieza (repetición) para calcular piezas por bobina; se guarda en mm como las demás medidas.</summary>
+    public string Repeticion { get; init; } = string.Empty;
     public string BobinasPorTarima { get; init; } = string.Empty;
     public string AlturaTarimaMaxBobina { get; init; } = string.Empty;
     public string MaxUniones { get; init; } = string.Empty;
+    /// <summary>Color de la cinta de las uniones de la bobina: BLANCA, ROJA o el que se escriba (opción "Otro").</summary>
+    public string ColorCintaUniones { get; init; } = string.Empty;
     public string Core { get; init; } = string.Empty;
     public string TaponCore { get; init; } = "NO";
     public string DestareCore { get; init; } = "NO";
     public string DimTarimaBobina { get; init; } = string.Empty;
     public string PiezasCajaBulto { get; init; } = string.Empty;
+    /// <summary>Tipo de caja del producto terminado (bolsa / pouch); opción del catálogo TIPO DE CAJA.</summary>
+    public string TipoCaja { get; init; } = string.Empty;
     public string Ligas { get; init; } = "NO";
     public string CajaBultoTarima { get; init; } = string.Empty;
     public string DimTarimaBolsa { get; init; } = string.Empty;

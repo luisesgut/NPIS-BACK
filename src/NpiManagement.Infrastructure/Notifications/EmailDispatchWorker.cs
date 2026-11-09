@@ -90,19 +90,24 @@ public sealed class EmailDispatchWorker(
                 .FirstOrDefaultAsync(cancellationToken)
             : null;
 
+        // Con NPI, el asunto es siempre el mismo ("[NPI-0012] HEB · Bolsa para pan") y lo que pasó va
+        // en el cuerpo: así Outlook junta todos los avisos del NPI en una sola conversación.
         var subject = context is null
             ? $"[NPI] {pending.Message}"
-            : $"[{context.NpiNumber}] {pending.Message}";
+            : $"[{context.NpiNumber}] {context.Cliente} · {Shorten(context.Descripcion, 60)}";
 
         var message = new EmailMessage(
             recipient.Email,
             recipient.FullName,
             subject,
             BuildHtmlBody(recipient.FullName, pending.Message, context, pending.NpiId),
-            BuildTextBody(recipient.FullName, pending.Message, context, pending.NpiId));
+            BuildTextBody(recipient.FullName, pending.Message, context, pending.NpiId),
+            context is null ? null : pending.NpiId?.ToString("N"));
 
         await sender.SendAsync(message, cancellationToken);
     }
+
+    private static string Shorten(string text, int max) => text.Length <= max ? text : text[..(max - 1)].TrimEnd() + "…";
 
     private sealed record NpiEmailContext(string NpiNumber, string Cliente, string Descripcion, string Prioridad);
 

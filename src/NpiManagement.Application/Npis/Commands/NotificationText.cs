@@ -20,11 +20,25 @@ public static class NotificationText
         return $"Diseño solicitó cambios en el NPI {npiNumber}{fields}: {Clip(description)}";
     }
 
+    public static string ClosureProposed(string? npiNumber, string proposedBy, string closure, string note) =>
+        $"{proposedBy} propone cerrar el NPI {npiNumber} por {closure} y espera tu visto bueno: {Clip(note)}";
+
+    public static string ClosureDeclined(string? npiNumber, string adminName, string comment) =>
+        $"{adminName} no autorizó cerrar el NPI {npiNumber}; el NPI sigue en curso: {Clip(comment)}";
+
+    public static string EngineeringNoFeasibility(string? npiNumber, string? note) =>
+        string.IsNullOrWhiteSpace(note)
+            ? $"El NPI {npiNumber} fue rechazado por no factibilidad."
+            : $"El NPI {npiNumber} fue rechazado por Ingeniería (no factible): {Clip(note)}";
+
     public static string DesignNoFeasibility(string? npiNumber, string note) =>
         $"El NPI {npiNumber} fue rechazado por Diseño (no factible): {Clip(note)}";
 
     public static string ArtworkRejected(string? npiNumber, string reason) =>
         $"Diseño rechazó las artes del NPI {npiNumber}: {Clip(reason)}";
+
+    public static string PrintCardRejected(string? npiNumber, int? version, string reason) =>
+        $"Ingeniería rechazó el PrintCard v{version} del NPI {npiNumber}: {Clip(reason)}";
 
     public static string ArtworkResubmitted(string? npiNumber, string? comment)
     {
@@ -44,11 +58,42 @@ public static class NotificationText
         return string.IsNullOrWhiteSpace(comment) ? text : $"{text} Comentario: {Clip(comment)}";
     }
 
+    public static string ReconfirmationRequested(string? npiNumber, int fieldCount, bool hasPt, bool hasEt)
+    {
+        var text = $"Comercial cambió {fieldCount} campo{(fieldCount == 1 ? "" : "s")} que ya habías revisado en el NPI {npiNumber}. Reconfirma la factibilidad (el PrintCard no puede ir al cliente hasta entonces).";
+        var reminder = (hasPt, hasEt) switch
+        {
+            (true, true) => " Revisa si hay que actualizar el PT y la ET.",
+            (true, false) => " Revisa si hay que actualizar el PT.",
+            (false, true) => " Revisa si hay que actualizar la ET.",
+            _ => "",
+        };
+        return text + reminder;
+    }
+
+    public static string Reconfirmed(string? npiNumber, string? note)
+    {
+        var text = $"Ingeniería reconfirmó la factibilidad del NPI {npiNumber} con los cambios de Comercial.";
+        return string.IsNullOrWhiteSpace(note) ? text : $"{text} Nota: {Clip(note)}";
+    }
+
     public static string InformationRequested(string? npiNumber, string text) =>
-        $"Diseño solicita información para el NPI {npiNumber}: {Clip(text)}";
+        $"Diseño necesita que consigas con el cliente para el NPI {npiNumber}: {Clip(text)}";
+
+    public static string EngineeringQuestion(string? npiNumber, string text) =>
+        $"Diseño tiene dudas que sólo Ingeniería puede aclarar en el NPI {npiNumber}: {Clip(text)}";
+
+    public static string EngineeringAnswered(string? npiNumber, string response) =>
+        $"Ingeniería contestó tus dudas del NPI {npiNumber}: {Clip(response)}";
+
+    public static string RequestEdited(string? npiNumber, string text) =>
+        $"Se actualizó la solicitud que tienes pendiente en el NPI {npiNumber}: {Clip(text)}";
+
+    public static string RequestWithdrawn(string? npiNumber, string area) =>
+        $"{area} retiró la solicitud que tenías pendiente en el NPI {npiNumber}: ya no tienes que atenderla.";
 
     public static string InformationAnswered(string? npiNumber, string response) =>
-        $"Comercial respondió a Diseño en el NPI {npiNumber}: {Clip(response)}";
+        $"Comercial te entregó lo que pediste al cliente en el NPI {npiNumber}: {Clip(response)}";
 
     /// <summary>Aviso agrupado del chat: se reescribe con el último mensaje mientras no se lea.</summary>
     public static string ChatMessage(string? npiNumber, string author, string text) =>

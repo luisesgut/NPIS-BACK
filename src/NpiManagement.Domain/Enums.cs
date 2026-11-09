@@ -18,6 +18,42 @@ public enum TerminalReason
     ClientRejection = 2,
     /// <summary>Diseño declaró el NPI no factible (rechazo terminal de Diseño).</summary>
     DesignNoFeasibility = 3,
+    /// <summary>El cliente rechazó el precio de la cotización de SISPRO (rechazo terminal de Comercial).</summary>
+    PriceRejection = 4,
+}
+
+/// <summary>
+/// Estado de una cotización de SISPRO ligada al NPI. Sólo la versión vigente (la de número más
+/// alto) cuenta para el flujo; las anteriores quedan como historial.
+/// </summary>
+public enum SisproQuoteStatus
+{
+    /// <summary>Ligada y enviada: falta la respuesta del cliente al precio.</summary>
+    AwaitingClient = 0,
+    Accepted = 1,
+    /// <summary>El cliente pidió ajustar el precio: Comercial recotiza en SISPRO y liga la nueva.</summary>
+    AdjustmentRequested = 2,
+    /// <summary>Se ligó otra cotización antes de que el cliente respondiera a ésta.</summary>
+    Superseded = 3,
+    /// <summary>Cambió la estructura del NPI después de cotizar: hay que recotizar.</summary>
+    Invalidated = 4,
+    /// <summary>El cliente rechazó el precio (el NPI se cierra por PriceRejection).</summary>
+    Rejected = 5,
+}
+
+/// <summary>Estado de una propuesta de cierre de un usuario normal (ClosureProposal).</summary>
+public enum ClosureProposalStatus
+{
+    /// <summary>Espera el visto bueno del admin del área.</summary>
+    Pending = 0,
+    /// <summary>El admin dio luz verde: el NPI se cerró con ese motivo.</summary>
+    Confirmed = 1,
+    /// <summary>El admin no lo autorizó: el NPI sigue su curso.</summary>
+    Declined = 2,
+    /// <summary>Quien la propuso la retiró antes de que el admin decidiera.</summary>
+    Withdrawn = 3,
+    /// <summary>El NPI se cerró por otra vía (otro motivo o cancelación) antes de que el admin decidiera.</summary>
+    Superseded = 4,
 }
 
 /// <summary>Estado operativo de presentación para el área de Ingeniería (no gatilla por sí solo las transiciones).</summary>
@@ -49,6 +85,8 @@ public enum DesignAreaStatus
     NoFeasibility = 8,
     /// <summary>Diseño rechazó las artes del cliente: Comercial debe subir artes nuevas.</summary>
     ArtworkRejected = 9,
+    /// <summary>Ingeniería rechazó el PrintCard o el cliente pidió cambios: Diseño debe generar una versión nueva.</summary>
+    PrintCardChangesRequested = 10,
 }
 
 public enum AreaType
@@ -102,12 +140,16 @@ public enum InformationRequestType
 {
     Client = 0,
     Commercial = 1,
+    /// <summary>Dudas de Diseño que sólo Ingeniería puede aclarar (2026-11-04).</summary>
+    Engineering = 2,
 }
 
 public enum InformationRequestStatus
 {
     Pending = 0,
     Resolved = 1,
+    /// <summary>Diseño la retiró antes de que se la contestaran (ya no hacía falta).</summary>
+    Withdrawn = 2,
 }
 
 /// <summary>Rol bajo el cual se aprueba una versión de PrintCard. "Client" siempre lo ejecuta un usuario Comercial (decisión 8 — el cliente no es un actor autenticado).</summary>
@@ -118,12 +160,28 @@ public enum ApproverRole
     Client = 2,
 }
 
+/// <summary>Complejidad del arte según Diseño (AA la más alta). Se captura al aprobar la factibilidad de Diseño.</summary>
+public enum ArtClassification
+{
+    AA = 0,
+    A = 1,
+    B = 2,
+    C = 3,
+}
+
 public enum ChangeRequestOrigin
 {
     Internal = 0,
     ClientReported = 1,
     /// <summary>Diseño rechazó las artes; se resuelve cuando Comercial sube artes nuevas.</summary>
     ArtworkRejected = 2,
+    /// <summary>
+    /// Comercial→Ingeniería: Comercial cambió campos que Ingeniería ya había aprobado; se resuelve cuando
+    /// Ingeniería reconfirma su factibilidad (Npi.ReconfirmEngineeringFeasibility). Máx. 20 caracteres en BD.
+    /// </summary>
+    Reconfirmation = 3,
+    /// <summary>Comercial→Comercial: Comercial modifica el NPI por su cuenta (Npi.StartCommercialEdit); se resuelve al reenviar.</summary>
+    CommercialEdit = 4,
 }
 
 /// <summary>

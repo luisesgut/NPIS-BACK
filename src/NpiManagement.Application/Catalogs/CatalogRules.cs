@@ -35,6 +35,7 @@ public static class CatalogRules
         ["CIERRE"] = ["Cierre"],
         ["COLGADERA"] = ["Colgadera"],
         ["CORE"] = ["Core"],
+        ["DESARROLLO MANGA"] = ["DesarrolloManga"],
         ["COSTO DE PREPRENSA"] = ["CostoPreprensa"],
         ["FORMATO"] = ["Formato"],
         ["FORMULA LDPE"] = ["FormulaLDPE_PI", "FormulaLDPE_PPL", "FormulaLDPE_PSL"],
@@ -46,6 +47,7 @@ public static class CatalogRules
         ["SUB MERCADO"] = ["SubMercado"],
         ["TERMINADO"] = ["TerminadoPI"],
         ["TERMINADO LAMINACION"] = ["TerminadoPPL", "TerminadoPSL"],
+        ["TIPO DE CAJA"] = ["TipoCaja"],
         ["TIPO DE ENTRADA"] = ["TipoEntrada"],
         ["TIPO DE PELICULA"] = ["PiTipoPelicula", "PplTipoPelicula", "PslTipoPelicula"],
         ["TIPO DE PRODUCTO"] = ["TipoProducto"],
@@ -57,6 +59,7 @@ public static class CatalogRules
 
     private static readonly Dictionary<string, string> Hints = new(StringComparer.OrdinalIgnoreCase)
     {
+        ["DESARROLLO MANGA"] = "Desarrollos (mm) de las mangas de impresión que hay en inventario, sin importar la prensa. Escribe solo el número. El buscador de mangas del formulario usa además el inventario por prensa (lib/mangas.ts del front, copia de la tabla «Inventario de mangas por prensa»): si das de alta un desarrollo nuevo, pide que lo agreguen ahí también.",
         ["FORMATO"] = "El formulario filtra los formatos por cómo empiezan: los que empiezan con «BOBINA» son para Bobina, con «BOLSA» para Bolsa y el resto para Pouch. Respeta ese prefijo al agregar o renombrar.",
         ["TIPO DE PRODUCTO"] = "BOBINA, BOLSA y POUCH están protegidos porque el formulario depende de ellos.",
     };

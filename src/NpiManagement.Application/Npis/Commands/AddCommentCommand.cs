@@ -26,8 +26,8 @@ public sealed class AddCommentCommandHandler(
     {
         var npi = await chat.FindNpiAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanAccess(command.Actor, npi.Ownership)) throw new NotFoundException("Npi", command.NpiId);
-        if (!npi.CanWrite(command.Actor.UserId))
-            throw new RequestValidationException("chat-not-participant", "Sólo los participantes de este NPI (quien lo creó y sus responsables de Comercial, Ingeniería y Diseño) pueden escribir en el chat.");
+        if (!npi.CanWrite(command.Actor))
+            throw new RequestValidationException("chat-not-participant", "Sólo los participantes de este NPI (quien lo creó y sus responsables de Comercial, Ingeniería y Diseño) y los administradores pueden escribir en el chat.");
 
         var author = new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName);
         var message = NpiComment.Create(npi.NpiId, author, clock, command.Text, command.MentionedUserIds);
@@ -67,7 +67,7 @@ public sealed class AddCommentCommandHandler(
         foreach (var userId in mentioned)
         {
             var user = await userDirectory.FindAsync(userId, cancellationToken);
-            if (user is not { Status: UserStatus.Active } || !npi.CanWrite(user.Id))
+            if (user is not { Status: UserStatus.Active } || !npi.IsParticipant(user.Id))
                 throw new RequestValidationException("chat-invalid-mention", "Sólo puedes mencionar a los participantes activos de este NPI.");
         }
     }

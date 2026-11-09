@@ -24,7 +24,7 @@ public class NpiFeasibilityAndArtworkTests
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
 
-        var act = () => npi.ApproveDesignFeasibility(Designer, clock, "Ok diseño");
+        var act = () => npi.ApproveDesignFeasibility(Designer, clock, "Ok diseño", ArtClassification.A);
 
         act.Should().NotThrow("las factibilidades son independientes y paralelas (decisión 1)");
         npi.DesignFeasibility.Should().NotBeNull();
@@ -79,23 +79,38 @@ public class NpiFeasibilityAndArtworkTests
     }
 
     [Fact]
-    public void DesignTimer_starts_when_engineering_feasibility_arrives_after_artwork_validated()
+    public void DesignTimer_waits_for_the_client_to_accept_the_price_even_with_feasibility_and_artwork()
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
         npi.ValidateArtwork(Designer, clock);
-
         npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
+
+        npi.DesignTimer.HasStarted.Should().BeFalse("sin precio aceptado todavía no hay PrintCard que hacer");
+    }
+
+    [Fact]
+    public void DesignTimer_starts_when_the_client_accepts_the_price_after_feasibility_and_artwork()
+    {
+        var clock = TestClock.MondayMorning();
+        var npi = CreateActiveAssigned(clock);
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
+        npi.ValidateArtwork(Designer, clock);
+        LinkQuote(npi, clock);
+
+        npi.AcceptSisproQuote(Commercial, clock, Calendar, null, null);
 
         npi.DesignTimer.IsRunning.Should().BeTrue();
     }
 
     [Fact]
-    public void DesignTimer_starts_when_artwork_is_validated_after_engineering_feasibility_arrives()
+    public void DesignTimer_starts_when_artwork_is_validated_after_the_price_was_accepted()
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateActiveAssigned(clock);
         npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
+        LinkQuote(npi, clock);
+        npi.AcceptSisproQuote(Commercial, clock, Calendar, null, null);
 
         npi.ValidateArtwork(Designer, clock);
 

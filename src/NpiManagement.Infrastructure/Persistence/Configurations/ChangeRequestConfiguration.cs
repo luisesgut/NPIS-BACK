@@ -39,8 +39,15 @@ public sealed class ChangeRequestConfiguration : IEntityTypeConfiguration<Change
         builder.Property(c => c.ResolvedByName).HasMaxLength(200);
         builder.Property(c => c.ResponseComment).HasMaxLength(2000);
         builder.Property(c => c.ChangesAppliedJson);
+        builder.Property(c => c.ChecklistJson);
         builder.Ignore(c => c.IsResolved);
         builder.Ignore(c => c.ChangesApplied);
+        builder.Ignore(c => c.Checklist);
+        builder.Property(c => c.FieldNotesJson);
+        builder.Ignore(c => c.FieldNotes);
+        // Ids de adjuntos (imágenes) separados por coma: máx. 10 GUID = 369 caracteres.
+        builder.Property(c => c.ImageAttachmentIdsCsv).HasMaxLength(400);
+        builder.Ignore(c => c.ImageAttachmentIds);
 
         builder.Property<Guid>("NpiId").IsRequired();
         builder.HasIndex("NpiId");

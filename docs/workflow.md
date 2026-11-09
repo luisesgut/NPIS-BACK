@@ -62,6 +62,8 @@
 
 #### 5. Asignar a Diseño
 - Igual forma que "Asignar a Ingeniería", con `AssignedDesignUserId`, `EngineeringAreaStatus` → `DesignAreaStatus=Assigned`, actor `AdminDiseno`/`AdminTotal`. No depende de que Ingeniería ya esté asignada (Diseño participa en paralelo desde el envío, README).
+- (2026-11-01) El admin clasifica el arte (AA/A/B/C) y, si lleva Base Pantone, indica los valores LAB **al asignar**; es obligatorio la primera vez (`art-classification-required`). El diseñador lo recibe ya clasificado (también en la notificación), puede corregirlo y aprueba la factibilidad sin volver a capturarlo.
+- (2026-11-01) Reasignar (Ingeniería o Diseño) sólo cambia a la persona: el estado del área ya no regresa a `Assigned`; sólo pasa de `Requested` a `Assigned` en la primera asignación.
 
 #### 6. Reasignar Comercial
 - **Actor autorizado:** `AdminComercial`, `AdminTotal`.
@@ -300,17 +302,17 @@
 
 ---
 
-## Grupo 7 — Solicitudes de información (Diseño ⇄ Cliente/Comercial)
+## Grupo 7 — Solicitudes de información (Diseño ⇄ Cliente/Comercial/Ingeniería)
 
 #### 25. Solicitar información
 - **Actor autorizado:** `AssignedDesignUserId`, `AdminDiseno`, `AdminTotal`.
 - **Estado/condiciones de origen:** `Active`, sin `InformationRequest` pendiente del mismo `Type`.
-- **Precondiciones:** `Text` obligatorio; `Type ∈ {Client, Commercial}`.
+- **Precondiciones:** `Text` obligatorio; `Type ∈ {Client, Commercial, Engineering}` (`Engineering` desde 2026-11-04: dudas que sólo Ingeniería aclara).
 - **Mutaciones:** crea `InformationRequest(Type, Status=Pending, Text, Attachment?)`; `DesignAreaStatus=AwaitingInformation`.
 - **Estado resultante:** `Active`.
-- **Cronómetros:** `DesignTimer.Pause`; si `Type=Commercial`, además `CommercialTimer.Start/Resume`.
+- **Cronómetros:** `DesignTimer.Pause`; si `Type=Commercial`, además `CommercialTimer.Start/Resume`; si `Type=Engineering`, `EngineeringTimer.Resume` (sólo si ya arrancó; no reabre uno cerrado).
 - **Auditoría:** `AuditEvent(Action=InformationRequested, Type)`.
-- **Notificaciones:** si `Type=Commercial`, a `AssignedCommercialUserId`/creador; si `Type=Client`, ninguna al sistema (el cliente no tiene cuenta).
+- **Notificaciones:** si `Type=Commercial`, a `AssignedCommercialUserId`/creador; si `Type=Engineering`, a `AssignedEngineeringUserId`; si `Type=Client`, ninguna al sistema (el cliente no tiene cuenta).
 - **Errores posibles:** `400`, `403`, `404`, `409` (ya hay una pendiente del mismo tipo, o terminal).
 - **Repetición:** `409` si ya hay una `Pending` del mismo tipo (debe resolverse primero).
 
@@ -337,6 +339,18 @@
 - **Notificaciones:** a `AssignedDesignUserId`.
 - **Errores posibles:** `400` (sin respuesta), `403`, `404`, `409` (no hay solicitud pendiente de tipo `Commercial`).
 - **Repetición:** `409`.
+
+#### 27b. Responder dudas (Ingeniería → Diseño) — 2026-11-04
+- **Endpoint:** `POST /api/npis/{id}/respond-engineering-information` `{ responseText }`.
+- **Actor autorizado:** `AssignedEngineeringUserId`, `AdminIngenieria`, `AdminTotal`.
+- **Estado/condiciones de origen:** existe `InformationRequest(Type=Engineering, Status=Pending)`.
+- **Precondiciones:** `ResponseText` obligatorio.
+- **Mutaciones:** `InformationRequest.Status=Resolved, ResolvedAt/By, ResponseText`.
+- **Cronómetros:** `EngineeringTimer.Pause` si Ingeniería no tiene otra cosa pendiente; `DesignTimer.Resume`.
+- **Auditoría:** `AuditEvent(Action=EngineeringInformationSent)`.
+- **Notificaciones:** a `AssignedDesignUserId`.
+- **Tu turno:** mientras está pendiente, Ingeniería tiene `AnswerDesignQuestions` y Diseño no tiene turno (igual con una solicitud a Comercial).
+- **Errores posibles:** `400` (sin respuesta), `403`, `404`, `409` (no hay dudas pendientes para Ingeniería).
 
 ---
 
@@ -373,3 +387,42 @@
 - Toda fila de `AuditEvent` incluye: `ActorUserId`, `ActorRole` (snapshot del rol usado, tomado del token, no reconsultado después), `OccurredAt (IClock)`, `NpiId`, `Action`, `Details` (JSON con los campos relevantes del comando, nunca datos sensibles).
 - Toda `Notification` se escribe en la misma transacción que la acción que la origina (ver `domain-model.md` §6); es de solo lectura vía polling (`GET /api/notifications`), no hay push en tiempo real en el alcance actual.
 - Ningún comando de este catálogo acepta `status` como parámetro de entrada — cada uno tiene su propio contrato de request específico (ver `api-contract.md`).
+
+## Grupo 9 — Cotización en SISPRO (2026-10-27, ADR-025)
+
+Se cotiza en SISPRO (cotizador oficial); el NPI liga la cotización y registra la respuesta del cliente al precio. Todas son de Comercial (`CanActAsCommercial`), en `api/npis/{id}/sispro-quote/*`.
+
+#### 30. Ligar cotización (`link`)
+- **Precondición:** NPI activo, factibilidad de Ingeniería aprobada y sin cotización aceptada. Si la vigente esperaba al cliente, queda `Superseded`.
+- Application lee la cotización de SISPRO (debe estar Cotizada / Aceptada / Con propuesta), la compara contra la captura (`SisproStructureComparer`) y guarda la foto. Con diferencias, avisa a Ingeniería.
+- **Relojes:** corre Comercial desde la factibilidad de Ingeniería hasta que el cliente acepta.
+
+#### 31. Cliente acepta el precio (`accept`)
+- Nota y evidencia opcionales. Pausa Comercial (si no le queda otra cosa) y arranca Diseño si ya hay artes validadas. Avisa al diseñador.
+
+#### 32. Cliente pide ajuste (`adjustment`)
+- Nota obligatoria. No terminal: Comercial recotiza en SISPRO y liga la nueva (acción 30).
+
+#### 33. Rechazo por precio (`reject`) — terminal
+- Comentario obligatorio, evidencia opcional. `LifecycleStatus = Rejected`, `TerminalReason = PriceRejection`, cierra todos los relojes.
+
+**Reglas transversales:**
+- El primer PrintCard exige el precio aceptado (`sispro-quote-not-accepted`). Los NPIs que ya tenían PrintCard no se detienen.
+- Editar la captura cambiando la estructura cotizada (tipo de producto, formato, medidas, fuelles, cierre, películas, calibres o terminados) invalida la cotización vigente: hay que recotizar y ligar otra.
+
+## Grupo 10 — Cierres con visto bueno del admin (2026-10-30)
+
+Un usuario normal (`UsuarioComercial`, `UsuarioIngenieria`, `UsuarioDiseno`) ya no cierra un NPI por sí solo. Las acciones 10 (no factibilidad de Ingeniería), no factibilidad de Diseño, 16 (rechazo definitivo del cliente), 24 (rechazo total por insumos) y 33 (rechazo por precio) usan el mismo endpoint de siempre, pero si quien las ejecuta es un usuario normal, el NPI **no** se cierra: queda una `ClosureProposal` en estado `Pending` (motivo obligatorio). Los admins (`AdminTotal` y el admin del área) siguen cerrando directo.
+
+- **Mientras está pendiente:** el NPI sigue `Active`; esa área no puede avanzar (`closure-proposal-pending`, también su admin) y las otras áreas siguen en paralelo. No hay más de una propuesta pendiente por NPI. Relojes sin cambio.
+- **Aviso:** campana y correo a los admins activos del área y a `AdminTotal`. Comercial y las demás áreas **no** se enteran hasta que se confirma.
+- **`POST api/npis/{id}/closure-proposal/confirm`** (admin del área o `AdminTotal`, comentario opcional): revalida las precondiciones del cierre y lo aplica con el motivo y la nota de quien lo propuso; mismos avisos que el cierre directo, más un aviso a quien lo propuso.
+- **`.../decline`** (mismos actores, comentario obligatorio): el NPI sigue su curso; se avisa a quien lo propuso con el comentario.
+- **`.../withdraw`** (sólo quien lo propuso): retira la propuesta.
+- Si el NPI se cierra por otra vía mientras tanto (cancelación u otro cierre de un admin), la propuesta queda `Superseded`; si un admin aplica ese mismo cierre directamente, queda `Confirmed`.
+- `GET api/npis?pendingClosureArea=Ingenieria|Diseno|Comercial|Any` lista los NPIs con un cierre esperando visto bueno (lo usan los paneles).
+- Tabla `NpiClosureProposals` (migración `20261030181508_AddClosureProposals`, script `scripts/migracion-2026-10-30-cierres-con-visto-bueno.sql`).
+
+### Deshacer y reabrir (2026-11-03)
+- **Deshacer** (`POST api/npis/{id}/undo-last-action`): quien hizo la última acción la regresa mientras nadie más haya actuado después (su evento es el último de la bitácora, sin contar adjuntos). Acciones: factibilidad de Ingeniería/Diseño, artes validadas, aprobación de PrintCard (Ingeniería o cliente), rechazo de PrintCard, envío al cliente, y retirar solicitudes de cambios / rechazo de artes no atendidas. Recalcula estados y relojes; deja `ActionUndone` en la bitácora.
+- **Reabrir** (`POST api/npis/{id}/reopen`, sólo AdminTotal, motivo obligatorio): NPI rechazado por no factibilidad (Ingeniería o Diseño) o por rechazo del cliente vuelve a Activo; los cronómetros se reabren con su acumulado. Otros cierres no se reabren desde el sistema.

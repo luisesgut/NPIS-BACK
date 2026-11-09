@@ -19,12 +19,27 @@ public sealed class NpiDesignReviewController(
     RequestDesignChangesCommandHandler requestDesignChangesHandler,
     RejectDesignNoFeasibilityCommandHandler rejectDesignNoFeasibilityHandler,
     RejectArtworkCommandHandler rejectArtworkHandler,
-    ResolveArtworkRejectionCommandHandler resolveArtworkRejectionHandler) : ControllerBase
+    ResolveArtworkRejectionCommandHandler resolveArtworkRejectionHandler,
+    SetArtworkObservationCommandHandler setArtworkObservationHandler,
+    UpdateDesignClassificationCommandHandler updateDesignClassificationHandler,
+    SetDesignInstructionsCommandHandler setDesignInstructionsHandler) : ControllerBase
 {
+    public sealed record DesignInstructionsRequest(string? Text);
+
+    [HttpPost("design-instructions")]
+    [Authorize(Policy = "AreaDiseno")]
+    public Task<NpiDetailDto> DesignInstructions(Guid id, DesignInstructionsRequest request, CancellationToken cancellationToken) =>
+        setDesignInstructionsHandler.HandleAsync(new SetDesignInstructionsCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Text), cancellationToken);
+
+    [HttpPost("design-classification")]
+    [Authorize(Policy = "AreaDiseno")]
+    public Task<NpiDetailDto> DesignClassification(Guid id, DesignClassificationRequest request, CancellationToken cancellationToken) =>
+        updateDesignClassificationHandler.HandleAsync(new UpdateDesignClassificationCommand(id, User.ToCurrentUser(), User.DisplayName(), request.ArtClassification, request.HasLabValues), cancellationToken);
+
     [HttpPost("request-design-changes")]
     [Authorize(Policy = "AreaDiseno")]
     public Task<NpiDetailDto> RequestDesignChanges(Guid id, RequestChangesRequest request, CancellationToken cancellationToken) =>
-        requestDesignChangesHandler.HandleAsync(new RequestDesignChangesCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Description, request.FieldKeys ?? []), cancellationToken);
+        requestDesignChangesHandler.HandleAsync(new RequestDesignChangesCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Description, request.FieldKeys ?? [], request.FieldNotes, request.ImageAttachmentIds), cancellationToken);
 
     [HttpPost("reject-design-no-feasibility")]
     [Authorize(Policy = "AreaDiseno")]
@@ -40,4 +55,9 @@ public sealed class NpiDesignReviewController(
     [Authorize(Policy = "AreaComercial")]
     public Task<NpiDetailDto> ResolveArtworkRejection(Guid id, NoteRequest request, CancellationToken cancellationToken) =>
         resolveArtworkRejectionHandler.HandleAsync(new ResolveArtworkRejectionCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Note), cancellationToken);
+
+    [HttpPost("artwork-observations/{itemId:guid}")]
+    [Authorize(Policy = "AreaComercial")]
+    public Task<NpiDetailDto> SetArtworkObservation(Guid id, Guid itemId, ClientChangeItemRequest request, CancellationToken cancellationToken) =>
+        setArtworkObservationHandler.HandleAsync(new SetArtworkObservationCommand(id, User.ToCurrentUser(), User.DisplayName(), itemId, request.Done), cancellationToken);
 }

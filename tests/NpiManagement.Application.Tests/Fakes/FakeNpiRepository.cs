@@ -10,6 +10,14 @@ public sealed class FakeNpiRepository : INpiRepository
 
     public void Add(Npi npi) => _store[npi.Id] = npi;
 
+    /// <summary>Un link adjunto al NPI (archivo del PrintCard o evidencia): el dominio exige que sea del propio NPI.</summary>
+    public Guid AddFile(Guid npiId, AttachmentContext context) =>
+        _store[npiId].RegisterLink(new Domain.Common.Actor(_store[npiId].CreatedByUserId, "UsuarioComercial", "Comercial"), TestClock.Default(), "Archivo", "https://example.com/archivo.pdf", context).Id;
+
+    /// <summary>Enviar exige artes del cliente: agrega un link de artes al borrador antes de enviarlo.</summary>
+    public void AddArtwork(Guid npiId) =>
+        _store[npiId].RegisterLink(new Domain.Common.Actor(_store[npiId].CreatedByUserId, "UsuarioComercial", "Comercial"), TestClock.Default(), "Artes cliente", "https://example.com/artes.pdf", AttachmentContext.Artwork);
+
     public Task<Npi?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         Task.FromResult(_store.GetValueOrDefault(id));
 

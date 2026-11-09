@@ -29,10 +29,13 @@ public sealed class SubmitNpiCommandHandler(
 
         var actor = new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName);
         var isFirstSubmission = npi.NpiNumber is null;
+        // Las artes del cliente son opcionales al enviar: Comercial puede agregarlas después.
         var number = isFirstSubmission ? await numberGenerator.NextAsync(cancellationToken) : null;
         // Quién esperaba las correcciones (Ingeniería, Diseño o ambos) para avisarle sólo a ese.
         var engineeringWasWaiting = npi.EngineeringAreaStatus == EngineeringAreaStatus.ChangesRequested;
         var designWasWaiting = npi.DesignAreaStatus == DesignAreaStatus.ChangesRequested;
+        var commercialEdit = npi.PendingCommercialEdit;
+        var reconfirmationsBefore = npi.AuditLog.Count(e => e.Action == "EngineeringReconfirmationRequested");
 
         npi.Submit(actor, clock, calendar, number, command.Comment);
 
@@ -61,6 +64,23 @@ public sealed class SubmitNpiCommandHandler(
                 notifications.Notify(engineerId2, message, npi.Id, NotificationChannel.BellAndEmail);
             if (designWasWaiting && npi.AssignedDesignUserId is { } designerId)
                 notifications.Notify(designerId, message, npi.Id, NotificationChannel.BellAndEmail);
+
+            // Comercial terminó de modificar el NPI por su cuenta: a Diseño (y a Ingeniería, si no le toca reconfirmar) les dice qué cambió.
+            if (commercialEdit is not null)
+            {
+                var edited = $"Comercial modificó el NPI {npi.NpiNumber?.Value} ({commercialEdit.ChangesApplied.Count} campo{(commercialEdit.ChangesApplied.Count == 1 ? "" : "s")}). Motivo: {commercialEdit.Description}";
+                if (npi.AssignedDesignUserId is { } designer)
+                    notifications.Notify(designer, edited, npi.Id, NotificationChannel.BellAndEmail);
+                if (npi.PendingEngineeringReconfirmation is null && npi.AssignedEngineeringUserId is { } engineer)
+                    notifications.Notify(engineer, edited, npi.Id);
+            }
+
+            // Tocó campos que Ingeniería ya había aprobado: le toca reconfirmar.
+            if (npi.AuditLog.Count(e => e.Action == "EngineeringReconfirmationRequested") > reconfirmationsBefore
+                && npi.PendingEngineeringReconfirmation is { } reconfirmation && npi.AssignedEngineeringUserId is { } engineerId3)
+                notifications.Notify(engineerId3,
+                    NotificationText.ReconfirmationRequested(npi.NpiNumber?.Value, reconfirmation.ChangesApplied.Count, npi.PtRegisteredAt is not null, npi.EtCreatedAt is not null),
+                    npi.Id, NotificationChannel.BellAndEmail);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

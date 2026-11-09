@@ -34,7 +34,7 @@ public class UpdateNpiDraftCommandHandlerTests
         var result = await handler.HandleAsync(command, CancellationToken.None);
 
         var reloaded = await repo.GetByIdAsync(npi.Id, CancellationToken.None);
-        reloaded!.Capture.Cliente.Should().Be("Actualizado");
+        reloaded!.Capture.Cliente.Should().Be("ACTUALIZADO", "los clientes se guardan en mayúsculas");
         reloaded.Priority.Should().Be(Priority.Alta);
         result.RowVersion.Should().NotBeEmpty();
     }

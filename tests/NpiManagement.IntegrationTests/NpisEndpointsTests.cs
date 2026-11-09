@@ -191,6 +191,24 @@ public sealed class NpisEndpointsTests(SqlServerFixture fixture) : IAsyncLifetim
     }
 
     [SkippableFact]
+    public async Task List_filters_by_exact_client_and_by_several_statuses()
+    {
+        Skip.IfNot(fixture.IsAvailable, fixture.SkipReason);
+        var marker = Guid.NewGuid().ToString("N")[..8];
+        var client = await AuthenticatedClientAsync("lvega@bioflex.mx");
+        await client.PostAsJsonAsync("/api/npis", SampleDraft($"Exacto-{marker}"));
+        await client.PostAsJsonAsync("/api/npis", SampleDraft($"Exacto-{marker}-otro"));
+
+        var exact = await (await client.GetAsync($"/api/npis?cliente=Exacto-{marker}&pageSize=50")).Content.ReadFromJsonAsync<PagedResult<NpiListItemDto>>();
+        var drafts = await (await client.GetAsync($"/api/npis?search=Exacto-{marker}&lifecycleStatus=Draft,Active&pageSize=50")).Content.ReadFromJsonAsync<PagedResult<NpiListItemDto>>();
+        var closed = await (await client.GetAsync($"/api/npis?search=Exacto-{marker}&lifecycleStatus=Rejected,Cancelled&pageSize=50")).Content.ReadFromJsonAsync<PagedResult<NpiListItemDto>>();
+
+        exact!.Items.Should().ContainSingle().Which.Cliente.Should().Be($"Exacto-{marker}");
+        drafts!.Items.Should().HaveCount(2);
+        closed!.Items.Should().BeEmpty();
+    }
+
+    [SkippableFact]
     public async Task Users_endpoint_is_admin_only()
     {
         Skip.IfNot(fixture.IsAvailable, fixture.SkipReason);

@@ -30,6 +30,7 @@ public class WorkflowAuthorizationEdgeCaseTests
 
         var npiId = await new CreateNpiDraftCommandHandler(repo, uow, clock, users)
             .HandleAsync(new CreateNpiDraftCommand(CommercialId, "UsuarioComercial", "Comercial", new NpiCaptureDto(), Priority.Media, null), CancellationToken.None);
+        repo.AddArtwork(npiId);
         await new SubmitNpiCommandHandler(repo, uow, clock, calendar, numbers, notifications, users)
             .HandleAsync(new SubmitNpiCommand(npiId, Commercial, "Comercial"), CancellationToken.None);
         await new AssignEngineeringCommandHandler(repo, uow, clock, calendar, notifications, users)
@@ -47,8 +48,10 @@ public class WorkflowAuthorizationEdgeCaseTests
         await new RejectSuppliesTemporaryCommandHandler(repo, uow, clock, calendar, notifications)
             .HandleAsync(new RejectSuppliesTemporaryCommand(npiId, Engineer, "Ingeniero", "Falta insumo X"), CancellationToken.None);
 
-        var final = await new RejectSuppliesTotalCommandHandler(repo, uow, clock, calendar, notifications)
-            .HandleAsync(new RejectSuppliesTotalCommand(npiId, Commercial, "Comercial"), CancellationToken.None);
+        // Un admin de Comercial cierra directo (un UsuarioComercial sólo lo propondría: ClosureProposalTests).
+        var commercialAdmin = new CurrentUser(Guid.NewGuid(), "AdminComercial", AreaType.Comercial);
+        var final = await new RejectSuppliesTotalCommandHandler(repo, uow, clock, calendar, notifications, new FakeUserDirectory())
+            .HandleAsync(new RejectSuppliesTotalCommand(npiId, commercialAdmin, "Admin Comercial"), CancellationToken.None);
 
         final.LifecycleStatus.Should().Be("Rejected");
         final.TerminalReason.Should().Be("SuppliesRejectionTotal");
@@ -83,7 +86,7 @@ public class WorkflowAuthorizationEdgeCaseTests
     public async Task RejectByClient_requires_a_comercial_actor_even_though_it_represents_the_client_decision_8()
     {
         var (repo, uow, clock, calendar, npiId) = await ActiveAssignedNpiAsync();
-        var handler = new RejectByClientCommandHandler(repo, uow, clock, calendar, new FakeNotificationService());
+        var handler = new RejectByClientCommandHandler(repo, uow, clock, calendar, new FakeNotificationService(), new FakeUserDirectory());
 
         // Un ingeniero (aunque asignado) no puede registrar la decisión del cliente.
         var act = async () => await handler.HandleAsync(new RejectByClientCommand(npiId, Engineer, "Ingeniero", "El cliente ya no quiere continuar", null), CancellationToken.None);

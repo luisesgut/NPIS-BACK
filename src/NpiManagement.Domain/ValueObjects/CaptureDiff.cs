@@ -25,7 +25,11 @@ public static class CaptureDiff
             if (property.PropertyType != typeof(string)) continue;
             var oldValue = (string?)property.GetValue(before) ?? string.Empty;
             var newValue = (string?)property.GetValue(after) ?? string.Empty;
-            if (oldValue != newValue)
+            // Los nombres se guardan en mayúsculas: "Mr Lucky" → "MR LUCKY" no es un cambio de Comercial.
+            var same = NpiCaptureData.UppercaseFields.Contains(property.Name)
+                ? string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase)
+                : oldValue == newValue;
+            if (!same)
                 changes.Add(new FieldChange(char.ToLowerInvariant(property.Name[0]) + property.Name[1..], oldValue, newValue));
         }
         return changes;

@@ -71,11 +71,13 @@ public sealed class NpisController(
         [FromQuery] Guid? assignedToUserId,
         [FromQuery] Guid? createdByUserId,
         [FromQuery] string? priority,
+        [FromQuery] string? cliente,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
+        [FromQuery] string? pendingClosureArea = null,
         CancellationToken cancellationToken = default)
     {
-        var filter = new NpiListFilter(search, lifecycleStatus, assignedToUserId, createdByUserId, priority, page, pageSize);
+        var filter = new NpiListFilter(search, lifecycleStatus, assignedToUserId, createdByUserId, priority, cliente, page, pageSize, pendingClosureArea);
         var result = await listHandler.HandleAsync(new ListNpisQuery(filter, User.ToCurrentUser()), cancellationToken);
         return Ok(result);
     }

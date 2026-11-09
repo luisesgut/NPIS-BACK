@@ -20,10 +20,12 @@ namespace NpiManagement.Api.Controllers;
 [Authorize]
 public sealed class NpiWorkflowController(
     SubmitNpiCommandHandler submitHandler,
+    StartCommercialEditCommandHandler startCommercialEditHandler,
     AssignEngineeringCommandHandler assignEngineeringHandler,
     AssignDesignCommandHandler assignDesignHandler,
     ReassignCommercialCommandHandler reassignCommercialHandler,
     ApproveEngineeringFeasibilityCommandHandler approveEngineeringFeasibilityHandler,
+    ReconfirmEngineeringFeasibilityCommandHandler reconfirmEngineeringFeasibilityHandler,
     ApproveDesignFeasibilityCommandHandler approveDesignFeasibilityHandler,
     RequestEngineeringChangesCommandHandler requestEngineeringChangesHandler,
     RejectNoFeasibilityCommandHandler rejectNoFeasibilityHandler,
@@ -38,12 +40,19 @@ public sealed class NpiWorkflowController(
     RequestInformationCommandHandler requestInformationHandler,
     ResolveClientInformationCommandHandler resolveClientInformationHandler,
     RespondCommercialInformationCommandHandler respondCommercialInformationHandler,
+    RespondEngineeringInformationCommandHandler respondEngineeringInformationHandler,
     CancelNpiCommandHandler cancelHandler) : ControllerBase
 {
     [HttpPost("submit")]
     [Authorize(Policy = "AreaComercial")]
     public Task<NpiDetailDto> Submit(Guid id, [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] SubmitNpiRequest? request, CancellationToken cancellationToken) =>
         submitHandler.HandleAsync(new SubmitNpiCommand(id, User.ToCurrentUser(), User.DisplayName(), request?.Comment), cancellationToken);
+
+    /// <summary>Comercial empieza a modificar el NPI por su cuenta (hasta antes del PT); después edita y reenvía con "submit".</summary>
+    [HttpPost("commercial-edit")]
+    [Authorize(Policy = "AreaComercial")]
+    public Task<NpiDetailDto> StartCommercialEdit(Guid id, StartCommercialEditRequest request, CancellationToken cancellationToken) =>
+        startCommercialEditHandler.HandleAsync(new StartCommercialEditCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Reason, request.RedoPrintCard), cancellationToken);
 
     [HttpPost("assign-engineering")]
     [Authorize(Policy = "AreaIngenieria")]
@@ -52,8 +61,8 @@ public sealed class NpiWorkflowController(
 
     [HttpPost("assign-design")]
     [Authorize(Policy = "AreaDiseno")]
-    public Task<NpiDetailDto> AssignDesign(Guid id, AssignUserRequest request, CancellationToken cancellationToken) =>
-        assignDesignHandler.HandleAsync(new AssignDesignCommand(id, User.ToCurrentUser(), User.DisplayName(), request.UserId), cancellationToken);
+    public Task<NpiDetailDto> AssignDesign(Guid id, AssignDesignRequest request, CancellationToken cancellationToken) =>
+        assignDesignHandler.HandleAsync(new AssignDesignCommand(id, User.ToCurrentUser(), User.DisplayName(), request.UserId, request.ArtClassification, request.HasLabValues), cancellationToken);
 
     [HttpPost("reassign-commercial")]
     [Authorize(Policy = "AreaComercial")]
@@ -65,15 +74,21 @@ public sealed class NpiWorkflowController(
     public Task<NpiDetailDto> EngineeringFeasibility(Guid id, EngineeringFeasibilityRequest request, CancellationToken cancellationToken) =>
         approveEngineeringFeasibilityHandler.HandleAsync(new ApproveEngineeringFeasibilityCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Note, request.ConfirmedFieldKeys), cancellationToken);
 
+    /// <summary>Ingeniería confirma que sigue siendo factible después de que Comercial cambió campos que ya había revisado.</summary>
+    [HttpPost("engineering-reconfirmation")]
+    [Authorize(Policy = "AreaIngenieria")]
+    public Task<NpiDetailDto> EngineeringReconfirmation(Guid id, [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] NoteRequest? request, CancellationToken cancellationToken) =>
+        reconfirmEngineeringFeasibilityHandler.HandleAsync(new ReconfirmEngineeringFeasibilityCommand(id, User.ToCurrentUser(), User.DisplayName(), request?.Note), cancellationToken);
+
     [HttpPost("design-feasibility")]
     [Authorize(Policy = "AreaDiseno")]
-    public Task<NpiDetailDto> DesignFeasibility(Guid id, NoteRequest request, CancellationToken cancellationToken) =>
-        approveDesignFeasibilityHandler.HandleAsync(new ApproveDesignFeasibilityCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Note), cancellationToken);
+    public Task<NpiDetailDto> DesignFeasibility(Guid id, DesignFeasibilityRequest request, CancellationToken cancellationToken) =>
+        approveDesignFeasibilityHandler.HandleAsync(new ApproveDesignFeasibilityCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Note, request.ArtClassification, request.HasLabValues), cancellationToken);
 
     [HttpPost("request-changes")]
     [Authorize(Policy = "AreaIngenieria")]
     public Task<NpiDetailDto> RequestChanges(Guid id, RequestChangesRequest request, CancellationToken cancellationToken) =>
-        requestEngineeringChangesHandler.HandleAsync(new RequestEngineeringChangesCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Description, request.FieldKeys ?? []), cancellationToken);
+        requestEngineeringChangesHandler.HandleAsync(new RequestEngineeringChangesCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Description, request.FieldKeys ?? [], request.FieldNotes, request.RedoPrintCard, request.ImageAttachmentIds), cancellationToken);
 
     [HttpPost("reject-no-feasibility")]
     [Authorize(Policy = "AreaIngenieria")]
@@ -117,13 +132,13 @@ public sealed class NpiWorkflowController(
 
     [HttpPost("reject-supplies-total")]
     [Authorize(Policy = "AreaComercial")]
-    public Task<NpiDetailDto> RejectSuppliesTotal(Guid id, CancellationToken cancellationToken) =>
-        rejectSuppliesTotalHandler.HandleAsync(new RejectSuppliesTotalCommand(id, User.ToCurrentUser(), User.DisplayName()), cancellationToken);
+    public Task<NpiDetailDto> RejectSuppliesTotal(Guid id, [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] NoteRequest? request, CancellationToken cancellationToken) =>
+        rejectSuppliesTotalHandler.HandleAsync(new RejectSuppliesTotalCommand(id, User.ToCurrentUser(), User.DisplayName(), request?.Note), cancellationToken);
 
     [HttpPost("request-information")]
     [Authorize(Policy = "AreaDiseno")]
     public Task<NpiDetailDto> RequestInformation(Guid id, RequestInformationRequest request, CancellationToken cancellationToken) =>
-        requestInformationHandler.HandleAsync(new RequestInformationCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Type, request.Text), cancellationToken);
+        requestInformationHandler.HandleAsync(new RequestInformationCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Type, request.Text, request.ImageAttachmentIds), cancellationToken);
 
     [HttpPost("resolve-client-information")]
     [Authorize(Policy = "AreaDiseno")]
@@ -134,6 +149,11 @@ public sealed class NpiWorkflowController(
     [Authorize(Policy = "AreaComercial")]
     public Task<NpiDetailDto> RespondCommercialInformation(Guid id, RespondCommercialInformationRequest request, CancellationToken cancellationToken) =>
         respondCommercialInformationHandler.HandleAsync(new RespondCommercialInformationCommand(id, User.ToCurrentUser(), User.DisplayName(), request.ResponseText), cancellationToken);
+
+    [HttpPost("respond-engineering-information")]
+    [Authorize(Policy = "AreaIngenieria")]
+    public Task<NpiDetailDto> RespondEngineeringInformation(Guid id, RespondEngineeringInformationRequest request, CancellationToken cancellationToken) =>
+        respondEngineeringInformationHandler.HandleAsync(new RespondEngineeringInformationCommand(id, User.ToCurrentUser(), User.DisplayName(), request.ResponseText), cancellationToken);
 
     [HttpPost("cancel")]
     [Authorize(Policy = "AreaComercial")]

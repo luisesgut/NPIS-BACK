@@ -6,7 +6,12 @@ public sealed record EmailMessage(
     string ToName,
     string Subject,
     string HtmlBody,
-    string TextBody);
+    string TextBody,
+    /// <summary>
+    /// Conversación a la que pertenece (el Id del NPI): todos los correos con la misma clave se agrupan
+    /// en un solo hilo en Outlook y Gmail. null = correo suelto.
+    /// </summary>
+    string? ThreadKey = null);
 
 /// <summary>
 /// Entrega de correo. La implementación real habla SMTP (ver SmtpEmailSender), pero la interfaz no

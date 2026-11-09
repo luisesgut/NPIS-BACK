@@ -28,6 +28,22 @@ public class FullWorkflowLifecycleTests
     private static readonly CurrentUser Designer = new(DesignerId, "UsuarioDiseno", AreaType.Diseno);
 
     [Fact]
+    public async Task Submitting_without_artwork_is_allowed()
+    {
+        var repo = new FakeNpiRepository();
+        var uow = new FakeUnitOfWork();
+        var clock = TestClock.Default();
+        var numbers = new FakeNpiNumberGenerator();
+        var users = new FakeUserDirectory();
+        var npiId = await new CreateNpiDraftCommandHandler(repo, uow, clock, users)
+            .HandleAsync(new CreateNpiDraftCommand(CommercialId, "UsuarioComercial", "Comercial Uno", new NpiCaptureDto(), Priority.Media, null), CancellationToken.None);
+        var submit = new SubmitNpiCommandHandler(repo, uow, clock, new MexicoBusinessCalendar(), numbers, new FakeNotificationService(), users);
+
+        var sent = await submit.HandleAsync(new SubmitNpiCommand(npiId, Commercial, "Comercial Uno"), CancellationToken.None);
+        sent.NpiNumber.Should().Be("NPI-0001");
+    }
+
+    [Fact]
     public async Task Happy_path_completes_the_cycle_and_fires_the_expected_notifications()
     {
         var repo = new FakeNpiRepository();
@@ -46,6 +62,7 @@ public class FullWorkflowLifecycleTests
 
         // --- 2. Enviar (asigna folio, arranca timers) ---
         var submitHandler = new SubmitNpiCommandHandler(repo, uow, clock, calendar, numbers, notifications, users);
+        repo.AddArtwork(npiId);
         var afterSubmit = await submitHandler.HandleAsync(new SubmitNpiCommand(npiId, Commercial, "Comercial Uno"), CancellationToken.None);
         afterSubmit.NpiNumber.Should().Be("NPI-0001");
         afterSubmit.LifecycleStatus.Should().Be("Active");
@@ -54,11 +71,11 @@ public class FullWorkflowLifecycleTests
         await new AssignEngineeringCommandHandler(repo, uow, clock, calendar, notifications, users)
             .HandleAsync(new AssignEngineeringCommand(npiId, EngineeringAdmin, "Admin Ing", EngineerId), CancellationToken.None);
         await new AssignDesignCommandHandler(repo, uow, clock, calendar, notifications, users)
-            .HandleAsync(new AssignDesignCommand(npiId, DesignAdmin, "Admin Diseño", DesignerId), CancellationToken.None);
+            .HandleAsync(new AssignDesignCommand(npiId, DesignAdmin, "Admin Diseño", DesignerId, ArtClassification.C, false), CancellationToken.None);
 
         // --- 4. Factibilidades independientes (decisión 1) ---
         await new ApproveDesignFeasibilityCommandHandler(repo, uow, clock, calendar, notifications)
-            .HandleAsync(new ApproveDesignFeasibilityCommand(npiId, Designer, "Diseñador Uno", "Ok diseño"), CancellationToken.None);
+            .HandleAsync(new ApproveDesignFeasibilityCommand(npiId, Designer, "Diseñador Uno", "Ok diseño", null), CancellationToken.None);
         await new ApproveEngineeringFeasibilityCommandHandler(repo, uow, clock, calendar, notifications)
             .HandleAsync(new ApproveEngineeringFeasibilityCommand(npiId, Engineer, "Ingeniero Uno", "Ok ingeniería"), CancellationToken.None);
 
@@ -66,16 +83,24 @@ public class FullWorkflowLifecycleTests
         await new ValidateArtworkCommandHandler(repo, uow, clock, calendar)
             .HandleAsync(new ValidateArtworkCommand(npiId, Designer, "Diseñador Uno"), CancellationToken.None);
 
-        // --- 6. PrintCard: crear versión + 3 aprobaciones ---
+        // --- 5b. Cotización en SISPRO: Comercial la liga y el cliente acepta el precio ---
+        var quotations = new FakeQuotationProvider().With("678");
+        var linked = await new LinkSisproQuoteCommandHandler(repo, uow, clock, calendar, quotations, notifications)
+            .HandleAsync(new LinkSisproQuoteCommand(npiId, Commercial, "Comercial Uno", "678"), CancellationToken.None);
+        linked.SisproQuotes.Should().ContainSingle().Which.Status.Should().Be("AwaitingClient");
+        await new AcceptSisproQuoteCommandHandler(repo, uow, clock, calendar, notifications)
+            .HandleAsync(new AcceptSisproQuoteCommand(npiId, Commercial, "Comercial Uno", null, null), CancellationToken.None);
+        notifications.Sent.Should().Contain(n => n.RecipientUserId == DesignerId && n.Message.Contains("aceptó el precio"));
+
+        // --- 6. PrintCard: Diseño genera (queda aprobada por Diseño) → Ingeniería → cliente ---
         var createVersionHandler = new CreatePrintCardVersionCommandHandler(repo, uow, clock, calendar, notifications);
-        await createVersionHandler.HandleAsync(new CreatePrintCardVersionCommand(npiId, Designer, "Diseñador Uno", "PC-0001", null, null), CancellationToken.None);
+        await createVersionHandler.HandleAsync(new CreatePrintCardVersionCommand(npiId, Designer, "Diseñador Uno", "PC-0001", repo.AddFile(npiId, AttachmentContext.PrintCard), null), CancellationToken.None);
 
         var approveHandler = new ApprovePrintCardCommandHandler(repo, uow, clock, calendar, notifications);
-        await approveHandler.HandleAsync(new ApprovePrintCardCommand(npiId, Designer, "Diseñador Uno", ApproverRole.Design, null, null), CancellationToken.None);
         await approveHandler.HandleAsync(new ApprovePrintCardCommand(npiId, Engineer, "Ingeniero Uno", ApproverRole.Engineering, null, null), CancellationToken.None);
         await new SendPrintCardToClientCommandHandler(repo, uow, clock, calendar)
             .HandleAsync(new SendPrintCardToClientCommand(npiId, Commercial, "Comercial Uno"), CancellationToken.None);
-        await approveHandler.HandleAsync(new ApprovePrintCardCommand(npiId, Commercial, "Comercial Uno", ApproverRole.Client, null, Guid.NewGuid()), CancellationToken.None);
+        await approveHandler.HandleAsync(new ApprovePrintCardCommand(npiId, Commercial, "Comercial Uno", ApproverRole.Client, null, repo.AddFile(npiId, AttachmentContext.ClientApproval)), CancellationToken.None);
 
         // --- 7. Cargar PrintCard en sistema (no termina el ciclo — decisión 3) ---
         var afterLoad = await new LoadPrintCardIntoSystemCommandHandler(repo, uow, clock, calendar, notifications)
@@ -117,6 +142,7 @@ public class FullWorkflowLifecycleTests
         var npiId = await createHandler.HandleAsync(
             new CreateNpiDraftCommand(CommercialId, "UsuarioComercial", "Comercial Uno", new NpiCaptureDto(), Priority.Media, null),
             CancellationToken.None);
+        repo.AddArtwork(npiId);
         await new SubmitNpiCommandHandler(repo, uow, clock, calendar, numbers, notifications, users)
             .HandleAsync(new SubmitNpiCommand(npiId, Commercial, "Comercial Uno"), CancellationToken.None);
         await new AssignEngineeringCommandHandler(repo, uow, clock, calendar, notifications, users)

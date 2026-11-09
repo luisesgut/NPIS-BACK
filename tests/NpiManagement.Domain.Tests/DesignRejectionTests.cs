@@ -89,19 +89,20 @@ public class DesignRejectionTests
         var npi = CreateActiveAssigned(_clock);
         npi.RequestDesignChanges(Designer, _clock, Calendar, "Corregir", ["ancho"]);
 
-        var act = () => npi.ApproveDesignFeasibility(Designer, _clock, null);
+        var act = () => npi.ApproveDesignFeasibility(Designer, _clock, null, ArtClassification.A);
 
         act.Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("design-changes-pending");
     }
 
     [Fact]
-    public void Design_cannot_reject_after_approving_its_feasibility()
+    public void Design_cannot_close_as_not_feasible_after_approving_its_feasibility_but_can_still_ask_for_changes()
     {
         var npi = CreateActiveAssigned(_clock);
-        npi.ApproveDesignFeasibility(Designer, _clock, null);
+        npi.ApproveDesignFeasibility(Designer, _clock, null, ArtClassification.A);
 
-        ((Action)(() => npi.RequestDesignChanges(Designer, _clock, Calendar, "x", []))).Should().Throw<InvalidNpiTransitionException>();
         ((Action)(() => npi.RejectDesignNoFeasibility(Designer, _clock, Calendar, "x"))).Should().Throw<InvalidNpiTransitionException>();
+        npi.RequestDesignChanges(Designer, _clock, Calendar, "Falta el código del cliente", ["codigoProdCliente"]);
+        npi.DesignAreaStatus.Should().Be(DesignAreaStatus.ChangesRequested);
     }
 
     [Fact]
@@ -159,12 +160,64 @@ public class DesignRejectionTests
 
         _clock.Advance(TimeSpan.FromMinutes(30));
         npi.RegisterLink(Commercial, _clock, "Artes v2", "https://drive.example.com/v2", AttachmentContext.Artwork);
+        CheckAllArtworkObservations(npi);
         npi.ResolveArtworkRejection(Commercial, _clock, Calendar, "Ya vienen con textos legales");
 
         npi.DesignAreaStatus.Should().Be(DesignAreaStatus.Assigned);
         npi.CommercialTimer.IsRunning.Should().BeFalse();
         npi.ChangeRequests.Single(c => c.Origin == ChangeRequestOrigin.ArtworkRejected).ResponseComment.Should().Be("Ya vienen con textos legales");
         npi.Invoking(n => n.ValidateArtwork(Designer, _clock)).Should().NotThrow();
+    }
+
+    [Fact]
+    public void Each_line_of_the_artwork_rejection_becomes_an_observation_for_commercial()
+    {
+        var npi = CreateActiveAssigned(_clock);
+
+        npi.RejectArtwork(Designer, _clock, Calendar, "Faltan los textos legales\r\n\r\n  Baja resolución  \nFalta el código de barras", null);
+
+        var rejection = npi.ChangeRequests.Single(c => c.Origin == ChangeRequestOrigin.ArtworkRejected);
+        rejection.Checklist.Select(i => i.Text).Should().Equal("Faltan los textos legales", "Baja resolución", "Falta el código de barras");
+        rejection.Checklist.Should().OnlyContain(i => !i.IsDone);
+    }
+
+    [Fact]
+    public void Commercial_must_check_every_observation_before_returning_the_artwork()
+    {
+        var npi = CreateActiveAssigned(_clock);
+        npi.RejectArtwork(Designer, _clock, Calendar, "Faltan los textos legales\nBaja resolución", null);
+        _clock.Advance(TimeSpan.FromMinutes(30));
+        npi.RegisterLink(Commercial, _clock, "Artes v2", "https://drive.example.com/v2", AttachmentContext.Artwork);
+        var items = npi.ChangeRequests.Single(c => c.Origin == ChangeRequestOrigin.ArtworkRejected).Checklist;
+
+        npi.SetArtworkObservationDone(Commercial, _clock, items[0].Id, true);
+        npi.Invoking(n => n.ResolveArtworkRejection(Commercial, _clock, Calendar, null))
+            .Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("artwork-observations-pending");
+
+        npi.SetArtworkObservationDone(Commercial, _clock, items[1].Id, true);
+        npi.ResolveArtworkRejection(Commercial, _clock, Calendar, null);
+
+        npi.ChangeRequests.Single(c => c.Origin == ChangeRequestOrigin.ArtworkRejected).Checklist
+            .Should().OnlyContain(i => i.IsDone && i.DoneByName == Commercial.Name);
+    }
+
+    [Fact]
+    public void Checking_an_observation_requires_a_pending_artwork_rejection()
+    {
+        var npi = CreateActiveAssigned(_clock);
+
+        npi.Invoking(n => n.SetArtworkObservationDone(Commercial, _clock, Guid.NewGuid(), true))
+            .Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("no-pending-artwork-rejection");
+
+        npi.RejectArtwork(Designer, _clock, Calendar, "Baja resolución", null);
+        npi.Invoking(n => n.SetArtworkObservationDone(Commercial, _clock, Guid.NewGuid(), true))
+            .Should().Throw<NpiValidationException>().Which.Code.Should().Be("artwork-observation-not-found");
+    }
+
+    private void CheckAllArtworkObservations(Npi npi)
+    {
+        foreach (var item in npi.ChangeRequests.Single(c => c.Origin == ChangeRequestOrigin.ArtworkRejected && !c.IsResolved).Checklist)
+            npi.SetArtworkObservationDone(Commercial, _clock, item.Id, true);
     }
 
     [Fact]
@@ -183,7 +236,7 @@ public class DesignRejectionTests
     public void Answering_an_information_request_restores_the_design_status()
     {
         var npi = CreateActiveAssigned(_clock);
-        npi.ApproveDesignFeasibility(Designer, _clock, null);
+        npi.ApproveDesignFeasibility(Designer, _clock, null, ArtClassification.A);
         npi.RequestInformation(Designer, _clock, Calendar, InformationRequestType.Commercial, "¿Pantone exacto?");
 
         npi.RespondCommercialInformation(Commercial, _clock, Calendar, "485 C");

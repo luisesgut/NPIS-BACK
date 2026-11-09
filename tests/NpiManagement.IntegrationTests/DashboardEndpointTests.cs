@@ -62,6 +62,7 @@ public sealed class DashboardEndpointTests(SqlServerFixture fixture) : IAsyncLif
         var submittedResponse = await comercial.PostAsJsonAsync("/api/npis",
             new CreateNpiDraftRequest(new NpiCaptureDto { Cliente = uniqueClient }, Priority.Alta, null));
         var submittedId = await submittedResponse.Content.ReadFromJsonAsync<Guid>();
+        (await comercial.PostAsJsonAsync($"/api/npis/{submittedId}/links", new AddLinkRequest("https://example.com/artes.pdf", "Artes"))).EnsureSuccessStatusCode();
         (await comercial.PostAsync($"/api/npis/{submittedId}/submit", null)).StatusCode.Should().Be(HttpStatusCode.OK);
         var rejectResponse = await adminIng.PostAsJsonAsync($"/api/npis/{submittedId}/reject-no-feasibility", new NoteRequest("Sin factibilidad"));
         rejectResponse.StatusCode.Should().Be(HttpStatusCode.OK);

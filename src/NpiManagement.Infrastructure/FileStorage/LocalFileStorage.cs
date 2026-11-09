@@ -55,6 +55,13 @@ public sealed class LocalFileStorage : IFileStorage
         return Task.FromResult<Stream>(new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read));
     }
 
+    public Task DeleteAsync(string storageKey, CancellationToken cancellationToken)
+    {
+        var fullPath = ResolvePath(storageKey);
+        if (File.Exists(fullPath)) File.Delete(fullPath);
+        return Task.CompletedTask;
+    }
+
     /// <summary>Resuelve StorageKey a una ruta física, verificando que quede dentro de la raíz configurada (defensa en profundidad).</summary>
     private string ResolvePath(string storageKey)
     {

@@ -63,9 +63,10 @@ public sealed class DesignRejectionNotificationTests
     public async Task Design_no_feasibility_emails_commercial_and_tells_engineering()
     {
         var npi = ActiveNpi();
+        var designAdmin = new CurrentUser(Guid.NewGuid(), "AdminDiseno", AreaType.Diseno);
 
-        await new RejectDesignNoFeasibilityCommandHandler(_repo, new FakeUnitOfWork(), _clock, _calendar, _notifications)
-            .HandleAsync(new RejectDesignNoFeasibilityCommand(npi.Id, Designer, "Diseñadora", "Degradado imposible en flexo"), CancellationToken.None);
+        await new RejectDesignNoFeasibilityCommandHandler(_repo, new FakeUnitOfWork(), _clock, _calendar, _notifications, new FakeUserDirectory())
+            .HandleAsync(new RejectDesignNoFeasibilityCommand(npi.Id, designAdmin, "Admin Diseño", "Degradado imposible en flexo"), CancellationToken.None);
 
         _notifications.Sent.Should().BeEquivalentTo(new[]
         {
@@ -93,6 +94,9 @@ public sealed class DesignRejectionNotificationTests
         npi.RejectArtwork(new Actor(_designerId, "UsuarioDiseno", "Diseñadora"), _clock, _calendar, "Baja resolución", null);
         var later = new TestClock(_clock.UtcNow.AddMinutes(30));
         npi.RegisterLink(_commercial, later, "Artes v2", "https://drive.example.com/v2", AttachmentContext.Artwork);
+        var observation = npi.ChangeRequests.Single(c => c.Origin == ChangeRequestOrigin.ArtworkRejected).Checklist.Single();
+        await new SetArtworkObservationCommandHandler(_repo, new FakeUnitOfWork(), later, _calendar)
+            .HandleAsync(new SetArtworkObservationCommand(npi.Id, CommercialUser, "Vendedor", observation.Id, true), CancellationToken.None);
 
         await new ResolveArtworkRejectionCommandHandler(_repo, new FakeUnitOfWork(), later, _calendar, _notifications)
             .HandleAsync(new ResolveArtworkRejectionCommand(npi.Id, CommercialUser, "Vendedor", "En alta resolución"), CancellationToken.None);

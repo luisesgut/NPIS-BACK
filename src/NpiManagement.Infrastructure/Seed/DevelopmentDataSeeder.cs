@@ -37,17 +37,6 @@ public static class DevelopmentDataSeeder
     /// podía desincronizarse de las políticas declaradas en Program.cs.</summary>
     public static readonly string[] Roles = ApplicationRoles.All;
 
-    private static readonly (string Numero, string Cliente, string TipoProducto, string Descripcion, string Ejecutivo, string Ancho, string PiFilm, string PiCal, string PplFilm, string PplCal, string PesoBobina, string TaponCore, string Piezas)[] Quotations =
-    [
-        ("1001", "CAYEF", "POUCH", "CAFÉ INSTANTÁNEO GOURMET", "LUIS VEGA", "273", "LDPE", "37", "CPP", "37", "N/A", "SI", "2000"),
-        ("1002", "BABY CAT", "BOLSA", "BOLSA PARA ADITAMENTO BABY CAT", "SANDRA GOMEZ", "243", "LDPE OXO", "37.5", "N/A", "N/A", "N/A", "SI", "2500"),
-        ("1003", "INDUSTRIAS GUACAMAYA", "BOBINA", "BOBINA LAMINADA PARA SELLAR VASOS", "LUIS VEGA", "190", "LDPE SUSTENTABLE", "36", "N/A", "N/A", "N/A", "NO", "N/A"),
-        ("1004", "ELIDA LOPEZ GARCIA", "BOLSA EN ROLLO", "BOBINA METALIZADA FOTOCELDA PARA 1KG", "LUIS VEGA", "120", "COEXLDPE", "29", "N/A", "N/A", "N/A", "NO", "2000"),
-        ("1005", "GRUPO BAZSTO", "BOLSA DE CAMISETA", "KER-092 1LB NATURES GOLD", "GODOFREDO QUESADA", "230", "CPP", "32", "LDPE", "32", "N/A", "SI", "3000"),
-        ("1006", "KG DE MEXICO", "BOLSA EN ROLLO", "1980-0962-00 IPPOLITO QV 2CT ICEBERG LET (DESTINY)", "GODOFREDO QUESADA", "200", "LDPE OXO", "30", "LDPE", "N/A", "N/A", "SI", "2500"),
-        ("1007", "VEGGIES FARM", "LAMINA", "BIOKOLLAG TEND SUPLEMENTO 20 G", "LUIS VEGA", "210", "CPP", "30", "LDPE", "N/A", "N/A", "SI", "3000"),
-    ];
-
     private static readonly Dictionary<string, string[]> Catalogs = new()
     {
         ["FUELLES"] = ["LATERALES", "INFERIOR", "N/A"],
@@ -65,6 +54,8 @@ public static class DevelopmentDataSeeder
         ["FORMATO"] = ["BOBINA PLANA", "BOBINA TUBULAR", "BOBINA LAMINADA", "BOLSA SELLO LATERAL", "BOLSA ZIPPER", "BOLSA WICKET", "STANDUP POUCH (SELLO K)", "DOYPACK (SELLO \"U\"/SONRISA)", "POUCH 2 SELLOS", "POUCH 3 SELLOS", "POUCH 4 SELLOS", "POUCH SELLO TRASLAPE", "POUCH SELLO ALETA", "OTRO"],
         ["FIGURA DE EMBOB"] = ["N/A", "1", "2", "3", "4", "5", "6", "7", "8"],
         ["CORE"] = ["3\"", "6\""],
+        ["TIPO DE CAJA"] = ["CAJA KRAFT", "CAJA BLANCA", "CAJA CON LOGO", "N/A"],
+        ["DESARROLLO MANGA"] = ["370", "390", "400", "450", "460", "470", "480", "490", "500", "520", "540", "550", "560", "570", "580", "590", "600", "610", "620", "630", "650", "660", "670", "680", "700", "720", "732", "740", "750", "800", "N/A"],
         ["MERCADO"] = ["ALIMENTO LIQUIDO", "ALIMENTO SECO", "NO ALIMENTO LIQUIDO", "NO ALIMENTO SECO", "SECUNDARIO", "OTRO"],
         ["SUB MERCADO"] = ["ENDULZANTES", "GRANOS Y SEMILLAS", "CEREALES", "POLVOS", "CAFÉ", "REPOSTERIA", "PANADERIA", "TORTILLAS", "CONFITERIA", "BOTANAS", "FRUTAS Y VERDURAS", "LEGUMBRES", "ENCURTIDOS", "CARNES", "EMBUTIDOS", "QUESOS", "LACTEOS", "PROTEINA", "QUIMICOS", "ACEITES", "CUIDADO DEL HOGAR", "CUIDADO PERSONAL", "DESECHABLES", "FARMACEUTICO", "OTRO"],
         ["FORMULA LDPE"] = ["CONGELADO", "ALTO SELLO", "ALTA CLARIDAD", "COMERCIAL", "EMPAQUE AUTOMÁTICO", "LAMINACIÓN", "OTRO", "N/A"],
@@ -133,30 +124,6 @@ public static class DevelopmentDataSeeder
             }
 
             await userManager.AddToRoleAsync(user, role);
-        }
-
-        if (!await dbContext.Quotations.AnyAsync(cancellationToken))
-        {
-            dbContext.Quotations.AddRange(Quotations.Select(q => new Quotation
-            {
-                Id = Guid.NewGuid(),
-                NumeroCotizacion = q.Numero,
-                Cliente = q.Cliente,
-                TipoProducto = q.TipoProducto,
-                Descripcion = q.Descripcion,
-                DescripcionProducto = q.Descripcion,
-                EjecutivoVenta = q.Ejecutivo,
-                Ancho = q.Ancho,
-                PiTipoPelicula = q.PiFilm,
-                PiCalibre = q.PiCal,
-                PplTipoPelicula = q.PplFilm,
-                PplCalibre = q.PplCal,
-                PslTipoPelicula = "N/A",
-                PslCalibre = "N/A",
-                PesoBobina = q.PesoBobina,
-                TaponCore = q.TaponCore,
-                PiezasCajaBulto = q.Piezas,
-            }));
         }
 
         if (!await dbContext.Catalogs.AnyAsync(cancellationToken))

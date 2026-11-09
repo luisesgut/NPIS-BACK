@@ -7,6 +7,12 @@ namespace NpiManagement.Domain.Entities;
 /// <summary>Un campo de la captura que cambió al atender una solicitud de cambios (clave camelCase como en el frontend).</summary>
 public sealed record FieldChange(string Field, string Before, string After);
 
+/// <summary>Un cambio puntual que pidió el cliente sobre el PrintCard; Diseño lo palomea cuando ya está aplicado.</summary>
+public sealed record ChecklistItem(Guid Id, string Text, DateTimeOffset? DoneAt = null, Guid? DoneByUserId = null, string? DoneByName = null)
+{
+    public bool IsDone => DoneAt is not null;
+}
+
 /// <summary>
 /// Solicitud de cambios sobre un NPI. Orígenes posibles: Ingeniería o Diseño→Comercial (rechazo con
 /// cambios), Diseño→Comercial por artes rechazadas (ChangeRequestOrigin.ArtworkRejected), Comercial→Diseño
@@ -25,11 +31,11 @@ public sealed class ChangeRequest
     public Guid RequestedByUserId { get; }
     public string RequestedByName { get; }
     public DateTimeOffset RequestedAt { get; }
-    public AreaType FromArea { get; }
+    public AreaType FromArea { get; private set; }
     public AreaType ToArea { get; }
     public ChangeRequestOrigin Origin { get; }
-    public string Description { get; }
-    public IReadOnlyList<string> FieldKeys { get; }
+    public string Description { get; private set; }
+    public IReadOnlyList<string> FieldKeys { get; private set; }
 
     /// <summary>Captura tal como estaba al pedir los cambios (JSON). null en solicitudes anteriores a esta función.</summary>
     public string? CaptureSnapshotJson { get; private set; }
@@ -43,10 +49,67 @@ public sealed class ChangeRequest
     /// <summary>Archivo o link de apoyo (p. ej. captura de por qué se rechazaron las artes). Opcional.</summary>
     public Guid? EvidenceAttachmentId { get; private set; }
 
+    /// <summary>Capturas de pantalla o fotos adjuntas al pedirla (ids de Attachments del NPI, separados por coma).</summary>
+    public string? ImageAttachmentIdsCsv { get; private set; }
+    public IReadOnlyList<Guid> ImageAttachmentIds => RequestImages.Parse(ImageAttachmentIdsCsv);
+    internal void SetImages(IReadOnlyList<Guid> ids) => ImageAttachmentIdsCsv = RequestImages.Join(ids);
+
+    /// <summary>Sólo en cambios pedidos por el cliente: la lista de cambios que Diseño va palomeando (JSON).</summary>
+    public string? ChecklistJson { get; private set; }
+
     public bool IsResolved => ResolvedAt is not null;
+
+    /// <summary>Quien la pidió la retiró antes de que Comercial la atendiera (cuenta como cerrada, sin cambios).</summary>
+    public DateTimeOffset? WithdrawnAt { get; private set; }
+
+    /// <summary>Quien la pidió agrega o quita campos, cambia comentarios o el motivo, antes de que Comercial la atienda.</summary>
+    internal void Edit(string description, IReadOnlyList<string> fieldKeys)
+    {
+        Description = description;
+        FieldKeys = fieldKeys;
+    }
+
+    internal void Withdraw(Actor actor, DateTimeOffset at)
+    {
+        WithdrawnAt = at;
+        ResolvedAt = at;
+        ResolvedByUserId = actor.UserId;
+        ResolvedByName = actor.Name;
+        ResponseComment = "Retirada por quien la pidió";
+    }
 
     public IReadOnlyList<FieldChange> ChangesApplied =>
         string.IsNullOrEmpty(ChangesAppliedJson) ? [] : JsonSerializer.Deserialize<List<FieldChange>>(ChangesAppliedJson, Json) ?? [];
+
+    /// <summary>
+    /// Lo que hay que corregir en cada campo marcado (clave del campo → comentario), 2026-11-03. Comercial
+    /// lo ve junto al campo en el formulario. Opcional: las solicitudes viejas sólo traen la descripción general.
+    /// </summary>
+    public string? FieldNotesJson { get; private set; }
+
+    public IReadOnlyDictionary<string, string> FieldNotes =>
+        string.IsNullOrEmpty(FieldNotesJson) ? new Dictionary<string, string>() : JsonSerializer.Deserialize<Dictionary<string, string>>(FieldNotesJson, Json) ?? [];
+
+    internal void SetFieldNotes(IReadOnlyDictionary<string, string> notes) =>
+        FieldNotesJson = notes.Count == 0 ? null : JsonSerializer.Serialize(notes, Json);
+
+    public IReadOnlyList<ChecklistItem> Checklist =>
+        string.IsNullOrEmpty(ChecklistJson) ? [] : JsonSerializer.Deserialize<List<ChecklistItem>>(ChecklistJson, Json) ?? [];
+
+    internal void SetChecklist(IEnumerable<ChecklistItem> items) => ChecklistJson = JsonSerializer.Serialize(items.ToList(), Json);
+
+    /// <summary>Palomea (o despalomea) un cambio. Devuelve false si el renglón no es de esta solicitud.</summary>
+    internal bool SetChecklistItemDone(Guid itemId, bool done, Actor actor, DateTimeOffset at)
+    {
+        var items = Checklist.ToList();
+        var index = items.FindIndex(i => i.Id == itemId);
+        if (index < 0) return false;
+        items[index] = done
+            ? items[index] with { DoneAt = at, DoneByUserId = actor.UserId, DoneByName = actor.Name }
+            : items[index] with { DoneAt = null, DoneByUserId = null, DoneByName = null };
+        SetChecklist(items);
+        return true;
+    }
 
     internal ChangeRequest(
         Guid id,
@@ -75,6 +138,35 @@ public sealed class ChangeRequest
     }
 
     internal static string SnapshotOf(NpiCaptureData capture) => CaptureDiff.Snapshot(capture);
+
+    /// <summary>AdminTotal corrige qué área la pidió (se registró desde la tarjeta equivocada).</summary>
+    internal void CorrectFromArea(AreaType area) => FromArea = area;
+
+    /// <summary>
+    /// Reconfirmación de Ingeniería: suma campos cambiados a los que ya esperaban revisión. Por campo se
+    /// queda el valor "antes" más viejo y el "después" más nuevo; si regresó a como estaba, sale de la lista.
+    /// </summary>
+    internal void MergePendingChanges(IEnumerable<FieldChange> changes)
+    {
+        var merged = ChangesApplied.ToList();
+        foreach (var change in changes)
+        {
+            var index = merged.FindIndex(c => c.Field == change.Field);
+            if (index < 0) merged.Add(change);
+            else merged[index] = merged[index] with { After = change.After };
+        }
+        merged.RemoveAll(c => c.Before == c.After);
+        ChangesAppliedJson = JsonSerializer.Serialize(merged, Json);
+    }
+
+    /// <summary>Reconfirmación de Ingeniería: la da por revisada sin recalcular los cambios (ya se calcularon al abrirla).</summary>
+    internal void Acknowledge(Actor actor, DateTimeOffset at, string? comment)
+    {
+        ResolvedAt = at;
+        ResolvedByUserId = actor.UserId;
+        ResolvedByName = actor.Name;
+        ResponseComment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
+    }
 
     /// <summary>Marca la solicitud como atendida y registra qué cambió respecto a la foto tomada al pedirla.</summary>
     internal void Resolve(Actor actor, DateTimeOffset at, string? comment, NpiCaptureData currentCapture)

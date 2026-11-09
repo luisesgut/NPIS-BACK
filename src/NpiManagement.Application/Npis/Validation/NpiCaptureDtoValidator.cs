@@ -13,7 +13,10 @@ public sealed class NpiCaptureDtoValidator : AbstractValidator<NpiCaptureDto>
 {
     private static readonly string[] LongTextFields = [nameof(NpiCaptureDto.Observaciones), nameof(NpiCaptureDto.NotasEmpaqueEmbalaje)];
 
-    /// <summary>Unidades que el formulario ofrece; vacío = la unidad base (mm / micras).</summary>
+    /// <summary>
+    /// Unidades que el formulario ofrece; vacío = la unidad base (mm / micras). "cm" ya no se ofrece,
+    /// pero se sigue aceptando para no bloquear NPIs que se capturaron en cm antes de quitarlo.
+    /// </summary>
     public static readonly string[] UnidadesMedidas = ["", "mm", "cm", "pulg"];
     public static readonly string[] UnidadesCalibre = ["", "micras", "galgas", "mils"];
 
@@ -30,8 +33,8 @@ public sealed class NpiCaptureDtoValidator : AbstractValidator<NpiCaptureDto>
         }
 
         RuleFor(x => x.UnidadMedidas).Must(u => UnidadesMedidas.Contains(u))
-            .WithMessage("Unidad de medidas no válida. Usa mm, cm o pulg.");
+            .WithMessage("Unidad de medidas no válida. Usa mm o pulg.");
         RuleFor(x => x.UnidadCalibre).Must(u => UnidadesCalibre.Contains(u))
-            .WithMessage("Unidad de calibre no válida. Usa micras, galgas o mils.");
+            .WithMessage("Unidad de calibre no válida. Usa micras, gauges o mils.");
     }
 }

@@ -313,6 +313,9 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Property<string>("ChangesAppliedJson")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ChecklistJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(4000)
@@ -326,10 +329,17 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<string>("FieldNotesJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("FromArea")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ImageAttachmentIdsCsv")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
 
                     b.Property<Guid>("NpiId")
                         .HasColumnType("uniqueidentifier");
@@ -369,11 +379,79 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<DateTimeOffset?>("WithdrawnAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.HasKey("Id");
 
                     b.HasIndex("NpiId");
 
                     b.ToTable("ChangeRequests", (string)null);
+                });
+
+            modelBuilder.Entity("NpiManagement.Domain.Entities.ClosureProposal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DecidedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("DecidedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid?>("EvidenceAttachmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("NpiId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ProposedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ProposedByName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ProposedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NpiId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("NpiClosureProposals", (string)null);
                 });
 
             modelBuilder.Entity("NpiManagement.Domain.Entities.FeasibilityReview", b =>
@@ -423,6 +501,10 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ImageAttachmentIdsCsv")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
 
                     b.Property<Guid>("NpiId")
                         .HasColumnType("uniqueidentifier");
@@ -561,12 +643,32 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("CommercialChecklistJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Note")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
                     b.Property<Guid>("NpiId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("RejectedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("RejectedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("RejectionEvidenceAttachmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<DateTimeOffset>("UploadedAt")
                         .HasColumnType("datetimeoffset");
@@ -590,6 +692,88 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("PrintCardVersions", (string)null);
+                });
+
+            modelBuilder.Entity("NpiManagement.Domain.Entities.SisproQuoteLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EstadoSispro")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid?>("EvidenceAttachmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("InvalidatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("InvalidationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset>("LinkedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LinkedByName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("LinkedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("NpiId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("NumeroCotizacion")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTimeOffset?>("RespondedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("RespondedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("RespondedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ResponseNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("StructureWarnings")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NpiId");
+
+                    b.HasIndex("NumeroCotizacion");
+
+                    b.HasIndex("NpiId", "VersionNumber")
+                        .IsUnique();
+
+                    b.ToTable("SisproQuoteLinks", (string)null);
                 });
 
             modelBuilder.Entity("NpiManagement.Domain.Entities.TimerEvent", b =>
@@ -645,6 +829,10 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ArtClassification")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
                     b.Property<DateTimeOffset?>("ArtesValidadasAt")
                         .HasColumnType("datetimeoffset");
 
@@ -675,6 +863,10 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<string>("DesignInstructions")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<string>("EngineeringAreaStatus")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -697,6 +889,9 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("FirstSubmittedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool?>("HasLabValues")
+                        .HasColumnType("bit");
 
                     b.Property<string>("InitialCaptureJson")
                         .HasColumnType("nvarchar(max)");
@@ -1066,6 +1261,36 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("CatalogOptions", (string)null);
                 });
 
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.CoreBobina", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("DiametroExteriorM")
+                        .HasPrecision(10, 5)
+                        .HasColumnType("decimal(10,5)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("KgPorCm")
+                        .HasPrecision(10, 5)
+                        .HasColumnType("decimal(10,5)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique();
+
+                    b.ToTable("CoresBobina", (string)null);
+                });
+
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.FeedbackReport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1149,6 +1374,54 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("FeedbackReports", (string)null);
                 });
 
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.MaterialBobina", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<decimal>("DensidadKgM3")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("decimal(12,4)");
+
+                    b.Property<bool>("EsEstimado")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("FormulaLdpe")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Terminado")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("TipoPelicula")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("MaterialesBobina", (string)null);
+                });
+
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1203,98 +1476,68 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("NpiChatReads", (string)null);
                 });
 
-            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.Quotation", b =>
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.NpiMaterialExacto", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
+                    b.Property<Guid>("NpiId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Ancho")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("Cliente")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Descripcion")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("DescripcionProducto")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("EjecutivoVenta")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("NumeroCotizacion")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<string>("PesoBobina")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("PiCalibre")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("PiTipoPelicula")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("PiezasCajaBulto")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("PplCalibre")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("PplTipoPelicula")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("PslCalibre")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("PslTipoPelicula")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("TaponCore")
-                        .IsRequired()
+                    b.Property<string>("Capa")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<string>("TipoProducto")
+                    b.Property<Guid>("MaterialBobinaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("SetAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SetByName")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("SetByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("NpiId", "Capa");
+
+                    b.HasIndex("MaterialBobinaId");
+
+                    b.ToTable("NpiMaterialesExactos", (string)null);
+                });
+
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.ParametrosBobina", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("AdhesivoGm2")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("TarimaAltoMaxCm")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal>("TarimaAnchoCm")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal>("TarimaLargoCm")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal>("TintaGm2")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("ToleranciaAlto")
+                        .HasPrecision(6, 4)
+                        .HasColumnType("decimal(6,4)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("NumeroCotizacion")
-                        .IsUnique();
-
-                    b.ToTable("Quotations", (string)null);
+                    b.ToTable("ParametrosBobina", (string)null);
                 });
 
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.RefreshToken", b =>
@@ -1339,6 +1582,45 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("RefreshTokens", (string)null);
+                });
+
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.SisproMaterialEquivalence", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FormulaLdpe")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("MaterialSispro")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Terminado")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("TipoPelicula")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedByName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialSispro")
+                        .IsUnique();
+
+                    b.ToTable("SisproMaterialEquivalences", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -1428,6 +1710,15 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("NpiManagement.Domain.Entities.ClosureProposal", b =>
+                {
+                    b.HasOne("NpiManagement.Domain.Npi", null)
+                        .WithMany("ClosureProposals")
+                        .HasForeignKey("NpiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("NpiManagement.Domain.Entities.FeasibilityReview", b =>
                 {
                     b.HasOne("NpiManagement.Domain.Npi", null)
@@ -1468,6 +1759,15 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("NpiManagement.Domain.Npi", null)
                         .WithMany("PrintCardVersions")
+                        .HasForeignKey("NpiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("NpiManagement.Domain.Entities.SisproQuoteLink", b =>
+                {
+                    b.HasOne("NpiManagement.Domain.Npi", null)
+                        .WithMany("SisproQuotes")
                         .HasForeignKey("NpiId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1628,6 +1928,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
+                            b1.Property<string>("ColorCintaUniones")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("ContactoClienteDiseno")
                                 .IsRequired()
                                 .HasMaxLength(200)
@@ -1644,6 +1949,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("CostoPreprensa")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("DesarrolloManga")
                                 .IsRequired()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
@@ -1728,6 +2038,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
+                            b1.Property<string>("Labio")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("Ligas")
                                 .IsRequired()
                                 .HasMaxLength(200)
@@ -1754,6 +2069,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("MuestrasFisicas")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("NombreExtranjeroProducto")
                                 .IsRequired()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
@@ -1858,6 +2178,21 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
+                            b1.Property<string>("PrecorteWicket")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("PrecorteZipper")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("PrensaManga")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("PruebaColor")
                                 .IsRequired()
                                 .HasMaxLength(200)
@@ -1869,6 +2204,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("PslTipoPelicula")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("Repeticion")
                                 .IsRequired()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
@@ -1918,6 +2258,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
+                            b1.Property<string>("TipoCaja")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("TipoEmpaque")
                                 .IsRequired()
                                 .HasMaxLength(200)
@@ -1939,6 +2284,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("TipoTinta")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("UbicacionSolapa")
                                 .IsRequired()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
@@ -2093,6 +2443,23 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.NpiMaterialExacto", b =>
+                {
+                    b.HasOne("NpiManagement.Infrastructure.Persistence.Entities.MaterialBobina", "Material")
+                        .WithMany()
+                        .HasForeignKey("MaterialBobinaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NpiManagement.Domain.Npi", null)
+                        .WithMany()
+                        .HasForeignKey("NpiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Material");
+                });
+
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.RefreshToken", b =>
                 {
                     b.HasOne("NpiManagement.Infrastructure.Identity.ApplicationUser", null)
@@ -2115,11 +2482,15 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
 
                     b.Navigation("ChangeRequests");
 
+                    b.Navigation("ClosureProposals");
+
                     b.Navigation("FeasibilityReviews");
 
                     b.Navigation("InformationRequests");
 
                     b.Navigation("PrintCardVersions");
+
+                    b.Navigation("SisproQuotes");
 
                     b.Navigation("TimerEventLog");
                 });

@@ -14,4 +14,7 @@ public interface IFileStorage
     Task<StoredFile> SaveAsync(Stream content, string sanitizedFileName, CancellationToken cancellationToken);
 
     Task<Stream> OpenReadAsync(string storageKey, CancellationToken cancellationToken);
+
+    /// <summary>Borra el archivo (al eliminar un NPI). No falla si ya no existe.</summary>
+    Task DeleteAsync(string storageKey, CancellationToken cancellationToken);
 }

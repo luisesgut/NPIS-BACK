@@ -32,7 +32,7 @@ public sealed record GetChatParticipantsQuery(Guid NpiId, CurrentUser Actor);
 
 /// <summary>
 /// Para el autocompletado de @ y para saber quién puede escribir: los participantes activos del NPI
-/// (creador y responsables; los admins que no participan sólo leen). /api/users no sirve porque está
+/// (creador y responsables; los admins también escriben, pero no se les menciona). /api/users no sirve porque está
 /// reservado a administradores.
 /// </summary>
 public sealed class GetChatParticipantsQueryHandler(INpiChatStore chat, IUserDirectory userDirectory)

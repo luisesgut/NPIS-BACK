@@ -57,6 +57,13 @@ public sealed class ApiExceptionHandler : IExceptionHandler
                 Detail = nv.Message,
                 Type = nv.Code,
             },
+            ExternalServiceUnavailableException ex => new ProblemDetails
+            {
+                Status = StatusCodes.Status503ServiceUnavailable,
+                Title = "Servicio externo no disponible.",
+                Detail = ex.Message,
+                Type = ex.Code,
+            },
             DbUpdateConcurrencyException => new ProblemDetails
             {
                 Status = StatusCodes.Status409Conflict,

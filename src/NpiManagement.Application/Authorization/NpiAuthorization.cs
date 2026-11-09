@@ -46,13 +46,25 @@ public static class NpiAuthorization
 
     /// <summary>Sólo AdminTotal o el admin del área correspondiente pueden asignar (acciones 4/5 de workflow.md).</summary>
     public static bool CanAssign(CurrentUser user, AreaType area) =>
-        user.Role == "AdminTotal" || user.Role == area switch
-        {
-            AreaType.Comercial => "AdminComercial",
-            AreaType.Ingenieria => "AdminIngenieria",
-            AreaType.Diseno => "AdminDiseno",
-            _ => "__none__",
-        };
+        user.Role == "AdminTotal" || user.Role == AdminRoleOf(area);
+
+    public static string AdminRoleOf(AreaType area) => area switch
+    {
+        AreaType.Comercial => "AdminComercial",
+        AreaType.Ingenieria => "AdminIngenieria",
+        AreaType.Diseno => "AdminDiseno",
+        _ => "__none__",
+    };
+
+    /// <summary>
+    /// Un usuario normal no cierra un NPI por sí solo: su cierre (no factibilidad, rechazo del cliente,
+    /// por insumos o por precio) queda como propuesta hasta que el admin de su área da el visto bueno.
+    /// </summary>
+    public static bool RequiresClosureApproval(CurrentUser user) =>
+        user.Role is "UsuarioComercial" or "UsuarioIngenieria" or "UsuarioDiseno";
+
+    /// <summary>Confirmar o no autorizar una propuesta de cierre: el admin de esa área o AdminTotal (misma regla que asignar).</summary>
+    public static bool CanReviewClosure(CurrentUser user, AreaType area) => CanAssign(user, area);
 
     /// <summary>
     /// Editar un borrador (acción 2 de workflow.md) es más estricto que CanAccess: sólo

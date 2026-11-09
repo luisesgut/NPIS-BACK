@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +14,7 @@ using NpiManagement.Infrastructure.Notifications;
 using NpiManagement.Infrastructure.Persistence;
 using NpiManagement.Infrastructure.Persistence.Repositories;
 using NpiManagement.Infrastructure.Services;
+using NpiManagement.Infrastructure.Sispro;
 
 namespace NpiManagement.Infrastructure;
 
@@ -45,14 +46,31 @@ public static class DependencyInjection
         services.AddScoped<IClock, SystemClock>();
         services.AddSingleton<IBusinessCalendar, MexicoBusinessCalendar>();
         services.AddScoped<INpiNumberGenerator, SqlServerNpiNumberGenerator>();
-        services.AddScoped<IQuotationProvider, EfQuotationProvider>();
+        // Cotizaciones: se leen de SISPRO (solo lectura). Sin credenciales en Sispro:* la consulta
+        // responde 503 "no configurado" y el NPI se captura a mano.
+        services.Configure<SisproOptions>(configuration.GetSection(SisproOptions.SectionName));
+        Domain.SisproQuoteGate.Configured = configuration.GetSection(SisproOptions.SectionName).GetValue<bool>(nameof(SisproOptions.CotizacionObligatoria));
+        services.AddHostedService<SisproQuoteWaitRelease>();
+        services.AddSingleton<SisproTokenStore>();
+        services.AddHttpClient<ISisproClient, SisproClient>((sp, http) =>
+        {
+            var sispro = configuration.GetSection(SisproOptions.SectionName).Get<SisproOptions>() ?? new SisproOptions();
+            http.BaseAddress = new Uri(sispro.BaseUrl.TrimEnd('/') + "/");
+            http.Timeout = TimeSpan.FromSeconds(Math.Clamp(sispro.TimeoutSeconds, 3, 60));
+        });
+        services.AddScoped<IQuotationProvider, SisproQuotationProvider>();
+        services.AddScoped<ISisproAdminService, SisproAdminService>();
         services.AddScoped<INpiRepository, NpiRepository>();
+        services.AddScoped<INpiDeletion, EfNpiDeletion>();
+        services.AddScoped<NpiManagement.Application.Npis.Turns.INpiTurnReader, EfNpiTurnReader>();
         services.AddScoped<INpiListReader, EfNpiListReader>();
         services.AddScoped<IDashboardReader, EfDashboardReader>();
+        services.AddScoped<NpiManagement.Application.Clients.IClientNameStore, EfClientNameStore>();
         services.AddScoped<IUserDirectory, EfUserDirectory>();
         services.AddScoped<IUserAdminService, UserAdminService>();
         services.AddScoped<ICatalogReader, EfCatalogReader>();
         services.AddScoped<ICatalogAdminService, EfCatalogAdminService>();
+        services.AddScoped<IBobinaCatalogStore, EfBobinaCatalogStore>();
         services.AddScoped<INotificationService, EfNotificationService>();
         services.AddScoped<INpiChatStore, EfNpiChatStore>();
         services.AddScoped<INpiCaptureHistoryStore, EfNpiCaptureHistoryStore>();

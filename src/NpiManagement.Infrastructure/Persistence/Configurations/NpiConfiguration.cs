@@ -77,6 +77,10 @@ public sealed class NpiConfiguration : IEntityTypeConfiguration<Npi>
         builder.Property(n => n.ArtesValidadasAt);
         builder.Property(n => n.ArtesValidadasByUserId);
 
+        builder.Property(n => n.ArtClassification).HasConversion<string>().HasMaxLength(2);
+        builder.Property(n => n.HasLabValues);
+        builder.Property(n => n.DesignInstructions).HasMaxLength(2000);
+
         builder.Property(n => n.PrintCardLoadedAt);
         builder.Property(n => n.PrintCardLoadedByUserId);
         builder.Property(n => n.PrintCardLoadedVersionId);
@@ -131,6 +135,8 @@ public sealed class NpiConfiguration : IEntityTypeConfiguration<Npi>
         ConfigureSatelliteCollection<InformationRequest>(builder, nameof(Npi.InformationRequests), "_informationRequests");
         ConfigureSatelliteCollection<FeasibilityReview>(builder, nameof(Npi.FeasibilityReviews), "_feasibilityReviews");
         ConfigureSatelliteCollection<PrintCardVersion>(builder, nameof(Npi.PrintCardVersions), "_printCardVersions");
+        ConfigureSatelliteCollection<SisproQuoteLink>(builder, nameof(Npi.SisproQuotes), "_sisproQuotes");
+        ConfigureSatelliteCollection<ClosureProposal>(builder, nameof(Npi.ClosureProposals), "_closureProposals");
         ConfigureSatelliteCollection<TimerEvent>(builder, nameof(Npi.TimerEventLog), "_timerEvents");
         ConfigureSatelliteCollection<AuditEvent>(builder, nameof(Npi.AuditLog), "_auditEvents");
 

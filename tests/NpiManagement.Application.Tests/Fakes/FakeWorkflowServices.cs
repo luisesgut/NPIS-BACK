@@ -70,3 +70,19 @@ public sealed class FakeUserDirectory : IUserDirectory
         return this;
     }
 }
+
+/// <summary>Cotizaciones de SISPRO en memoria: por defecto "Cotizada", sin capas (nada que comparar).</summary>
+public sealed class FakeQuotationProvider : IQuotationProvider
+{
+    public Dictionary<string, QuotationSnapshot> Quotes { get; } = [];
+
+    public FakeQuotationProvider With(string numero, string estado = "Cotizada", IReadOnlyList<QuotationLayer>? capas = null)
+    {
+        Quotes[numero] = new QuotationSnapshot(numero, estado, $"REF-{numero}", null, "Millar", new Dictionary<string, string>(), [],
+            capas ?? [], null, 0, 0, [new QuotationQuantity(50, 2742.33m, 137116.16m)], []);
+        return this;
+    }
+
+    public Task<QuotationSnapshot?> FindAsync(string numeroCotizacion, CancellationToken cancellationToken) =>
+        Task.FromResult(Quotes.GetValueOrDefault(numeroCotizacion));
+}

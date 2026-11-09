@@ -18,47 +18,53 @@ public sealed class EfDashboardReader(NpiManagementDbContext dbContext) : IDashb
     {
         var query = dbContext.Npis.AsNoTracking().Where(accessPredicate);
 
-        var totalCount = await query.CountAsync(cancellationToken);
-
         var lifecycleRows = await query
             .GroupBy(n => n.LifecycleStatus)
             .Select(g => new { Status = g.Key, Count = g.Count() })
             .ToListAsync(cancellationToken);
         var countsByLifecycleStatus = lifecycleRows.ToDictionary(x => x.Status.ToString(), x => x.Count);
+        var totalCount = lifecycleRows.Sum(x => x.Count);
 
-        var closedQuery = query.Where(n => n.GlobalTimer.EndAt != null);
-        var inProcessQuery = query.Where(n => n.GlobalTimer.EndAt == null);
-
-        var closedByPriority = await closedQuery
+        // Una sola consulta por prioridad: cerrados/en proceso con COUNT(CASE…) y promedio de los cerrados con AVG(CASE…) (AVG ignora NULL).
+        var byPriority = await query
             .GroupBy(n => n.Priority)
-            .Select(g => new { Priority = g.Key, Count = g.Count(), AvgMs = g.Average(n => (double)n.GlobalTimer.AccumulatedBusinessMs) })
-            .ToListAsync(cancellationToken);
-        var inProcessByPriority = await inProcessQuery
-            .GroupBy(n => n.Priority)
-            .Select(g => new { Priority = g.Key, Count = g.Count() })
+            .Select(g => new
+            {
+                Priority = g.Key,
+                Closed = g.Count(n => n.GlobalTimer.EndAt != null),
+                InProcess = g.Count(n => n.GlobalTimer.EndAt == null),
+                AvgMs = g.Average(n => n.GlobalTimer.EndAt != null ? (double?)n.GlobalTimer.AccumulatedBusinessMs : null),
+                WithinSla = g.Count(n => n.GlobalTimer.EndAt != null && n.GlobalTimer.AccumulatedBusinessMs <= slaThresholdBusinessMs),
+            })
             .ToListAsync(cancellationToken);
 
-        var closedCount = closedByPriority.Sum(x => x.Count);
+        var closedCount = byPriority.Sum(x => x.Closed);
         var inProcessCount = totalCount - closedCount;
 
-        var closedCountByPriority = ToPriorityCountDictionary(closedByPriority.Select(x => (x.Priority, x.Count)));
-        var inProcessCountByPriority = ToPriorityCountDictionary(inProcessByPriority.Select(x => (x.Priority, x.Count)));
+        var closedCountByPriority = ToPriorityCountDictionary(byPriority.Select(x => (x.Priority, x.Closed)));
+        var inProcessCountByPriority = ToPriorityCountDictionary(byPriority.Select(x => (x.Priority, x.InProcess)));
         var averageGlobalDurationBusinessMsByPriority = Enum.GetValues<Priority>()
-            .ToDictionary(p => p.ToString(), p => (double?)closedByPriority.FirstOrDefault(x => x.Priority == p)?.AvgMs);
+            .ToDictionary(p => p.ToString(), p => byPriority.FirstOrDefault(x => x.Priority == p)?.AvgMs);
 
         double? averageGlobalDurationBusinessMs = closedCount > 0
-            ? closedByPriority.Sum(x => x.AvgMs * x.Count) / closedCount
+            ? byPriority.Where(x => x.AvgMs != null).Sum(x => x.AvgMs!.Value * x.Closed) / closedCount
             : null;
 
-        var engineeringClosedQuery = query.Where(n => n.EngineeringTimer.EndAt != null);
-        var engineeringClosedCount = await engineeringClosedQuery.CountAsync(cancellationToken);
-        double? averageEngineeringDurationBusinessMs = engineeringClosedCount > 0
-            ? await engineeringClosedQuery.AverageAsync(n => (double)n.EngineeringTimer.AccumulatedBusinessMs, cancellationToken)
-            : null;
+        // Promedio por área sobre los NPIs cuyo cronómetro de esa área ya cerró (cada dashboard muestra el de su área), en una sola consulta.
+        var areaAverages = await query
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Engineering = g.Average(n => n.EngineeringTimer.EndAt != null ? (double?)n.EngineeringTimer.AccumulatedBusinessMs : null),
+                Commercial = g.Average(n => n.CommercialTimer.EndAt != null ? (double?)n.CommercialTimer.AccumulatedBusinessMs : null),
+                Design = g.Average(n => n.DesignTimer.EndAt != null ? (double?)n.DesignTimer.AccumulatedBusinessMs : null),
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+        var averageEngineeringDurationBusinessMs = areaAverages?.Engineering;
+        var averageCommercialDurationBusinessMs = areaAverages?.Commercial;
+        var averageDesignDurationBusinessMs = areaAverages?.Design;
 
-        var withinSlaCount = closedCount > 0
-            ? await closedQuery.CountAsync(n => n.GlobalTimer.AccumulatedBusinessMs <= slaThresholdBusinessMs, cancellationToken)
-            : 0;
+        var withinSlaCount = byPriority.Sum(x => x.WithinSla);
         var slaCompliancePercent = closedCount > 0 ? Math.Round(100.0 * withinSlaCount / closedCount, 1) : 100.0;
 
         var topClients = await query
@@ -81,7 +87,9 @@ public sealed class EfDashboardReader(NpiManagementDbContext dbContext) : IDashb
             averageGlobalDurationBusinessMsByPriority,
             averageEngineeringDurationBusinessMs,
             slaCompliancePercent,
-            countsByClient);
+            countsByClient,
+            averageCommercialDurationBusinessMs,
+            averageDesignDurationBusinessMs);
     }
 
     private static Dictionary<string, int> ToPriorityCountDictionary(IEnumerable<(Priority Priority, int Count)> rows)

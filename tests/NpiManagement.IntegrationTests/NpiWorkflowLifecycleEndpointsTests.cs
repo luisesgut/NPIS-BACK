@@ -59,6 +59,7 @@ public sealed class NpiWorkflowLifecycleEndpointsTests(SqlServerFixture fixture)
             new CreateNpiDraftRequest(new NpiCaptureDto { Cliente = "Cliente Lifecycle", NumeroCotizacion = "1001" }, Priority.Alta, null));
         var id = await createResponse.Content.ReadFromJsonAsync<Guid>();
 
+        (await comercial.PostAsJsonAsync($"/api/npis/{id}/links", new AddLinkRequest("https://example.com/artes.pdf", "Artes"))).EnsureSuccessStatusCode();
         var submitResponse = await comercial.PostAsync($"/api/npis/{id}/submit", null);
         submitResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var afterSubmit = await submitResponse.Content.ReadFromJsonAsync<NpiDetailDto>();
@@ -69,19 +70,20 @@ public sealed class NpiWorkflowLifecycleEndpointsTests(SqlServerFixture fixture)
         var ingUser = await GetUserIdAsync(adminIng, "zgonzalez@bioflex.mx");
         var disUser = await GetUserIdAsync(adminDis, "mparedes@bioflex.mx");
         (await adminIng.PostAsJsonAsync($"/api/npis/{id}/assign-engineering", new AssignUserRequest(ingUser))).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await adminDis.PostAsJsonAsync($"/api/npis/{id}/assign-design", new AssignUserRequest(disUser))).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await adminDis.PostAsJsonAsync($"/api/npis/{id}/assign-design", new AssignDesignRequest(disUser, ArtClassification.C, false))).StatusCode.Should().Be(HttpStatusCode.OK);
 
         // 3) Factibilidades independientes + Artes Validadas
-        (await disenador.PostAsJsonAsync($"/api/npis/{id}/design-feasibility", new NoteRequest("Ok"))).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await disenador.PostAsJsonAsync($"/api/npis/{id}/design-feasibility", new DesignFeasibilityRequest("Ok", ArtClassification.A, null))).StatusCode.Should().Be(HttpStatusCode.OK);
         (await ingeniero.PostAsJsonAsync($"/api/npis/{id}/engineering-feasibility", new NoteRequest("Ok"))).StatusCode.Should().Be(HttpStatusCode.OK);
         (await disenador.PostAsync($"/api/npis/{id}/validate-artwork", null)).StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // 4) PrintCard: versión + 3 aprobaciones
-        (await disenador.PostAsJsonAsync($"/api/npis/{id}/printcards", new CreatePrintCardVersionRequest("PC-LC-001", null, null))).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await disenador.PostAsJsonAsync($"/api/npis/{id}/printcard-approvals", new ApprovePrintCardRequest(ApproverRole.Design, null, null))).StatusCode.Should().Be(HttpStatusCode.OK);
+        // 4) PrintCard: Diseño genera (queda aprobada por Diseño) → Ingeniería → cliente
+        var printCardFile = await (await disenador.PostAsJsonAsync($"/api/npis/{id}/links", new AddLinkRequest("https://example.com/pc.pdf", "PrintCard", AttachmentContext.PrintCard))).Content.ReadFromJsonAsync<AttachmentDto>();
+        (await disenador.PostAsJsonAsync($"/api/npis/{id}/printcards", new CreatePrintCardVersionRequest("PC-LC-001", printCardFile!.Id, null))).StatusCode.Should().Be(HttpStatusCode.OK);
         (await ingeniero.PostAsJsonAsync($"/api/npis/{id}/printcard-approvals", new ApprovePrintCardRequest(ApproverRole.Engineering, null, null))).StatusCode.Should().Be(HttpStatusCode.OK);
         (await comercial.PostAsync($"/api/npis/{id}/send-printcard-to-client", null)).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await comercial.PostAsJsonAsync($"/api/npis/{id}/printcard-approvals", new ApprovePrintCardRequest(ApproverRole.Client, null, Guid.NewGuid()))).StatusCode.Should().Be(HttpStatusCode.OK);
+        var clientEvidence = await (await comercial.PostAsJsonAsync($"/api/npis/{id}/links", new AddLinkRequest("https://example.com/ok.pdf", "Correo del cliente", AttachmentContext.ClientApproval))).Content.ReadFromJsonAsync<AttachmentDto>();
+        (await comercial.PostAsJsonAsync($"/api/npis/{id}/printcard-approvals", new ApprovePrintCardRequest(ApproverRole.Client, null, clientEvidence!.Id))).StatusCode.Should().Be(HttpStatusCode.OK);
 
         // 5) Cargar PrintCard (no termina el ciclo — decisión 3)
         var loadResponse = await disenador.PostAsync($"/api/npis/{id}/load-printcard", null);

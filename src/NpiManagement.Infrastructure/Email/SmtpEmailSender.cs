@@ -22,6 +22,18 @@ public sealed class SmtpEmailSender(IOptions<MailOptions> options, ILogger<SmtpE
         mime.To.Add(new MailboxAddress(message.ToName, message.ToEmail));
         mime.Subject = message.Subject;
         mime.Body = new BodyBuilder { HtmlBody = message.HtmlBody, TextBody = message.TextBody }.ToMessageBody();
+        if (message.ThreadKey is { } threadKey)
+        {
+            // Un hilo por NPI: todos sus correos "responden" a un mensaje raíz imaginario con un
+            // Message-ID fijo para ese NPI. Gmail agrupa por References/In-Reply-To; Outlook, por el
+            // asunto (que es siempre el mismo para el NPI) y por Thread-Topic.
+            var domain = _options.FromAddress.Contains('@') ? _options.FromAddress[(_options.FromAddress.IndexOf('@') + 1)..] : "npi.local";
+            var root = $"npi-{threadKey}@{domain}";
+            mime.MessageId = MimeKit.Utils.MimeUtils.GenerateMessageId(domain);
+            mime.InReplyTo = root;
+            mime.References.Add(root);
+            mime.Headers.Add("Thread-Topic", message.Subject);
+        }
 
         using var client = new SmtpClient { Timeout = _options.TimeoutSeconds * 1000 };
 

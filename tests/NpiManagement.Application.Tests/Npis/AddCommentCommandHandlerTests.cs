@@ -134,7 +134,7 @@ public class AddCommentCommandHandlerTests
     }
 
     [Fact]
-    public async Task An_admin_who_is_not_a_participant_can_read_but_not_write()
+    public async Task An_admin_who_is_not_a_participant_can_read_and_write()
     {
         var npi = ActiveNpi();
         var admin = new CurrentUser(Guid.NewGuid(), "AdminTotal", AreaType.Total);
@@ -142,9 +142,9 @@ public class AddCommentCommandHandlerTests
 
         var write = async () => await Handler().HandleAsync(new AddCommentCommand(npi.Id, admin, "Admin", "Opino"), CancellationToken.None);
 
-        (await write.Should().ThrowAsync<RequestValidationException>()).Which.Code.Should().Be("chat-not-participant");
+        await write.Should().NotThrowAsync();
         var page = await new GetNpiCommentsQueryHandler(_chat).HandleAsync(new GetNpiCommentsQuery(npi.Id, admin), CancellationToken.None);
-        page.Items.Should().ContainSingle();
+        page.Items.Should().HaveCount(2);
     }
 
     [Fact]

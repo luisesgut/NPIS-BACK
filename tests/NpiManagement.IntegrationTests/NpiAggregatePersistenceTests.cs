@@ -54,18 +54,19 @@ public class NpiAggregatePersistenceTests(SqlServerFixture fixture)
 
             // Ambas factibilidades (independientes, decisión 1) + Artes Validadas.
             npi.ApproveEngineeringFeasibility(engActor, clock, TestDataFactory.Calendar, "Ingeniería factible");
-            npi.ApproveDesignFeasibility(desActor, clock, "Diseño factible");
+            npi.ApproveDesignFeasibility(desActor, clock, "Diseño factible", ArtClassification.A);
             npi.ValidateArtwork(desActor, clock);
 
             // Adjunto suelto (contexto Comment).
             npi.RegisterAttachment(comActor, clock, "nota.pdf", "application/pdf", 1024, "storage/nota.pdf", null, AttachmentContext.Comment);
 
-            // PrintCard con las 3 aprobaciones.
-            npi.CreatePrintCardVersion(desActor, clock, TestDataFactory.Calendar, "PC-INT-001", null, "Primera versión");
-            npi.ApprovePrintCard(desActor, clock, TestDataFactory.Calendar, ApproverRole.Design, null, null);
+            // PrintCard: Diseño (automática al generar) + Ingeniería + Cliente.
+            var printCardFile = npi.RegisterLink(desActor, clock, "PrintCard v1", "https://example.com/pc1.pdf", AttachmentContext.PrintCard).Id;
+            var clientEvidence = npi.RegisterLink(comActor, clock, "Correo del cliente", "https://example.com/ok.pdf", AttachmentContext.ClientApproval).Id;
+            npi.CreatePrintCardVersion(desActor, clock, TestDataFactory.Calendar, "PC-INT-001", printCardFile, "Primera versión");
             npi.ApprovePrintCard(engActor, clock, TestDataFactory.Calendar, ApproverRole.Engineering, null, null);
             npi.SendPrintCardToClient(comActor, clock);
-            npi.ApprovePrintCard(comActor, clock, TestDataFactory.Calendar, ApproverRole.Client, "Cliente aprobó", Guid.NewGuid());
+            npi.ApprovePrintCard(comActor, clock, TestDataFactory.Calendar, ApproverRole.Client, "Cliente aprobó", clientEvidence);
 
             npiId = npi.Id;
 
