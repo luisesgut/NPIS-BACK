@@ -41,6 +41,24 @@ public sealed class FeedbackController(IFeedbackService feedbackService) : Contr
         return StatusCode(StatusCodes.Status201Created, new SubmitFeedbackResponse(id));
     }
 
+    [HttpGet("export")]
+    [Authorize(Policy = "AdminTotal")]
+    public async Task<IActionResult> Export([FromQuery] FeedbackStatus? status, CancellationToken cancellationToken)
+    {
+        var file = await feedbackService.ExportAsync(status, cancellationToken);
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    /// <summary>Hilo usuario ↔ soporte del reporte (quien lo hizo o AdminTotal).</summary>
+    [HttpGet("{id:guid}/messages")]
+    public async Task<IActionResult> Messages(Guid id, CancellationToken cancellationToken) =>
+        Ok(await feedbackService.ListMessagesAsync(id, User.ToCurrentUser(), cancellationToken));
+
+    [HttpPost("{id:guid}/messages")]
+    [AllowForReadOnlyRole]
+    public async Task<IActionResult> AddMessage(Guid id, FeedbackMessageRequest request, CancellationToken cancellationToken) =>
+        Ok(await feedbackService.AddMessageAsync(id, User.ToCurrentUser(), User.DisplayName(), request.Text, cancellationToken));
+
     [HttpGet("mine")]
     public async Task<IActionResult> ListMine(CancellationToken cancellationToken)
     {

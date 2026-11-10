@@ -24,6 +24,8 @@ public sealed class NpiWorkflowController(
     AssignEngineeringCommandHandler assignEngineeringHandler,
     AssignDesignCommandHandler assignDesignHandler,
     ReassignCommercialCommandHandler reassignCommercialHandler,
+    AddNpiParticipantCommandHandler addParticipantHandler,
+    RemoveNpiParticipantCommandHandler removeParticipantHandler,
     ApproveEngineeringFeasibilityCommandHandler approveEngineeringFeasibilityHandler,
     ReconfirmEngineeringFeasibilityCommandHandler reconfirmEngineeringFeasibilityHandler,
     ApproveDesignFeasibilityCommandHandler approveDesignFeasibilityHandler,
@@ -68,6 +70,15 @@ public sealed class NpiWorkflowController(
     [Authorize(Policy = "AreaComercial")]
     public Task<NpiDetailDto> ReassignCommercial(Guid id, AssignUserRequest request, CancellationToken cancellationToken) =>
         reassignCommercialHandler.HandleAsync(new ReassignCommercialCommand(id, User.ToCurrentUser(), User.DisplayName(), request.UserId), cancellationToken);
+
+    /// <summary>Equipo por NPI: quién puede agregar lo decide el handler (responsable del área o su admin).</summary>
+    [HttpPost("participants")]
+    public Task<NpiDetailDto> AddParticipant(Guid id, NpiParticipantRequest request, CancellationToken cancellationToken) =>
+        addParticipantHandler.HandleAsync(new AddNpiParticipantCommand(id, User.ToCurrentUser(), User.DisplayName(), request.UserId, request.Area), cancellationToken);
+
+    [HttpPost("participants/remove")]
+    public Task<NpiDetailDto> RemoveParticipant(Guid id, NpiParticipantRequest request, CancellationToken cancellationToken) =>
+        removeParticipantHandler.HandleAsync(new RemoveNpiParticipantCommand(id, User.ToCurrentUser(), User.DisplayName(), request.UserId, request.Area), cancellationToken);
 
     [HttpPost("engineering-feasibility")]
     [Authorize(Policy = "AreaIngenieria")]

@@ -8,10 +8,11 @@ namespace NpiManagement.Application.Abstractions;
 /// <summary>Lo mínimo del NPI que necesita el chat: folio para los avisos y propiedad para autorizar.</summary>
 public sealed record NpiChatTarget(Guid NpiId, string? NpiNumber, NpiOwnership Ownership)
 {
-    /// <summary>Quienes participan en el NPI (creador y responsables de las tres áreas), sin repetir.</summary>
+    /// <summary>Quienes participan en el NPI (creador, responsables de las tres áreas y su equipo), sin repetir.</summary>
     public IReadOnlyList<Guid> ParticipantIds =>
         new Guid?[] { Ownership.CreatedByUserId, Ownership.AssignedCommercialUserId, Ownership.AssignedEngineeringUserId, Ownership.AssignedDesignUserId }
             .OfType<Guid>()
+            .Concat(Ownership.Participants?.Select(p => p.UserId) ?? [])
             .Distinct()
             .ToList();
 
@@ -22,7 +23,7 @@ public sealed record NpiChatTarget(Guid NpiId, string? NpiNumber, NpiOwnership O
     /// Escriben los participantes y también los administradores (ven todos los NPIs), aunque no
     /// participen. A un administrador que no participa no se le menciona ni le llegan los avisos.
     /// </summary>
-    public bool CanWrite(CurrentUser user) => IsParticipant(user.UserId) || NpiAuthorization.SeesAllNpis(user);
+    public bool CanWrite(CurrentUser user) => IsParticipant(user.UserId) || NpiAuthorization.SeesAllNpis(user) || NpiAuthorization.CanAccess(user, Ownership);
 }
 
 /// <summary>Mensajes sin leer de un NPI para el usuario actual.</summary>

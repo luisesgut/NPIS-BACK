@@ -591,6 +591,43 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("NpiComments", (string)null);
                 });
 
+            modelBuilder.Entity("NpiManagement.Domain.Entities.NpiParticipant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AddedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("AddedByName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("AddedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("NpiId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("NpiId", "UserId", "Area")
+                        .IsUnique();
+
+                    b.ToTable("NpiParticipants", (string)null);
+                });
+
             modelBuilder.Entity("NpiManagement.Domain.Entities.PrintCardApproval", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1332,6 +1369,41 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("CoresBobina", (string)null);
                 });
 
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.FeedbackMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AuthorName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("AuthorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("FromSupport")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReportId", "CreatedAt");
+
+                    b.ToTable("FeedbackMessages", (string)null);
+                });
+
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.FeedbackReport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1664,6 +1736,33 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("SisproMaterialEquivalences", (string)null);
                 });
 
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.UserClientView", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Cliente")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("CanWork")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTimeOffset>("GrantedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("GrantedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("UserId", "Cliente");
+
+                    b.HasIndex("Cliente");
+
+                    b.ToTable("UserClientViews", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
@@ -1782,6 +1881,15 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("NpiManagement.Domain.Npi", null)
                         .WithMany()
+                        .HasForeignKey("NpiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("NpiManagement.Domain.Entities.NpiParticipant", b =>
+                {
+                    b.HasOne("NpiManagement.Domain.Npi", null)
+                        .WithMany("Participants")
                         .HasForeignKey("NpiId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -2455,6 +2563,15 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.FeedbackMessage", b =>
+                {
+                    b.HasOne("NpiManagement.Infrastructure.Persistence.Entities.FeedbackReport", null)
+                        .WithMany()
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.FeedbackReport", b =>
                 {
                     b.HasOne("NpiManagement.Infrastructure.Identity.ApplicationUser", null)
@@ -2519,6 +2636,15 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("NpiManagement.Infrastructure.Persistence.Entities.UserClientView", b =>
+                {
+                    b.HasOne("NpiManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("NpiManagement.Domain.Entities.PrintCardVersion", b =>
                 {
                     b.Navigation("Approvals");
@@ -2537,6 +2663,8 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Navigation("FeasibilityReviews");
 
                     b.Navigation("InformationRequests");
+
+                    b.Navigation("Participants");
 
                     b.Navigation("PrintCardVersions");
 

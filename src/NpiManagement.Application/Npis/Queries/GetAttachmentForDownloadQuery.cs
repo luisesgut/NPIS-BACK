@@ -13,8 +13,8 @@ public sealed class GetAttachmentForDownloadQueryHandler(INpiRepository reposito
     public async Task<AttachmentDownload> HandleAsync(GetAttachmentForDownloadQuery query, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(query.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", query.NpiId);
-        var ownership = new NpiOwnership(npi.CreatedByUserId, npi.AssignedCommercialUserId, npi.AssignedEngineeringUserId, npi.AssignedDesignUserId);
-        if (!NpiAuthorization.CanAccess(query.Actor, ownership)) throw new NotFoundException("Npi", query.NpiId);
+        var ownership = NpiAuthorization.OwnershipOf(npi);
+        if (!NpiAuthorization.CanView(query.Actor, ownership, npi.Capture.Cliente, npi.LifecycleStatus)) throw new NotFoundException("Npi", query.NpiId);
 
         var attachment = npi.Attachments.FirstOrDefault(a => a.Id == query.AttachmentId)
             ?? throw new NotFoundException("Attachment", query.AttachmentId);

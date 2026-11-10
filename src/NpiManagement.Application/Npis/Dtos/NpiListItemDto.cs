@@ -50,4 +50,6 @@ public sealed record NpiListItemDto(
     /// <summary>Ingeniería debe reconfirmar su factibilidad (Comercial cambió campos que ya revisó).</summary>
     bool PendingReconfirmation = false,
     /// <summary>Comercial abrió "Modificar NPI" y no lo ha reenviado.</summary>
-    bool CommercialEditing = false);
+    bool CommercialEditing = false,
+    /// <summary>Equipo del NPI con nombres (2026-11-10), para mostrarlo junto al responsable.</summary>
+    IReadOnlyList<Queries.NpiTeamMemberDto>? Team = null);

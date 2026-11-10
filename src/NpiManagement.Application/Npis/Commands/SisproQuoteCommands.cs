@@ -17,7 +17,7 @@ public sealed class LinkSisproQuoteCommandHandler(INpiRepository repository, IUn
     public async Task<NpiDetailDto> HandleAsync(LinkSisproQuoteCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         var numero = command.NumeroCotizacion?.Trim() ?? "";
         var quote = await quotations.FindAsync(numero, cancellationToken)
@@ -50,7 +50,7 @@ public sealed class AcceptSisproQuoteCommandHandler(INpiRepository repository, I
     public async Task<NpiDetailDto> HandleAsync(AcceptSisproQuoteCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.AcceptSisproQuote(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Note, command.EvidenceAttachmentId);
         if (npi.AssignedDesignUserId is { } designerId)
@@ -69,7 +69,7 @@ public sealed class RequestSisproQuoteAdjustmentCommandHandler(INpiRepository re
     public async Task<NpiDetailDto> HandleAsync(RequestSisproQuoteAdjustmentCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RequestSisproQuoteAdjustment(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.Note);
 
@@ -87,7 +87,7 @@ public sealed class RejectByPriceCommandHandler(INpiRepository repository, IUnit
     public async Task<NpiDetailDto> HandleAsync(RejectByPriceCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         await Closure.CloseOrProposeAsync(npi, Domain.TerminalReason.PriceRejection, command.Actor, command.ActorName, command.Comment, command.EvidenceAttachmentId,
             actor => npi.RejectByPrice(actor, clock, calendar, command.Comment, command.EvidenceAttachmentId), clock, notifications, userDirectory, cancellationToken);

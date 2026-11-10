@@ -32,7 +32,8 @@ public static class TurnScope
     {
         if (!IsRestricted(actor)) return NpiAuthorization.BuildAccessPredicate(actor);
         var userId = actor.UserId;
-        return npi => npi.CreatedByUserId == userId || npi.AssignedCommercialUserId == userId;
+        return npi => npi.CreatedByUserId == userId || npi.AssignedCommercialUserId == userId
+            || npi.Participants.Any(p => p.UserId == userId && p.Area == AreaType.Comercial);
     }
 }
 

@@ -20,7 +20,7 @@ public sealed class RegisterAttachmentCommandHandler(INpiRepository repository, 
     public async Task<AttachmentDto> HandleAsync(RegisterAttachmentCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        var ownership = new NpiOwnership(npi.CreatedByUserId, npi.AssignedCommercialUserId, npi.AssignedEngineeringUserId, npi.AssignedDesignUserId);
+        var ownership = NpiAuthorization.OwnershipOf(npi);
         if (!NpiAuthorization.CanAccess(command.Actor, ownership)) throw new NotFoundException("Npi", command.NpiId);
 
         if (!policy.IsAllowedContentType(command.ContentType))

@@ -31,8 +31,8 @@ public class DirectorRoleTests
     [Fact]
     public void No_puede_actuar_como_ninguna_area()
     {
-        NpiAuthorization.CanActAsEngineering(Director, null).Should().BeFalse();
-        NpiAuthorization.CanActAsDesign(Director, null).Should().BeFalse();
+        NpiAuthorization.CanActAsEngineering(Director, (Guid?)null).Should().BeFalse();
+        NpiAuthorization.CanActAsDesign(Director, (Guid?)null).Should().BeFalse();
         NpiAuthorization.CanActAsCommercial(Director, Guid.NewGuid(), Guid.NewGuid()).Should().BeFalse();
         NpiAuthorization.CanAssign(Director, AreaType.Diseno).Should().BeFalse();
     }

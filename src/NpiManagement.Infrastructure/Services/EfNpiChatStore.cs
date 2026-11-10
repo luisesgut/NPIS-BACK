@@ -16,13 +16,17 @@ public sealed class EfNpiChatStore(NpiManagementDbContext dbContext) : INpiChatS
         var row = await dbContext.Npis
             .AsNoTracking()
             .Where(n => n.Id == npiId)
-            .Select(n => new { n.Id, n.NpiNumber, n.CreatedByUserId, n.AssignedCommercialUserId, n.AssignedEngineeringUserId, n.AssignedDesignUserId })
+            .Select(n => new
+            {
+                n.Id, n.NpiNumber, n.CreatedByUserId, n.AssignedCommercialUserId, n.AssignedEngineeringUserId, n.AssignedDesignUserId, n.Capture.Cliente, n.LifecycleStatus,
+                Participants = n.Participants.Select(p => new NpiParticipantRef(p.UserId, p.Area)).ToList(),
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         return row is null
             ? null
             : new NpiChatTarget(row.Id, row.NpiNumber?.Value,
-                new NpiOwnership(row.CreatedByUserId, row.AssignedCommercialUserId, row.AssignedEngineeringUserId, row.AssignedDesignUserId));
+                new NpiOwnership(row.CreatedByUserId, row.AssignedCommercialUserId, row.AssignedEngineeringUserId, row.AssignedDesignUserId, row.Participants, row.Cliente, row.LifecycleStatus));
     }
 
     public void Add(NpiComment message) => dbContext.NpiComments.Add(message);
@@ -55,7 +59,8 @@ public sealed class EfNpiChatStore(NpiManagementDbContext dbContext) : INpiChatS
     {
         var myNpiIds = dbContext.Npis
             .Where(n => n.CreatedByUserId == userId || n.AssignedCommercialUserId == userId ||
-                        n.AssignedEngineeringUserId == userId || n.AssignedDesignUserId == userId)
+                        n.AssignedEngineeringUserId == userId || n.AssignedDesignUserId == userId ||
+                        n.Participants.Any(p => p.UserId == userId))
             .Select(n => n.Id);
 
         var unread = await dbContext.NpiComments

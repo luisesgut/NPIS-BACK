@@ -20,7 +20,10 @@ public static class ClaimsPrincipalExtensions
         var areaRaw = principal.FindFirstValue("area")
             ?? throw new InvalidOperationException("El token no contiene el claim de área.");
 
-        return new CurrentUser(Guid.Parse(id), role, Enum.Parse<AreaType>(areaRaw));
+        // Clientes compartidos: los agrega ClientViewClaimsTransformation en cada petición.
+        var viewClients = principal.FindAll(NpiManagement.Api.Authorization.ClientViewClaimsTransformation.ClaimType).Select(c => c.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var workClients = principal.FindAll(NpiManagement.Api.Authorization.ClientViewClaimsTransformation.WorkClaimType).Select(c => c.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return new CurrentUser(Guid.Parse(id), role, Enum.Parse<AreaType>(areaRaw), viewClients.Count > 0 ? viewClients : null, workClients.Count > 0 ? workClients : null);
     }
 
     public static string DisplayName(this ClaimsPrincipal principal) =>

@@ -137,6 +137,7 @@ public sealed class NpiConfiguration : IEntityTypeConfiguration<Npi>
         ConfigureSatelliteCollection<PrintCardVersion>(builder, nameof(Npi.PrintCardVersions), "_printCardVersions");
         ConfigureSatelliteCollection<SisproQuoteLink>(builder, nameof(Npi.SisproQuotes), "_sisproQuotes");
         ConfigureSatelliteCollection<ClosureProposal>(builder, nameof(Npi.ClosureProposals), "_closureProposals");
+        ConfigureSatelliteCollection<NpiParticipant>(builder, nameof(Npi.Participants), "_participants");
         ConfigureSatelliteCollection<TimerEvent>(builder, nameof(Npi.TimerEventLog), "_timerEvents");
         ConfigureSatelliteCollection<AuditEvent>(builder, nameof(Npi.AuditLog), "_auditEvents");
 

@@ -7,6 +7,7 @@ using NpiManagement.Application.Authorization;
 using NpiManagement.Application.Exceptions;
 using NpiManagement.Domain;
 using NpiManagement.Domain.Common;
+using NpiManagement.Infrastructure.Export;
 using NpiManagement.Infrastructure.Identity;
 using NpiManagement.Infrastructure.Persistence;
 using NpiManagement.Infrastructure.Persistence.Entities;
@@ -130,7 +131,10 @@ public sealed class FeedbackService(
                 x.Report.ScreenshotStorageKey != null,
                 x.Report.AdminResponse,
                 x.Report.CreatedAt,
-                x.Report.StatusChangedAt))
+                x.Report.StatusChangedAt,
+                dbContext.FeedbackMessages.Count(m => m.ReportId == x.Report.Id),
+                dbContext.FeedbackMessages.Where(m => m.ReportId == x.Report.Id).Max(m => (DateTimeOffset?)m.CreatedAt),
+                dbContext.FeedbackMessages.Where(m => m.ReportId == x.Report.Id).OrderByDescending(m => m.CreatedAt).Select(m => (bool?)!m.FromSupport).FirstOrDefault() ?? false))
             .ToListAsync(cancellationToken);
 
         return result;
@@ -143,7 +147,10 @@ public sealed class FeedbackService(
             .Where(f => f.ReporterUserId == reporterUserId)
             .OrderByDescending(f => f.CreatedAt)
             .Take(ListLimit)
-            .Select(f => new MyFeedbackDto(f.Id, f.Kind, f.Status, f.Description, f.AdminResponse, f.CreatedAt, f.StatusChangedAt))
+            .Select(f => new MyFeedbackDto(f.Id, f.Kind, f.Status, f.Description, f.AdminResponse, f.CreatedAt, f.StatusChangedAt,
+                dbContext.FeedbackMessages.Count(m => m.ReportId == f.Id),
+                dbContext.FeedbackMessages.Where(m => m.ReportId == f.Id).Max(m => (DateTimeOffset?)m.CreatedAt),
+                dbContext.FeedbackMessages.Where(m => m.ReportId == f.Id).OrderByDescending(m => m.CreatedAt).Select(m => (bool?)m.FromSupport).FirstOrDefault() ?? false))
             .ToListAsync(cancellationToken);
 
         return result;
@@ -206,6 +213,81 @@ public sealed class FeedbackService(
             throw new NotFoundException("Captura del reporte", id);
         }
     }
+
+    public async Task<IReadOnlyList<FeedbackMessageDto>> ListMessagesAsync(Guid reportId, CurrentUser actor, CancellationToken cancellationToken)
+    {
+        await EnsureCanSeeAsync(reportId, actor, cancellationToken);
+        return await dbContext.FeedbackMessages.AsNoTracking()
+            .Where(m => m.ReportId == reportId)
+            .OrderBy(m => m.CreatedAt)
+            .Select(m => new FeedbackMessageDto(m.Id, m.AuthorUserId, m.AuthorName, m.FromSupport, m.Text, m.CreatedAt))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<FeedbackMessageDto> AddMessageAsync(Guid reportId, CurrentUser actor, string actorName, string text, CancellationToken cancellationToken)
+    {
+        var report = await EnsureCanSeeAsync(reportId, actor, cancellationToken);
+        var clean = text?.Trim() ?? string.Empty;
+        if (clean.Length == 0)
+            throw new RequestValidationException("feedback-message-empty", "Escribe el mensaje.");
+        if (clean.Length > FeedbackLimits.MessageMaxLength)
+            throw new RequestValidationException("feedback-message-too-long", $"El mensaje no puede pasar de {FeedbackLimits.MessageMaxLength} caracteres.");
+
+        // Un AdminTotal que escribe en su propio reporte habla como quien reportó, no como soporte.
+        var fromSupport = actor.Role == ApplicationRoles.AdminTotal && report.ReporterUserId != actor.UserId;
+        var message = new FeedbackMessage
+        {
+            Id = Guid.NewGuid(),
+            ReportId = reportId,
+            AuthorUserId = actor.UserId,
+            AuthorName = Truncate(actorName, 200) ?? string.Empty,
+            FromSupport = fromSupport,
+            Text = clean,
+            CreatedAt = clock.UtcNow,
+        };
+        dbContext.FeedbackMessages.Add(message);
+
+        var about = $"\"{Excerpt(report.Description, 60)}\"";
+        if (fromSupport)
+        {
+            notificationService.Notify(report.ReporterUserId,
+                $"Soporte te escribió sobre tu reporte {about}: {Excerpt(clean, 200)} (ábrelo en Reportar › Mis reportes).", null);
+        }
+        else
+        {
+            var admins = await userManager.GetUsersInRoleAsync(ApplicationRoles.AdminTotal);
+            notificationService.NotifyMany(
+                admins.Where(a => a.Status == UserStatus.Active && a.Id != actor.UserId).Select(a => a.Id),
+                $"{message.AuthorName} escribió en su reporte {about}: {Excerpt(clean, 200)}", null);
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return new FeedbackMessageDto(message.Id, message.AuthorUserId, message.AuthorName, message.FromSupport, message.Text, message.CreatedAt);
+    }
+
+    public async Task<FeedbackExportFile> ExportAsync(FeedbackStatus? status, CancellationToken cancellationToken)
+    {
+        var reports = await ListAsync(status, cancellationToken);
+        string[] headers = ["Fecha", "Tipo", "Estado", "Reportó", "Correo", "Rol", "Descripción", "Respuesta de soporte", "Último cambio de estado", "Mensajes", "Página"];
+        var rows = reports.Select(r => (IReadOnlyList<string?>)[
+            Local(r.CreatedAt), KindLabels[r.Kind], StatusLabels[r.Status], r.ReporterName, r.ReporterEmail, r.ReporterRole,
+            r.Description, r.AdminResponse, r.StatusChangedAt is { } changed ? Local(changed) : null, r.MessageCount.ToString(), r.PageUrl]);
+        var content = XlsxWriter.Build("Reportes", headers, rows, [17, 12, 13, 24, 28, 18, 60, 50, 20, 10, 40]);
+        return new FeedbackExportFile(content, XlsxWriter.ContentType, $"reportes-{Local(clock.UtcNow, "yyyy-MM-dd")}.xlsx");
+    }
+
+    /// <summary>Quien reportó o un AdminTotal; para los demás el reporte "no existe" (no se revela).</summary>
+    private async Task<FeedbackReport> EnsureCanSeeAsync(Guid reportId, CurrentUser actor, CancellationToken cancellationToken)
+    {
+        var report = await dbContext.FeedbackReports.AsNoTracking().FirstOrDefaultAsync(f => f.Id == reportId, cancellationToken);
+        if (report is null || (report.ReporterUserId != actor.UserId && actor.Role != ApplicationRoles.AdminTotal))
+            throw new NotFoundException("Reporte", reportId);
+        return report;
+    }
+
+    // Hora de México (UTC-6 fijo, igual que MexicoBusinessCalendar).
+    private static string Local(DateTimeOffset at, string format = "dd/MM/yyyy HH:mm") =>
+        at.ToOffset(TimeSpan.FromHours(-6)).ToString(format, System.Globalization.CultureInfo.InvariantCulture);
 
     private async Task<(string StorageKey, string ContentType)> StoreScreenshotAsync(FeedbackScreenshot screenshot, CancellationToken cancellationToken)
     {

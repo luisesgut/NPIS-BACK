@@ -97,6 +97,7 @@ public sealed class Npi
     private readonly List<PrintCardVersion> _printCardVersions = [];
     private readonly List<SisproQuoteLink> _sisproQuotes = [];
     private readonly List<ClosureProposal> _closureProposals = [];
+    private readonly List<NpiParticipant> _participants = [];
     private readonly List<TimerEvent> _timerEvents = [];
     private readonly List<AuditEvent> _auditEvents = [];
     private readonly List<IDomainEvent> _domainEvents = [];
@@ -109,6 +110,8 @@ public sealed class Npi
     public IReadOnlyCollection<SisproQuoteLink> SisproQuotes => _sisproQuotes;
     /// <summary>Propuestas de cierre de usuarios normales y su decisión (historial completo).</summary>
     public IReadOnlyCollection<ClosureProposal> ClosureProposals => _closureProposals;
+    /// <summary>Equipo del NPI: personas que trabajan junto con el responsable de su área (2026-11-10).</summary>
+    public IReadOnlyCollection<NpiParticipant> Participants => _participants;
     public IReadOnlyCollection<TimerEvent> TimerEventLog => _timerEvents;
     public IReadOnlyCollection<AuditEvent> AuditLog => _auditEvents;
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents;
@@ -325,6 +328,7 @@ public sealed class Npi
         var now = clock.UtcNow;
         var previous = AssignedEngineeringUserId;
         AssignedEngineeringUserId = userId;
+        DropParticipantWhoBecameResponsible(userId, AreaType.Ingenieria);
         if (EngineeringAreaStatus == EngineeringAreaStatus.Requested) EngineeringAreaStatus = EngineeringAreaStatus.Assigned;
         Audit(actor, now, previous is null ? "EngineeringAssigned" : "EngineeringReassigned", $"from={previous};to={userId}");
     }
@@ -341,6 +345,7 @@ public sealed class Npi
         var now = clock.UtcNow;
         var previous = AssignedDesignUserId;
         AssignedDesignUserId = userId;
+        DropParticipantWhoBecameResponsible(userId, AreaType.Diseno);
         if (DesignAreaStatus == DesignAreaStatus.Requested) DesignAreaStatus = DesignAreaStatus.Assigned;
         Audit(actor, now, previous is null ? "DesignAssigned" : "DesignReassigned", $"from={previous};to={userId}");
         if (artClassification is not null) Audit(actor, now, "DesignClassificationUpdated", DescribeDesignClassification());
@@ -353,8 +358,59 @@ public sealed class Npi
         var now = clock.UtcNow;
         var previous = AssignedCommercialUserId;
         AssignedCommercialUserId = userId;
+        DropParticipantWhoBecameResponsible(userId, AreaType.Comercial);
         Audit(actor, now, "CommercialReassigned", $"from={previous};to={userId}");
     }
+
+    // ===== Equipo por NPI (2026-11-10) =====
+
+    public const int MaxParticipants = 15;
+
+    /// <summary>¿Es parte del equipo del NPI en esa área? (no incluye al responsable).</summary>
+    public bool IsParticipant(Guid userId, AreaType area) => _participants.Any(p => p.UserId == userId && p.Area == area);
+
+    /// <summary>¿Es el responsable de esa área? En Comercial cuenta también quien lo capturó.</summary>
+    public bool IsResponsible(Guid userId, AreaType area) => area switch
+    {
+        AreaType.Comercial => CreatedByUserId == userId || AssignedCommercialUserId == userId,
+        AreaType.Ingenieria => AssignedEngineeringUserId == userId,
+        AreaType.Diseno => AssignedDesignUserId == userId,
+        _ => false,
+    };
+
+    /// <summary>
+    /// Suma a alguien al equipo del NPI en un área. Hace lo mismo que el responsable de esa área;
+    /// el responsable no cambia.
+    /// </summary>
+    public void AddParticipant(Guid userId, AreaType area, Actor actor, IClock clock)
+    {
+        EnsureNotTerminal();
+        if (area is not (AreaType.Comercial or AreaType.Ingenieria or AreaType.Diseno))
+            throw new NpiValidationException("participant-area-invalid", "Sólo se puede participar en Comercial, Ingeniería o Diseño.");
+        if (IsResponsible(userId, area))
+            throw new InvalidNpiTransitionException("participant-is-responsible", "Esa persona ya es la responsable del NPI en esa área.");
+        if (IsParticipant(userId, area))
+            throw new InvalidNpiTransitionException("participant-already-added", "Esa persona ya está en el equipo del NPI.");
+        if (_participants.Count >= MaxParticipants)
+            throw new NpiValidationException("participants-limit", $"Un NPI admite hasta {MaxParticipants} participantes.");
+
+        var now = clock.UtcNow;
+        _participants.Add(new NpiParticipant(Guid.NewGuid(), userId, area, actor.UserId, actor.Name, now));
+        Audit(actor, now, "ParticipantAdded", $"area={area};user={userId}");
+    }
+
+    /// <summary>Saca a alguien del equipo. Se permite aun con el NPI cerrado, para poder limpiar.</summary>
+    public void RemoveParticipant(Guid userId, AreaType area, Actor actor, IClock clock)
+    {
+        var participant = _participants.FirstOrDefault(p => p.UserId == userId && p.Area == area)
+            ?? throw new InvalidNpiTransitionException("participant-not-found", "Esa persona no está en el equipo del NPI.");
+        _participants.Remove(participant);
+        Audit(actor, clock.UtcNow, "ParticipantRemoved", $"area={area};user={userId}");
+    }
+
+    // Si un participante pasa a ser el responsable, deja de estar como participante (sería repetirlo).
+    private void DropParticipantWhoBecameResponsible(Guid userId, AreaType area) =>
+        _participants.RemoveAll(p => p.UserId == userId && p.Area == area);
 
     /// <summary>Acción 7 — Factibilidad de Ingeniería. Independiente de la de Diseño (decisión 1).</summary>
     public void ApproveEngineeringFeasibility(Actor actor, IClock clock, IBusinessCalendar calendar, string? note, IReadOnlyList<string>? confirmedFieldKeys = null)
@@ -2160,7 +2216,7 @@ public sealed class Npi
     ];
 
     /// <summary>Eventos que no cuentan como "alguien actuó después" (adjuntos y lo que se registra solo).</summary>
-    private static readonly HashSet<string> IgnoredForUndo = ["AttachmentUploaded", "LinkAdded", "AttachmentDeleted", "DesignInstructionsUpdated", "ChangeRequestEdited", "InformationRequestEdited", "PrintCardFullyApproved", "SisproQuoteWaitReleased", "PrintCardRetiredByDesign", "PrintCardRetiredByEngineering", "PrintCardUnloadedByEngineering", "PrintCardRetiredByCommercial"];
+    private static readonly HashSet<string> IgnoredForUndo = ["ParticipantAdded", "ParticipantRemoved", "AttachmentUploaded", "LinkAdded", "AttachmentDeleted", "DesignInstructionsUpdated", "ChangeRequestEdited", "InformationRequestEdited", "PrintCardFullyApproved", "SisproQuoteWaitReleased", "PrintCardRetiredByDesign", "PrintCardRetiredByEngineering", "PrintCardUnloadedByEngineering", "PrintCardRetiredByCommercial"];
 
     /// <summary>Lo último que pasó en el NPI, sin contar los eventos de IgnoredForUndo.</summary>
     private AuditEvent? LastRelevantAuditEvent =>

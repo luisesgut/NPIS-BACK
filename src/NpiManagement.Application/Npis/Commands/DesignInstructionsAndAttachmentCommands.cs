@@ -38,7 +38,7 @@ public sealed class DeleteAttachmentCommandHandler(INpiRepository repository, IU
     public async Task HandleAsync(DeleteAttachmentCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        var ownership = new NpiOwnership(npi.CreatedByUserId, npi.AssignedCommercialUserId, npi.AssignedEngineeringUserId, npi.AssignedDesignUserId);
+        var ownership = NpiAuthorization.OwnershipOf(npi);
         if (!NpiAuthorization.CanAccess(command.Actor, ownership)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RemoveAttachment(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.AttachmentId);

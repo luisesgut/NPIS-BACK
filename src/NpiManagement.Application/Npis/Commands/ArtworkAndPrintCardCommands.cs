@@ -15,7 +15,7 @@ public sealed class ValidateArtworkCommandHandler(INpiRepository repository, IUn
     public async Task<NpiDetailDto> HandleAsync(ValidateArtworkCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.ValidateArtwork(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock);
 
@@ -32,7 +32,7 @@ public sealed class CreatePrintCardVersionCommandHandler(INpiRepository reposito
     public async Task<NpiDetailDto> HandleAsync(CreatePrintCardVersionCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.CreatePrintCardVersion(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Code, command.AttachmentId, command.Note, command.CommercialChecklist);
 
@@ -56,9 +56,9 @@ public sealed class ApprovePrintCardCommandHandler(INpiRepository repository, IU
 
         var authorized = command.Role switch
         {
-            ApproverRole.Design => NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId),
-            ApproverRole.Engineering => NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId),
-            ApproverRole.Client => NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId),
+            ApproverRole.Design => NpiAuthorization.CanActAsDesign(command.Actor, npi),
+            ApproverRole.Engineering => NpiAuthorization.CanActAsEngineering(command.Actor, npi),
+            ApproverRole.Client => NpiAuthorization.CanActAsCommercial(command.Actor, npi),
             _ => false,
         };
         if (!authorized) throw new NotFoundException("Npi", command.NpiId);
@@ -84,7 +84,7 @@ public sealed class SendPrintCardToClientCommandHandler(INpiRepository repositor
     public async Task<NpiDetailDto> HandleAsync(SendPrintCardToClientCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.SendPrintCardToClient(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock);
 
@@ -101,7 +101,7 @@ public sealed class RequestClientChangesCommandHandler(INpiRepository repository
     public async Task<NpiDetailDto> HandleAsync(RequestClientChangesCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RequestClientChanges(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Description, command.Items, command.AttachmentIds);
         if (npi.AssignedDesignUserId is { } designerId)
@@ -120,7 +120,7 @@ public sealed class SetClientChangeItemCommandHandler(INpiRepository repository,
     public async Task<NpiDetailDto> HandleAsync(SetClientChangeItemCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.SetClientChangeItemDone(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.ItemId, command.Done, command.Comment);
 
@@ -137,7 +137,7 @@ public sealed class RejectPrintCardCommandHandler(INpiRepository repository, IUn
     public async Task<NpiDetailDto> HandleAsync(RejectPrintCardCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RejectPrintCard(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Reason, command.EvidenceAttachmentId);
         if (npi.AssignedDesignUserId is { } designerId)
@@ -157,7 +157,7 @@ public sealed class RejectByClientCommandHandler(INpiRepository repository, IUni
     public async Task<NpiDetailDto> HandleAsync(RejectByClientCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         await Closure.CloseOrProposeAsync(npi, TerminalReason.ClientRejection, command.Actor, command.ActorName, command.Comment, command.EvidenceAttachmentId,
             actor => npi.RejectByClient(actor, clock, calendar, command.Comment, command.EvidenceAttachmentId), clock, notifications, userDirectory, cancellationToken);
@@ -175,7 +175,7 @@ public sealed class LoadPrintCardIntoSystemCommandHandler(INpiRepository reposit
     public async Task<NpiDetailDto> HandleAsync(LoadPrintCardIntoSystemCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.LoadPrintCardIntoSystem(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar);
         if (npi.AssignedEngineeringUserId is { } engineerId)
@@ -194,7 +194,7 @@ public sealed class RejectArtworkCommandHandler(INpiRepository repository, IUnit
     public async Task<NpiDetailDto> HandleAsync(RejectArtworkCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RejectArtwork(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Reason, command.EvidenceAttachmentId);
         notifications.Notify(npi.AssignedCommercialUserId, NotificationText.ArtworkRejected(npi.NpiNumber?.Value, command.Reason), npi.Id, NotificationChannel.BellAndEmail);
@@ -212,7 +212,7 @@ public sealed class SetArtworkObservationCommandHandler(INpiRepository repositor
     public async Task<NpiDetailDto> HandleAsync(SetArtworkObservationCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.SetArtworkObservationDone(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.ItemId, command.Done, command.Comment);
 
@@ -229,7 +229,7 @@ public sealed class SetPrintCardObservationCommandHandler(INpiRepository reposit
     public async Task<NpiDetailDto> HandleAsync(SetPrintCardObservationCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.SetPrintCardObservationDone(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.ItemId, command.Done, command.Comment);
 
@@ -246,7 +246,7 @@ public sealed class ResolveArtworkRejectionCommandHandler(INpiRepository reposit
     public async Task<NpiDetailDto> HandleAsync(ResolveArtworkRejectionCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.ResolveArtworkRejection(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Comment);
         if (npi.AssignedDesignUserId is { } designerId)
@@ -265,7 +265,7 @@ public sealed class ReplacePrintCardFileCommandHandler(INpiRepository repository
     public async Task<NpiDetailDto> HandleAsync(ReplacePrintCardFileCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.ReplacePrintCardFile(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.AttachmentId);
         // A Ingeniería le toca revisarlo: que vea el archivo nuevo y no el que ya había abierto.

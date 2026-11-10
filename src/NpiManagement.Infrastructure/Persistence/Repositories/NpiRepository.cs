@@ -43,6 +43,7 @@ public sealed class NpiRepository(NpiManagementDbContext dbContext) : INpiReposi
             .Include(n => n.PrintCardVersions).ThenInclude(v => v.Approvals)
             .Include(n => n.SisproQuotes)
             .Include(n => n.ClosureProposals)
+            .Include(n => n.Participants)
             .Include(n => n.TimerEventLog)
             .Include(n => n.AuditLog);
 }

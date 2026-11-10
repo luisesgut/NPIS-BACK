@@ -24,7 +24,7 @@ public sealed class SubmitNpiCommandHandler(
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken)
             ?? throw new NotFoundException("Npi", command.NpiId);
 
-        if (!NpiAuthorization.CanManageDraft(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId))
+        if (!NpiAuthorization.CanManageDraft(command.Actor, npi))
             throw new NotFoundException("Npi", command.NpiId);
 
         var actor = new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName);

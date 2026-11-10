@@ -15,7 +15,7 @@ public sealed class RequestInformationCommandHandler(INpiRepository repository, 
     public async Task<NpiDetailDto> HandleAsync(RequestInformationCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RequestInformation(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Type, command.Text, command.ImageAttachmentIds);
         if (command.Type == InformationRequestType.Commercial)
@@ -36,7 +36,7 @@ public sealed class ResolveClientInformationCommandHandler(INpiRepository reposi
     public async Task<NpiDetailDto> HandleAsync(ResolveClientInformationCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.ResolveClientInformation(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock);
 
@@ -53,7 +53,7 @@ public sealed class RespondCommercialInformationCommandHandler(INpiRepository re
     public async Task<NpiDetailDto> HandleAsync(RespondCommercialInformationCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RespondCommercialInformation(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.ResponseText);
         if (npi.AssignedDesignUserId is { } designerId)
@@ -72,7 +72,7 @@ public sealed class RespondEngineeringInformationCommandHandler(INpiRepository r
     public async Task<NpiDetailDto> HandleAsync(RespondEngineeringInformationCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RespondEngineeringInformation(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.ResponseText);
         if (npi.AssignedDesignUserId is { } designerId)

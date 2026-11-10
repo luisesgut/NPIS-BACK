@@ -46,7 +46,8 @@ public sealed record AttachmentDto(Guid Id, string FileName, string ContentType,
 
 public sealed record TimerEventDto(Guid Id, string Stage, string Action, DateTimeOffset OccurredAt, Guid? ActorUserId, long? DurationMsAtEvent, string? FromStage, string? ToStage, string? Note);
 
-public sealed record AuditEventDto(Guid Id, Guid ActorUserId, string ActorRole, DateTimeOffset OccurredAt, string Action, string? Details);
+/// <param name="ActorName">Nombre de quien lo hizo (2026-11-10): con equipo por NPI, el rol ya no basta para saber quién fue.</param>
+public sealed record AuditEventDto(Guid Id, Guid ActorUserId, string ActorRole, DateTimeOffset OccurredAt, string Action, string? Details, string? ActorName = null);
 
 /// <summary>
 /// Cotización de SISPRO ligada al NPI. Snapshot: lo que dijo SISPRO al ligarla (null si la foto ya no
@@ -117,7 +118,15 @@ public sealed record NpiDetailDto(
     /// <summary>Tabla copiada de Excel/SAP al cargar el PT (separada por tabuladores).</summary>
     string? PtSapTable = null,
     /// <summary>Id de la versión final del PrintCard (la cargada en sistema); null mientras no hay.</summary>
-    Guid? PrintCardFinalVersionId = null);
+    Guid? PrintCardFinalVersionId = null,
+    /// <summary>Quien lo consulta lo ve sólo porque su cliente está compartido: sólo consulta (2026-11-10).</summary>
+    bool ViewOnly = false,
+    /// <summary>Equipo del NPI (2026-11-10): los nombres vienen en /assignees.</summary>
+    IReadOnlyList<NpiParticipantDto>? Participants = null,
+    /// <summary>Quien lo consulta puede trabajarlo porque AdminTotal le compartió el cliente con "Ver y trabajar".</summary>
+    bool ClientWork = false);
+
+public sealed record NpiParticipantDto(Guid UserId, string Area, string AddedByName, DateTimeOffset AddedAt);
 
 /// <summary>Cierre del NPI: Note es el motivo que se escribió (puede faltar si el admin cerró sin nota); ByRole, el rol de quien lo cerró.</summary>
 public sealed record ClosingInfoDto(string? Note, string ByRole, DateTimeOffset At);

@@ -8,6 +8,9 @@ namespace NpiManagement.Api.Contracts.Npis;
 
 public sealed record AssignUserRequest([Required] Guid UserId);
 
+/// <summary>Equipo por NPI (2026-11-10): persona y área en la que participa.</summary>
+public sealed record NpiParticipantRequest([Required] Guid UserId, [Required] NpiManagement.Domain.AreaType Area);
+
 /// <summary>Asignar Diseño: el admin clasifica el arte en el mismo paso (obligatorio si el NPI aún no tiene clasificación).</summary>
 public sealed record AssignDesignRequest([Required] Guid UserId, ArtClassification? ArtClassification, bool? HasLabValues);
 

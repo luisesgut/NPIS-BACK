@@ -15,7 +15,7 @@ public sealed class RejectSuppliesTemporaryCommandHandler(INpiRepository reposit
     public async Task<NpiDetailDto> HandleAsync(RejectSuppliesTemporaryCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RejectSuppliesTemporary(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Note);
         notifications.Notify(npi.AssignedCommercialUserId, $"NPI {npi.NpiNumber?.Value}: rechazo temporal por falta de insumos — requiere acuerdo de Comercial.", npi.Id, NotificationChannel.BellAndEmail);
@@ -33,7 +33,7 @@ public sealed class ResolveSuppliesAgreementCommandHandler(INpiRepository reposi
     public async Task<NpiDetailDto> HandleAsync(ResolveSuppliesAgreementCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.ResolveSuppliesAgreement(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Text, command.EvidenceAttachmentId);
         if (npi.AssignedEngineeringUserId is { } engineerId)
@@ -53,7 +53,7 @@ public sealed class RejectSuppliesTotalCommandHandler(INpiRepository repository,
     public async Task<NpiDetailDto> HandleAsync(RejectSuppliesTotalCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         await Closure.CloseOrProposeAsync(npi, TerminalReason.SuppliesRejectionTotal, command.Actor, command.ActorName, command.Note, null,
             actor => npi.RejectSuppliesTotal(actor, clock, calendar, command.Note), clock, notifications, userDirectory, cancellationToken);

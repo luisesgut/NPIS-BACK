@@ -17,7 +17,7 @@ namespace NpiManagement.Api.Controllers;
 [ApiController]
 [Route("api/users")]
 [Authorize(Policy = "AnyAdmin")]
-public sealed class UsersController(IUserDirectory userDirectory, IUserAdminService userAdminService) : ControllerBase
+public sealed class UsersController(IUserDirectory userDirectory, IUserAdminService userAdminService, NpiManagement.Application.Users.IClientViewGrantStore clientViews) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] AreaType? area, CancellationToken cancellationToken)
@@ -85,6 +85,37 @@ public sealed class UsersController(IUserDirectory userDirectory, IUserAdminServ
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "No puedes darte de baja a ti mismo.");
 
         await userAdminService.SetActiveAsync(id, request.Active, actor.UserId, cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>Clientes cuyos NPIs puede consultar (sólo ver) aunque no sean suyos.</summary>
+    [HttpGet("{id:guid}/client-views")]
+    [Authorize(Policy = "AdminTotal")]
+    public async Task<IActionResult> ClientViews(Guid id, CancellationToken cancellationToken) =>
+        Ok(await clientViews.ListAsync(id, cancellationToken));
+
+    [HttpPut("{id:guid}/client-views")]
+    [Authorize(Policy = "AdminTotal")]
+    public async Task<IActionResult> SetClientViews(Guid id, SetClientViewsRequest request, CancellationToken cancellationToken)
+    {
+        if (await userDirectory.FindAsync(id, cancellationToken) is null)
+            return Problem(statusCode: StatusCodes.Status404NotFound, title: "El usuario no existe.");
+        var clean = NpiManagement.Application.Users.ClientViewGrants.CleanGrants(request.Clientes, request.Trabajar);
+        await clientViews.ReplaceAsync(id, clean, User.ToCurrentUser().UserId, cancellationToken);
+        return Ok(clean);
+    }
+
+    /// <summary>Cambia el rol de una cuenta aprobada (el área la impone el rol). No sobre la cuenta propia.</summary>
+    [HttpPost("{id:guid}/role")]
+    [Authorize(Policy = "AdminTotal")]
+    public async Task<IActionResult> ChangeRole(Guid id, ChangeUserRoleRequest request, CancellationToken cancellationToken)
+    {
+        var actor = User.ToCurrentUser();
+        // Quitarse a uno mismo el AdminTotal por error no tendría vuelta atrás desde la pantalla.
+        if (id == actor.UserId)
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "No puedes cambiar tu propio rol.");
+
+        await userAdminService.ChangeRoleAsync(id, request.Role, actor.UserId, cancellationToken);
         return NoContent();
     }
 

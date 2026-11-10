@@ -12,8 +12,25 @@ public sealed class EfNotificationService(
     PendingEmailNotifications pendingEmails,
     IClock clock) : INotificationService
 {
+    // Lo que ya se avisó en esta petición: evita que el equipo reciba la misma copia dos veces
+    // (p. ej. cuando el aviso va al creador y al comercial asignado, que son distintos).
+    private readonly HashSet<(Guid Recipient, Guid? NpiId, string Message)> _added = [];
+
     public void Notify(Guid recipientUserId, string message, Guid? npiId, NotificationChannel channel = NotificationChannel.Bell)
     {
+        AddBell(recipientUserId, message, npiId);
+
+        // Sólo se apunta la intención. El envío real ocurre cuando la transacción confirma
+        // (EfUnitOfWork) — aquí todavía no hay nada garantizado en base de datos.
+        if (channel == NotificationChannel.BellAndEmail)
+            pendingEmails.Add(new PendingEmailNotification(recipientUserId, message, npiId));
+
+        CopyToTeam(recipientUserId, message, npiId);
+    }
+
+    private void AddBell(Guid recipientUserId, string message, Guid? npiId)
+    {
+        if (!_added.Add((recipientUserId, npiId, message))) return;
         dbContext.Notifications.Add(new NotificationEntity
         {
             Id = Guid.NewGuid(),
@@ -22,11 +39,22 @@ public sealed class EfNotificationService(
             Message = message,
             CreatedAt = clock.UtcNow,
         });
+    }
 
-        // Sólo se apunta la intención. El envío real ocurre cuando la transacción confirma
-        // (EfUnitOfWork) — aquí todavía no hay nada garantizado en base de datos.
-        if (channel == NotificationChannel.BellAndEmail)
-            pendingEmails.Add(new PendingEmailNotification(recipientUserId, message, npiId));
+    /// <summary>
+    /// Equipo por NPI (2026-11-10): lo que se le avisa al responsable de un área también le llega
+    /// a su equipo de esa área, sólo en la campana (el correo es nada más para el responsable).
+    /// El NPI ya está cargado por la acción que avisa; si no lo está, no hay copia.
+    /// </summary>
+    private void CopyToTeam(Guid recipientUserId, string message, Guid? npiId)
+    {
+        if (npiId is not { } id) return;
+        var npi = dbContext.Npis.Local.FirstOrDefault(n => n.Id == id);
+        if (npi is null || npi.Participants.Count == 0) return;
+
+        foreach (var member in npi.Participants)
+            if (member.UserId != recipientUserId && npi.IsResponsible(recipientUserId, member.Area))
+                AddBell(member.UserId, message, npiId);
     }
 
     public void NotifyMany(IEnumerable<Guid> recipientUserIds, string message, Guid? npiId, NotificationChannel channel = NotificationChannel.Bell)

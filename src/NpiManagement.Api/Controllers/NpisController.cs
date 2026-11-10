@@ -6,6 +6,7 @@ using NpiManagement.Api.Extensions;
 using NpiManagement.Application.Npis.Commands;
 using NpiManagement.Application.Npis.Dtos;
 using NpiManagement.Application.Npis.Queries;
+using NpiManagement.Domain;
 
 namespace NpiManagement.Api.Controllers;
 
@@ -26,6 +27,7 @@ public sealed class NpisController(
     GetNpiTimerEventsQueryHandler timerEventsHandler,
     GetNpiAssigneesQueryHandler assigneesHandler,
     GetCaptureHistoryQueryHandler captureHistoryHandler,
+    GetTeamCandidatesQueryHandler teamCandidatesHandler,
     IValidator<CreateNpiDraftCommand> createValidator,
     IValidator<UpdateNpiDraftCommand> updateValidator) : ControllerBase
 {
@@ -111,4 +113,9 @@ public sealed class NpisController(
         var result = await assigneesHandler.HandleAsync(new GetNpiAssigneesQuery(id, User.ToCurrentUser()), cancellationToken);
         return Ok(result);
     }
+
+    /// <summary>Equipo por NPI: compañeros del área que el responsable (o su admin) puede sumar.</summary>
+    [HttpGet("{id:guid}/team-candidates")]
+    public async Task<ActionResult<IReadOnlyList<NpiAssigneeDto>>> GetTeamCandidates(Guid id, [FromQuery] AreaType area, CancellationToken cancellationToken) =>
+        Ok(await teamCandidatesHandler.HandleAsync(new GetTeamCandidatesQuery(id, User.ToCurrentUser(), area), cancellationToken));
 }

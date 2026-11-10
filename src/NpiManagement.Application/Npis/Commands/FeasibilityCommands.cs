@@ -15,7 +15,7 @@ public sealed class ApproveEngineeringFeasibilityCommandHandler(INpiRepository r
     public async Task<NpiDetailDto> HandleAsync(ApproveEngineeringFeasibilityCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.ApproveEngineeringFeasibility(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Note, command.ConfirmedFieldKeys);
         if (npi.AssignedDesignUserId is { } designerId)
@@ -35,7 +35,7 @@ public sealed class ApproveDesignFeasibilityCommandHandler(INpiRepository reposi
     public async Task<NpiDetailDto> HandleAsync(ApproveDesignFeasibilityCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.ApproveDesignFeasibility(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.Note, command.ArtClassification, command.HasLabValues);
         if (npi.AssignedEngineeringUserId is { } engineerId)
@@ -54,7 +54,7 @@ public sealed class UpdateDesignClassificationCommandHandler(INpiRepository repo
     public async Task<NpiDetailDto> HandleAsync(UpdateDesignClassificationCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.UpdateDesignClassification(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.ArtClassification, command.HasLabValues);
 
@@ -71,7 +71,7 @@ public sealed class RequestEngineeringChangesCommandHandler(INpiRepository repos
     public async Task<NpiDetailDto> HandleAsync(RequestEngineeringChangesCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         var retiredBefore = npi.AuditLog.Count(e => e.Action == "PrintCardRetiredByEngineering");
         npi.RequestEngineeringChanges(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Description, command.FieldKeys, command.FieldNotes, command.RedoPrintCard, command.ImageAttachmentIds);
@@ -96,7 +96,7 @@ public sealed class RejectNoFeasibilityCommandHandler(INpiRepository repository,
     public async Task<NpiDetailDto> HandleAsync(RejectNoFeasibilityCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         await Closure.CloseOrProposeAsync(npi, TerminalReason.NoFeasibility, command.Actor, command.ActorName, command.Note, null,
             actor => npi.RejectNoFeasibility(actor, clock, calendar, command.Note), clock, notifications, userDirectory, cancellationToken);
@@ -114,7 +114,7 @@ public sealed class RequestDesignChangesCommandHandler(INpiRepository repository
     public async Task<NpiDetailDto> HandleAsync(RequestDesignChangesCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         var retiredBefore = npi.AuditLog.Count(e => e.Action == "PrintCardRetiredByDesign");
         npi.RequestDesignChanges(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Description, command.FieldKeys, command.FieldNotes, command.ImageAttachmentIds);
@@ -136,7 +136,7 @@ public sealed class ReconfirmEngineeringFeasibilityCommandHandler(INpiRepository
     public async Task<NpiDetailDto> HandleAsync(ReconfirmEngineeringFeasibilityCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.ReconfirmEngineeringFeasibility(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Note);
         if (npi.AssignedDesignUserId is { } designerId)
@@ -157,7 +157,7 @@ public sealed class RejectDesignNoFeasibilityCommandHandler(INpiRepository repos
     public async Task<NpiDetailDto> HandleAsync(RejectDesignNoFeasibilityCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         await Closure.CloseOrProposeAsync(npi, TerminalReason.DesignNoFeasibility, command.Actor, command.ActorName, command.Note, null,
             actor => npi.RejectDesignNoFeasibility(actor, clock, calendar, command.Note), clock, notifications, userDirectory, cancellationToken);

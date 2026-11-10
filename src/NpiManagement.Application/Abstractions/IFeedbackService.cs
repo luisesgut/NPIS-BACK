@@ -13,6 +13,7 @@ public static class FeedbackLimits
     public const int UserAgentMaxLength = 500;
     public const int ScreenSizeMaxLength = 50;
     public const int TechnicalDetailsMaxLength = 8000;
+    public const int MessageMaxLength = 2000;
 }
 
 /// <summary>Captura de pantalla adjunta a un reporte. Sólo PNG o JPG, validada por firma binaria.</summary>
@@ -50,7 +51,12 @@ public sealed record FeedbackReportDto(
     bool HasScreenshot,
     string? AdminResponse,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? StatusChangedAt);
+    DateTimeOffset? StatusChangedAt,
+    /// <summary>Mensajes en el hilo con soporte (2026-11-10).</summary>
+    int MessageCount = 0,
+    DateTimeOffset? LastMessageAt = null,
+    /// <summary>El último mensaje lo escribió quien reportó: está esperando a soporte.</summary>
+    bool AwaitingSupport = false);
 
 /// <summary>Lo que ve quien reportó: el seguimiento y la respuesta, sin los datos técnicos.</summary>
 public sealed record MyFeedbackDto(
@@ -60,7 +66,17 @@ public sealed record MyFeedbackDto(
     string Description,
     string? AdminResponse,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? StatusChangedAt);
+    DateTimeOffset? StatusChangedAt,
+    int MessageCount = 0,
+    DateTimeOffset? LastMessageAt = null,
+    /// <summary>El último mensaje es de soporte: quien reportó tiene respuesta nueva que leer.</summary>
+    bool LastFromSupport = false);
+
+/// <summary>Un mensaje del hilo usuario ↔ soporte de un reporte.</summary>
+public sealed record FeedbackMessageDto(Guid Id, Guid AuthorUserId, string AuthorName, bool FromSupport, string Text, DateTimeOffset CreatedAt);
+
+/// <summary>Archivo de Excel generado (reportes con su estado).</summary>
+public sealed record FeedbackExportFile(byte[] Content, string ContentType, string FileName);
 
 public sealed record FeedbackScreenshotFile(Stream Content, string ContentType, string FileName);
 
@@ -83,4 +99,13 @@ public interface IFeedbackService
     Task UpdateStatusAsync(Guid id, FeedbackStatus status, string? adminResponse, Guid changedByUserId, CancellationToken cancellationToken);
 
     Task<FeedbackScreenshotFile> OpenScreenshotAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>Hilo del reporte. Sólo quien lo hizo o un AdminTotal; para cualquier otro, no existe.</summary>
+    Task<IReadOnlyList<FeedbackMessageDto>> ListMessagesAsync(Guid reportId, CurrentUser actor, CancellationToken cancellationToken);
+
+    /// <summary>Agrega un mensaje y avisa por campana a la otra parte (quien reportó o los AdminTotal).</summary>
+    Task<FeedbackMessageDto> AddMessageAsync(Guid reportId, CurrentUser actor, string actorName, string text, CancellationToken cancellationToken);
+
+    /// <summary>Excel con el concentrado de reportes (sólo AdminTotal), opcionalmente filtrado por estado.</summary>
+    Task<FeedbackExportFile> ExportAsync(FeedbackStatus? status, CancellationToken cancellationToken);
 }

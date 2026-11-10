@@ -14,7 +14,7 @@ public sealed class RegisterSapPtCommandHandler(INpiRepository repository, IUnit
     public async Task<NpiDetailDto> HandleAsync(RegisterSapPtCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RegisterSapPt(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.CodigoPT, command.PtName, command.SapTable);
         notifications.Notify(npi.AssignedCommercialUserId, $"NPI {npi.NpiNumber?.Value}: PT {command.CodigoPT} en SAP — registre el número de Pedido.", npi.Id, NotificationChannel.BellAndEmail);
@@ -32,7 +32,7 @@ public sealed class RegisterSapOrderCommandHandler(INpiRepository repository, IU
     public async Task<NpiDetailDto> HandleAsync(RegisterSapOrderCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RegisterSapOrder(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.PedidoSapNumber);
         if (npi.AssignedEngineeringUserId is { } engineerId)
@@ -51,7 +51,7 @@ public sealed class RegisterEtCommandHandler(INpiRepository repository, IUnitOfW
     public async Task<NpiDetailDto> HandleAsync(RegisterEtCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.RegisterEt(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock);
 
@@ -68,7 +68,7 @@ public sealed class LoadEtIntoSisproCommandHandler(INpiRepository repository, IU
     public async Task<NpiDetailDto> HandleAsync(LoadEtIntoSisproCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi.AssignedEngineeringUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.LoadEtIntoSispro(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar);
 

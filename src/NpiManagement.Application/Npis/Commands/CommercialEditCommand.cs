@@ -18,7 +18,7 @@ public sealed class StartCommercialEditCommandHandler(INpiRepository repository,
     public async Task<Dtos.NpiDetailDto> HandleAsync(StartCommercialEditCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanManageDraft(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanManageDraft(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         var retiredBefore = npi.AuditLog.Count(e => e.Action == "PrintCardRetiredByCommercial");
         npi.StartCommercialEdit(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Reason, command.RedoPrintCard);

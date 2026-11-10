@@ -57,6 +57,11 @@ public sealed class EfUnitOfWork(
                     break;
                 case Npi npi:
                     Participants(npis, npi.Id).UnionWith(OwnershipOf(entry));
+                    Participants(npis, npi.Id).UnionWith(npi.Participants.Select(p => p.UserId));
+                    break;
+                // Alta o baja en el equipo: a esa persona le aparece (o desaparece) el NPI.
+                case NpiParticipant participant when entry.Property("NpiId").CurrentValue is Guid teamNpiId:
+                    Participants(npis, teamNpiId).Add(participant.UserId);
                     break;
                 default:
                     // Partes del NPI (solicitudes de cambio, adjuntos, eventos de cronómetro…): todas llevan NpiId.
@@ -100,10 +105,10 @@ public sealed class EfUnitOfWork(
                 {
                     var owners = await dbContext.Npis.AsNoTracking()
                         .Where(n => missing.Contains(n.Id))
-                        .Select(n => new { n.Id, n.CreatedByUserId, n.AssignedCommercialUserId, n.AssignedEngineeringUserId, n.AssignedDesignUserId })
+                        .Select(n => new { n.Id, n.CreatedByUserId, n.AssignedCommercialUserId, n.AssignedEngineeringUserId, n.AssignedDesignUserId, Team = n.Participants.Select(p => p.UserId).ToList() })
                         .ToListAsync(CancellationToken.None);
                     foreach (var o in owners)
-                        changes.Npis[o.Id].UnionWith(new Guid?[] { o.CreatedByUserId, o.AssignedCommercialUserId, o.AssignedEngineeringUserId, o.AssignedDesignUserId }.OfType<Guid>());
+                        changes.Npis[o.Id].UnionWith(new Guid?[] { o.CreatedByUserId, o.AssignedCommercialUserId, o.AssignedEngineeringUserId, o.AssignedDesignUserId }.OfType<Guid>().Concat(o.Team));
                 }
 
                 await realtime.NpisChangedAsync(changes.Npis.Select(kv => new NpiChange(kv.Key, kv.Value.ToList())).ToList());

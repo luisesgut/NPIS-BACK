@@ -30,6 +30,9 @@ public sealed class SubmitFeedbackForm
 
 public sealed record SubmitFeedbackResponse(Guid Id);
 
+public sealed record FeedbackMessageRequest(
+    [Required, MaxLength(FeedbackLimits.MessageMaxLength)] string Text);
+
 public sealed record UpdateFeedbackStatusRequest(
     [Required] FeedbackStatus? Status,
     [MaxLength(FeedbackLimits.AdminResponseMaxLength)] string? AdminResponse);

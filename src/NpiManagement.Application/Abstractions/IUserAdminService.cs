@@ -64,4 +64,10 @@ public interface IUserAdminService
     /// sesiones y la obliga a cambiar la contraseña al entrar.
     /// </summary>
     Task<string> ResetPasswordAsync(Guid userId, Guid resetByUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Cambia el rol (y con él el área) de una cuenta ya aprobada (2026-11-10). Cierra sus sesiones
+    /// para que el nuevo rol aplique al volver a entrar. No permite dejar al sistema sin AdminTotal activo.
+    /// </summary>
+    Task ChangeRoleAsync(Guid userId, string role, Guid changedByUserId, CancellationToken cancellationToken);
 }

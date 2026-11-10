@@ -174,6 +174,45 @@ public sealed class UserAdminService(
         logger.LogInformation("Usuario {UserId} {Accion} por {ChangedBy}.", user.Id, active ? "reactivado" : "dado de baja", changedByUserId);
     }
 
+    public async Task ChangeRoleAsync(Guid userId, string role, Guid changedByUserId, CancellationToken cancellationToken)
+    {
+        var user = await FindOrThrowAsync(userId);
+
+        if (user.Status == UserStatus.Pending)
+            throw new RequestValidationException("status", "Esta cuenta sigue pendiente de aprobación: asígnale el rol al aprobarla.");
+        if (!ApplicationRoles.Exists(role))
+            throw new RequestValidationException("role", $"El rol '{role}' no existe.");
+
+        var currentRoles = await userManager.GetRolesAsync(user);
+        if (currentRoles.Count == 1 && currentRoles[0] == role)
+            throw new RequestValidationException("role", "La cuenta ya tiene ese rol.");
+
+        // Quitarle AdminTotal al último activo dejaría al sistema sin nadie que apruebe cuentas.
+        if (currentRoles.Contains(ApplicationRoles.AdminTotal) && role != ApplicationRoles.AdminTotal && user.Status == UserStatus.Active)
+        {
+            var activeAdmins = (await userManager.GetUsersInRoleAsync(ApplicationRoles.AdminTotal)).Count(a => a.Status == UserStatus.Active);
+            if (activeAdmins <= 1)
+                throw new RequestValidationException("role", "Es el único AdminTotal activo: primero dale ese rol a otra persona.");
+        }
+
+        // Mismo criterio que al aprobar: un solo rol y el área la impone el rol.
+        user.Area = ApplicationRoles.AreaFor(role)!.Value;
+        if (currentRoles.Count > 0)
+            ThrowIfFailed(await userManager.RemoveFromRolesAsync(user, currentRoles));
+        ThrowIfFailed(await userManager.AddToRoleAsync(user, role));
+        ThrowIfFailed(await userManager.UpdateAsync(user));
+
+        // El rol viaja en el token: sin cerrar sus sesiones seguiría con el rol anterior hasta que expiraran.
+        await RevokeAllRefreshTokensAsync(user.Id, $"Rol cambiado a {role} por {changedByUserId}", cancellationToken);
+
+        if (user.Status == UserStatus.Active)
+            notificationService.Notify(user.Id, $"Tu rol en el sistema cambió a {role}. Vuelve a iniciar sesión para ver tus nuevas opciones.", null);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await realtime.UsersChangedAsync();
+        logger.LogInformation("Usuario {UserId} cambió de rol {Before} a {Role} por {ChangedBy}.", user.Id, string.Join(",", currentRoles), role, changedByUserId);
+    }
+
     public async Task<string> ResetPasswordAsync(Guid userId, Guid resetByUserId, CancellationToken cancellationToken)
     {
         var user = await FindOrThrowAsync(userId);

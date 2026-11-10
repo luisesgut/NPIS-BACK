@@ -18,7 +18,7 @@ public sealed class UpdateNpiDraftCommandHandler(INpiRepository repository, IUni
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken)
             ?? throw new NotFoundException("Npi", command.NpiId);
 
-        if (!NpiAuthorization.CanManageDraft(command.Actor, npi.CreatedByUserId, npi.AssignedCommercialUserId))
+        if (!NpiAuthorization.CanManageDraft(command.Actor, npi))
             throw new NotFoundException("Npi", command.NpiId);
 
         // El cliente declara qué versión creía tener (obtenida de un GET previo): si alguien más

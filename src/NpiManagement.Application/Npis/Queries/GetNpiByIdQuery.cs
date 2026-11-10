@@ -15,10 +15,12 @@ public sealed class GetNpiByIdQueryHandler(INpiRepository repository, IClock clo
         var npi = await repository.GetByIdAsync(query.NpiId, cancellationToken)
             ?? throw new NotFoundException("Npi", query.NpiId);
 
-        var ownership = new NpiOwnership(npi.CreatedByUserId, npi.AssignedCommercialUserId, npi.AssignedEngineeringUserId, npi.AssignedDesignUserId);
-        if (!NpiAuthorization.CanAccess(query.Actor, ownership))
+        var ownership = NpiAuthorization.OwnershipOf(npi);
+        if (!NpiAuthorization.CanView(query.Actor, ownership, npi.Capture.Cliente, npi.LifecycleStatus))
             throw new NotFoundException("Npi", query.NpiId);
 
-        return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+        var detail = NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+        if (NpiAuthorization.IsViewOnly(query.Actor, ownership, npi.Capture.Cliente, npi.LifecycleStatus)) return detail with { ViewOnly = true };
+        return NpiAuthorization.WorksOnlyByClient(query.Actor, npi) ? detail with { ClientWork = true } : detail;
     }
 }

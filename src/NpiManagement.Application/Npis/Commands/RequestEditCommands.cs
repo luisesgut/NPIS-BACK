@@ -18,7 +18,7 @@ public sealed class EditInformationRequestCommandHandler(INpiRepository reposito
     public async Task<NpiDetailDto> HandleAsync(EditInformationRequestCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.EditInformationRequest(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.RequestId, command.Text, command.AddImageAttachmentIds);
         var request = npi.InformationRequests.First(r => r.Id == command.RequestId);
@@ -45,7 +45,7 @@ public sealed class WithdrawInformationRequestCommandHandler(INpiRepository repo
     public async Task<NpiDetailDto> HandleAsync(WithdrawInformationRequestCommand command, CancellationToken cancellationToken)
     {
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
-        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi.AssignedDesignUserId)) throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         npi.WithdrawInformationRequest(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.RequestId);
         var request = npi.InformationRequests.First(r => r.Id == command.RequestId);
@@ -79,8 +79,8 @@ public sealed class EditChangeRequestCommandHandler(INpiRepository repository, I
         var request = npi.ChangeRequests.FirstOrDefault(c => c.Id == requestId) ?? throw new NotFoundException("ChangeRequest", requestId);
         var allowed = request.FromArea switch
         {
-            AreaType.Ingenieria => NpiAuthorization.CanActAsEngineering(actor, npi.AssignedEngineeringUserId),
-            AreaType.Diseno => NpiAuthorization.CanActAsDesign(actor, npi.AssignedDesignUserId),
+            AreaType.Ingenieria => NpiAuthorization.CanActAsEngineering(actor, npi),
+            AreaType.Diseno => NpiAuthorization.CanActAsDesign(actor, npi),
             _ => false,
         };
         if (!allowed) throw new NotFoundException("Npi", npiId);

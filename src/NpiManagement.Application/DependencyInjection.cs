@@ -27,6 +27,9 @@ public static class DependencyInjection
         services.AddScoped<AssignEngineeringCommandHandler>();
         services.AddScoped<AssignDesignCommandHandler>();
         services.AddScoped<ReassignCommercialCommandHandler>();
+        services.AddScoped<AddNpiParticipantCommandHandler>();
+        services.AddScoped<RemoveNpiParticipantCommandHandler>();
+        services.AddScoped<GetTeamCandidatesQueryHandler>();
         services.AddScoped<ApproveEngineeringFeasibilityCommandHandler>();
         services.AddScoped<ReconfirmEngineeringFeasibilityCommandHandler>();
         services.AddScoped<ApproveDesignFeasibilityCommandHandler>();

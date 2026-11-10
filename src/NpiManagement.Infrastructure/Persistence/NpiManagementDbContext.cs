@@ -29,7 +29,9 @@ public sealed class NpiManagementDbContext : IdentityDbContext<ApplicationUser, 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<ClientRecipient> ClientRecipients => Set<ClientRecipient>();
+    public DbSet<UserClientView> UserClientViews => Set<UserClientView>();
     public DbSet<FeedbackReport> FeedbackReports => Set<FeedbackReport>();
+    public DbSet<FeedbackMessage> FeedbackMessages => Set<FeedbackMessage>();
     public DbSet<CatalogChangeLog> CatalogChangeLogs => Set<CatalogChangeLog>();
     public DbSet<NpiManagement.Domain.Entities.NpiComment> NpiComments => Set<NpiManagement.Domain.Entities.NpiComment>();
     public DbSet<NpiChatRead> NpiChatReads => Set<NpiChatRead>();

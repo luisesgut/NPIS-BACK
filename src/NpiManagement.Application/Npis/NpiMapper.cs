@@ -49,7 +49,9 @@ public static class NpiMapper
         npi.ClosingEvent is { } closing ? new ClosingInfoDto(closing.Details, closing.ActorRole, closing.OccurredAt) : null,
         npi.DesignInstructions,
         npi.PtSapTable,
-        npi.FinalPrintCardVersion?.Id);
+        npi.FinalPrintCardVersion?.Id,
+        Participants: npi.Participants.OrderBy(p => p.AddedAt)
+            .Select(p => new NpiParticipantDto(p.UserId, p.Area.ToString(), p.AddedByName, p.AddedAt)).ToList());
 
     private static readonly System.Text.Json.JsonSerializerOptions SnapshotJson = new(System.Text.Json.JsonSerializerDefaults.Web);
 

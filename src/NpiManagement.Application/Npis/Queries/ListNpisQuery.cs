@@ -12,7 +12,8 @@ public sealed class ListNpisQueryHandler(INpiListReader reader, NpiSituationReso
 {
     public async Task<PagedResult<NpiListItemDto>> HandleAsync(ListNpisQuery query, CancellationToken cancellationToken)
     {
-        var accessPredicate = NpiAuthorization.BuildAccessPredicate(query.Actor);
+        // Incluye los NPIs de los clientes que le compartieron (sólo consulta).
+        var accessPredicate = NpiAuthorization.BuildViewPredicate(query.Actor);
         var filter = query.Filter with { OnlyIds = null };
         var situation = Known(filter.Situation, NpiSituation.All);
         var stage = Known(filter.Stage, NpiStageGroup.All);

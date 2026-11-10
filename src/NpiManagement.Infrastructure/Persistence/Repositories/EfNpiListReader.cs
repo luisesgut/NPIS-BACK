@@ -69,7 +69,8 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
             query = query.Where(n =>
                 n.AssignedCommercialUserId == assignedTo ||
                 n.AssignedEngineeringUserId == assignedTo ||
-                n.AssignedDesignUserId == assignedTo);
+                n.AssignedDesignUserId == assignedTo ||
+                n.Participants.Any(p => p.UserId == assignedTo));
 
         if (!string.IsNullOrWhiteSpace(filter.PendingClosureArea))
         {
@@ -151,12 +152,13 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                 PendingEngineeringInfo = n.InformationRequests.Any(i => i.Type == InformationRequestType.Engineering && i.Status == InformationRequestStatus.Pending),
                 PendingReconfirmation = n.ChangeRequests.Any(c => c.Origin == ChangeRequestOrigin.Reconfirmation && c.ResolvedAt == null),
                 CommercialEditing = n.ChangeRequests.Any(c => c.Origin == ChangeRequestOrigin.CommercialEdit && c.ResolvedAt == null),
+                Team = n.Participants.OrderBy(p => p.AddedAt).Select(p => new { p.UserId, p.Area }).ToList(),
             })
             .ToListAsync(cancellationToken);
 
         // Nombres de los responsables de la página, en una sola consulta.
         var userIds = rows
-            .SelectMany(r => new[] { (Guid?)r.AssignedCommercialUserId, r.AssignedEngineeringUserId, r.AssignedDesignUserId })
+            .SelectMany(r => new[] { (Guid?)r.AssignedCommercialUserId, r.AssignedEngineeringUserId, r.AssignedDesignUserId }.Concat(r.Team.Select(t => (Guid?)t.UserId)))
             .OfType<Guid>()
             .Distinct()
             .ToList();
@@ -196,7 +198,8 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                     (false, true) => "Ingenieria",
                     _ => null,
                 },
-                r.PendingReconfirmation, r.CommercialEditing))
+                r.PendingReconfirmation, r.CommercialEditing,
+                Team: r.Team.Select(t => new NpiTeamMemberDto(t.UserId, NameOf(t.UserId) ?? GetNpiAssigneesQueryHandler.UnknownUserName, t.Area.ToString())).ToList()))
             .ToList();
 
         return new PagedResult<NpiListItemDto>(items, page, pageSize, totalCount);

@@ -133,4 +133,40 @@ public sealed class FeedbackEndpointsTests(SqlServerFixture fixture) : IAsyncLif
         var notifications = await reporter.GetFromJsonAsync<List<NotificationDto>>("/api/notifications", Json);
         notifications.Should().Contain(n => n.Message.Contains("Resuelto") && n.Message.Contains("Corregido en la versión de hoy"));
     }
+
+    [SkippableFact]
+    public async Task Reporter_and_support_chat_on_a_report_and_nobody_else_sees_it()
+    {
+        Skip.IfNot(fixture.IsAvailable, fixture.SkipReason);
+        var reporter = await ClientAsync(ComercialEmail);
+        var submit = await reporter.PostAsync("/api/feedback", ReportForm("No carga el PrintCard"));
+        var created = (await submit.Content.ReadFromJsonAsync<SubmitFeedbackResponse>(Json))!;
+
+        var admin = await ClientAsync(AdminTotalEmail);
+        (await admin.PostAsJsonAsync($"/api/feedback/{created.Id}/messages", new FeedbackMessageRequest("¿En qué NPI te pasa?"), Json)).EnsureSuccessStatusCode();
+        (await reporter.PostAsJsonAsync($"/api/feedback/{created.Id}/messages", new FeedbackMessageRequest("En el NPI-0038"), Json)).EnsureSuccessStatusCode();
+
+        var thread = await reporter.GetFromJsonAsync<List<FeedbackMessageDto>>($"/api/feedback/{created.Id}/messages", Json);
+        thread!.Select(m => (m.FromSupport, m.Text)).Should().Equal((true, "¿En qué NPI te pasa?"), (false, "En el NPI-0038"));
+        (await reporter.GetFromJsonAsync<List<NotificationDto>>("/api/notifications", Json)).Should().Contain(n => n.Message.Contains("Soporte te escribió"));
+
+        var other = await ClientAsync(AdminComercialEmail);
+        (await other.GetAsync($"/api/feedback/{created.Id}/messages")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [SkippableFact]
+    public async Task Only_admin_total_downloads_the_reports_excel()
+    {
+        Skip.IfNot(fixture.IsAvailable, fixture.SkipReason);
+        var reporter = await ClientAsync(ComercialEmail);
+        await reporter.PostAsync("/api/feedback", ReportForm("Quiero exportar esto"));
+
+        var admin = await ClientAsync(AdminTotalEmail);
+        var response = await admin.GetAsync("/api/feedback/export");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        (await response.Content.ReadAsByteArrayAsync()).Take(2).Should().Equal((byte)'P', (byte)'K');
+
+        (await reporter.GetAsync("/api/feedback/export")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
 }

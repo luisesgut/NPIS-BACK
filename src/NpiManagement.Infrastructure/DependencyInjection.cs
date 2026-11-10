@@ -74,6 +74,8 @@ public static class DependencyInjection
         services.AddScoped<IBobinaCatalogStore, EfBobinaCatalogStore>();
         services.AddScoped<INotificationService, EfNotificationService>();
         services.AddScoped<NpiManagement.Application.ClientRecipients.IClientRecipientStore, EfClientRecipientStore>();
+        services.AddMemoryCache();
+        services.AddScoped<NpiManagement.Application.Users.IClientViewGrantStore, EfClientViewGrantStore>();
         services.AddScoped<INpiChatStore, EfNpiChatStore>();
         services.AddScoped<INpiCaptureHistoryStore, EfNpiCaptureHistoryStore>();
         services.AddScoped<IFeedbackService, FeedbackService>();
