@@ -8,7 +8,8 @@ using NpiManagement.Domain.Common;
 namespace NpiManagement.Application.Npis.Commands;
 
 /// <summary>Acción 11 de workflow.md — Artes Validadas (Diseño).</summary>
-public sealed record ValidateArtworkCommand(Guid NpiId, CurrentUser Actor, string ActorName);
+/// <param name="CloseRejection">Diseño cierra su propio rechazo de artes pendiente y las valida (2026-11-20).</param>
+public sealed record ValidateArtworkCommand(Guid NpiId, CurrentUser Actor, string ActorName, bool CloseRejection = false);
 
 public sealed class ValidateArtworkCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar)
 {
@@ -17,7 +18,7 @@ public sealed class ValidateArtworkCommandHandler(INpiRepository repository, IUn
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.ValidateArtwork(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock);
+        npi.ValidateArtwork(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.CloseRejection);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
@@ -66,10 +67,13 @@ public sealed class ApprovePrintCardCommandHandler(INpiRepository repository, IU
         npi.ApprovePrintCard(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Role, command.Note, command.EvidenceAttachmentId);
 
         // Avisa a quien sigue: con Ingeniería, Comercial lo lleva al cliente; con el cliente, Diseño lo carga.
-        if (command.Role == ApproverRole.Engineering)
+        var fullyApproved = npi.CurrentPrintCardVersion is { IsFullyApproved: true };
+        if (command.Role == ApproverRole.Engineering && !fullyApproved)
             notifications.Notify(npi.AssignedCommercialUserId, $"Ingeniería aprobó el PrintCard del NPI {npi.NpiNumber?.Value}: ya puedes enviarlo al cliente.", npi.Id, NotificationChannel.BellAndEmail);
-        if (npi.CurrentPrintCardVersion is { IsFullyApproved: true } && npi.AssignedDesignUserId is { } designerId)
-            notifications.Notify(designerId, $"El cliente aprobó el PrintCard del NPI {npi.NpiNumber?.Value}: cárgalo en sistema.", npi.Id, NotificationChannel.BellAndEmail);
+        if (fullyApproved && npi.AssignedDesignUserId is { } designerId)
+            notifications.Notify(designerId, command.Role == ApproverRole.Engineering
+                ? $"Ingeniería aprobó el PrintCard que reemplazaste en el NPI {npi.NpiNumber?.Value}: cárgalo en sistema."
+                : $"El cliente aprobó el PrintCard del NPI {npi.NpiNumber?.Value}: cárgalo en sistema.", npi.Id, NotificationChannel.BellAndEmail);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
@@ -271,6 +275,67 @@ public sealed class ReplacePrintCardFileCommandHandler(INpiRepository repository
         // A Ingeniería le toca revisarlo: que vea el archivo nuevo y no el que ya había abierto.
         if (npi.AssignedEngineeringUserId is { } engineerId && npi.CurrentPrintCardVersion is { } version)
             notifications.Notify(engineerId, $"Diseño reemplazó el archivo del PrintCard v{version.VersionNumber} del NPI {npi.NpiNumber?.Value}: revisa el nuevo.", npi.Id);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+    }
+}
+
+/// <summary>
+/// Diseño reemplaza un PrintCard ya aprobado (2026-11-11), hasta que se registra el PT. Diseño decide si
+/// la versión nueva vuelve a pasar por Ingeniería y/o por el cliente; a quien le toque se le avisa con
+/// correo, y a los demás en la campana, siempre con el motivo.
+/// </summary>
+public sealed record ReplaceApprovedPrintCardCommand(
+    Guid NpiId, CurrentUser Actor, string ActorName, string Code, Guid? AttachmentId, string Reason,
+    bool NeedsEngineeringApproval, bool NeedsClientApproval);
+
+public sealed class ReplaceApprovedPrintCardCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
+{
+    public async Task<NpiDetailDto> HandleAsync(ReplaceApprovedPrintCardCommand command, CancellationToken cancellationToken)
+    {
+        var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
+
+        var version = npi.ReplaceApprovedPrintCard(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar,
+            command.Code, command.AttachmentId, command.Reason, command.NeedsEngineeringApproval, command.NeedsClientApproval);
+
+        var number = npi.NpiNumber?.Value;
+        var head = $"{command.ActorName} (Diseño) reemplazó el PrintCard del NPI {number} por la v{version.VersionNumber} ({version.Code}). Motivo: {command.Reason.Trim()}";
+        var needsEngineering = !version.Approvals.Any(a => a.Role == ApproverRole.Engineering);
+        var needsClient = !version.Approvals.Any(a => a.Role == ApproverRole.Client);
+
+        if (npi.AssignedEngineeringUserId is { } engineerId)
+            notifications.Notify(engineerId, needsEngineering ? $"{head} Te toca revisarlo." : $"{head} No requiere tu revisión.", npi.Id,
+                needsEngineering ? NotificationChannel.BellAndEmail : NotificationChannel.Bell);
+        var commercialTurn = !needsEngineering && needsClient;
+        notifications.Notify(npi.AssignedCommercialUserId,
+            commercialTurn ? $"{head} Ya puedes enviarlo al cliente."
+                : needsClient ? $"{head} Cuando Ingeniería lo apruebe, tendrás que enviarlo al cliente."
+                : $"{head} No requiere nueva aprobación del cliente.",
+            npi.Id, commercialTurn ? NotificationChannel.BellAndEmail : NotificationChannel.Bell);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+    }
+}
+
+/// <summary>Diseño actualiza el PrintCard final ya cargado en sistema (también con PT o NPI completado, 2026-11-12).</summary>
+public sealed record UpdateFinalPrintCardCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Code, Guid? AttachmentId, string Reason);
+
+public sealed class UpdateFinalPrintCardCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
+{
+    public async Task<NpiDetailDto> HandleAsync(UpdateFinalPrintCardCommand command, CancellationToken cancellationToken)
+    {
+        var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
+
+        var version = npi.UpdateFinalPrintCard(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.Code, command.AttachmentId, command.Reason);
+
+        // Informativo: no le toca hacer nada a nadie, por eso sólo campana.
+        var message = $"{command.ActorName} (Diseño) actualizó el PrintCard final del NPI {npi.NpiNumber?.Value} a la v{version.VersionNumber} ({version.Code}). Motivo: {command.Reason.Trim()}";
+        if (npi.AssignedEngineeringUserId is { } engineerId) notifications.Notify(engineerId, message, npi.Id);
+        notifications.Notify(npi.AssignedCommercialUserId, message, npi.Id);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));

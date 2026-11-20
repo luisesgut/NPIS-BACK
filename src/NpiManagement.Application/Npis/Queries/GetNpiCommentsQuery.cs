@@ -21,7 +21,10 @@ public sealed class GetNpiCommentsQueryHandler(INpiChatStore chat)
         var pageSize = query.PageSize is < 1 or > 100 ? 20 : query.PageSize;
 
         var result = await chat.ListAsync(npi.NpiId, page, pageSize, cancellationToken);
-        return new PagedResult<CommentDto>(result.Items.Select(AddCommentCommandHandler.ToDto).ToList(), result.Page, result.PageSize, result.TotalCount);
+        // Una sola consulta para los archivos de toda la página.
+        var fileIds = result.Items.SelectMany(m => m.AttachmentIds).Distinct().ToList();
+        var files = await chat.FindAttachmentsAsync(npi.NpiId, fileIds, cancellationToken);
+        return new PagedResult<CommentDto>(result.Items.Select(m => AddCommentCommandHandler.ToDto(m, files)).ToList(), result.Page, result.PageSize, result.TotalCount);
     }
 }
 

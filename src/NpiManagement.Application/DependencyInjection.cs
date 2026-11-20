@@ -18,6 +18,12 @@ public static class DependencyInjection
         services.AddScoped<GetNpiAuditQueryHandler>();
         services.AddScoped<GetNpiTimerEventsQueryHandler>();
         services.AddScoped<GetNpiAssigneesQueryHandler>();
+        services.AddScoped<GetNpiBasedOnQueryHandler>();
+        services.AddScoped<GetSapOrdersQueryHandler>();
+        services.AddScoped<GetSapProductsQueryHandler>();
+        services.AddScoped<Npis.Advance.AdvanceSyncService>();
+        services.AddScoped<Npis.Advance.SyncNpiWithAdvanceCommandHandler>();
+        services.AddScoped<Npis.Advance.GetAdvanceStatusQueryHandler>();
         services.AddScoped<GetCaptureHistoryQueryHandler>();
         services.AddScoped<NpiManagement.Application.Bobinas.BobinaCalculatorService>();
 
@@ -32,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<GetTeamCandidatesQueryHandler>();
         services.AddScoped<ApproveEngineeringFeasibilityCommandHandler>();
         services.AddScoped<ReconfirmEngineeringFeasibilityCommandHandler>();
+        services.AddScoped<ReconfirmDesignAfterClientChangeCommandHandler>();
         services.AddScoped<ApproveDesignFeasibilityCommandHandler>();
         services.AddScoped<UpdateDesignClassificationCommandHandler>();
         services.AddScoped<SetDesignInstructionsCommandHandler>();
@@ -54,6 +61,8 @@ public static class DependencyInjection
         services.AddScoped<ValidateArtworkCommandHandler>();
         services.AddScoped<CreatePrintCardVersionCommandHandler>();
         services.AddScoped<ReplacePrintCardFileCommandHandler>();
+        services.AddScoped<ReplaceApprovedPrintCardCommandHandler>();
+        services.AddScoped<UpdateFinalPrintCardCommandHandler>();
         services.AddScoped<ApprovePrintCardCommandHandler>();
         services.AddScoped<SendPrintCardToClientCommandHandler>();
         services.AddScoped<RequestClientChangesCommandHandler>();

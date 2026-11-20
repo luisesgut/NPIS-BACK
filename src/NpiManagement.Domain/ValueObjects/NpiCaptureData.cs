@@ -70,6 +70,11 @@ public sealed record NpiCaptureData
     public string UbicacionSolapa { get; init; } = string.Empty;
     /// <summary>Labio (mm) de la bolsa wicket.</summary>
     public string Labio { get; init; } = string.Empty;
+    /// <summary>
+    /// Tipo de wicket (2026-11-18): "IMPRESION POR DENTRO", "WICKET REVERSO", "WICKET NORMAL" o "FONDO CUADRADO"
+    /// (dibujos 1–4 del formulario). Vacío en NPIs anteriores o que no son wicket.
+    /// </summary>
+    public string TipoWicket { get; init; } = string.Empty;
     public string Fuelles { get; init; } = string.Empty;
     public string PiTipoPelicula { get; init; } = string.Empty;
     public string TerminadoPI { get; init; } = string.Empty;

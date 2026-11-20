@@ -16,7 +16,7 @@ public sealed class GetDashboardSummaryQueryHandler(IDashboardReader reader)
 
     public Task<DashboardSummaryDto> HandleAsync(GetDashboardSummaryQuery query, CancellationToken cancellationToken)
     {
-        var accessPredicate = NpiAuthorization.BuildAccessPredicate(query.Actor);
+        var accessPredicate = NpiAuthorization.BuildAccessPredicate(query.Actor, includeDirector: false);
         return reader.GetSummaryAsync(accessPredicate, SlaThresholdBusinessMs, cancellationToken);
     }
 }

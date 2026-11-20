@@ -17,5 +17,7 @@ public sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Appl
 
         builder.HasIndex(u => u.Area);
         builder.HasIndex(u => u.Status);
+        // "Mi equipo" busca a los vendedores de un director.
+        builder.HasIndex(u => u.DirectorUserId);
     }
 }

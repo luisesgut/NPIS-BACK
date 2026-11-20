@@ -30,7 +30,8 @@ public static class TurnScope
 
     public static Expression<Func<Npi, bool>> For(CurrentUser actor)
     {
-        if (!IsRestricted(actor)) return NpiAuthorization.BuildAccessPredicate(actor);
+        // Los NPIs del director del vendedor ("Mi equipo") no son "su turno": los ve en la pestaña de su director.
+        if (!IsRestricted(actor)) return NpiAuthorization.BuildAccessPredicate(actor, includeDirector: false);
         var userId = actor.UserId;
         return npi => npi.CreatedByUserId == userId || npi.AssignedCommercialUserId == userId
             || npi.Participants.Any(p => p.UserId == userId && p.Area == AreaType.Comercial);

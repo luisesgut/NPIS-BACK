@@ -135,6 +135,6 @@ public sealed class DashboardOverviewQueryHandler(IDashboardOverviewReader reade
             area = actor.Area;
         }
 
-        return reader.GetAsync(view, area, NpiAuthorization.BuildAccessPredicate(actor), query.Filter, goals, cancellationToken);
+        return reader.GetAsync(view, area, NpiAuthorization.BuildAccessPredicate(actor, includeDirector: false), query.Filter, goals, cancellationToken);
     }
 }

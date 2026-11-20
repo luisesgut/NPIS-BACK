@@ -12,7 +12,8 @@ public sealed class FileStorageOptions
     /// </summary>
     public string RootPath { get; set; } = Path.Combine(Path.GetTempPath(), "NpiManagement", "attachments");
 
-    public long MaxSizeBytes { get; set; } = 10 * 1024 * 1024; // 10 MB
+    // 50 MB desde 2026-11-11 (antes 10): las artes en buena resolución no cabían. Arriba de eso, link.
+    public long MaxSizeBytes { get; set; } = 50 * 1024 * 1024;
 
     public string[] AllowedContentTypes { get; set; } = ["application/pdf", "image/jpeg", "image/png"];
 }

@@ -45,6 +45,11 @@ public sealed record NpiCaptureDto
     public string UbicacionSolapa { get; init; } = string.Empty;
     /// <summary>Labio (mm) de la bolsa wicket.</summary>
     public string Labio { get; init; } = string.Empty;
+    /// <summary>
+    /// Tipo de wicket (2026-11-18): "IMPRESION POR DENTRO", "WICKET REVERSO", "WICKET NORMAL" o "FONDO CUADRADO"
+    /// (dibujos 1–4 del formulario). Vacío en NPIs anteriores o que no son wicket.
+    /// </summary>
+    public string TipoWicket { get; init; } = string.Empty;
     public string Fuelles { get; init; } = string.Empty;
     public string PiTipoPelicula { get; init; } = string.Empty;
     public string TerminadoPI { get; init; } = string.Empty;
@@ -124,7 +129,7 @@ public sealed record NpiCaptureDto
         Formato = Formato, Acabado = Acabado, Mercado = Mercado, SubMercado = SubMercado, UnidadVenta = UnidadVenta, TipoEntrada = TipoEntrada,
         CategoriaSAP = CategoriaSAP, TipoImpresion = TipoImpresion, TipoTinta = TipoTinta, DesarrolloManga = DesarrolloManga, PrensaManga = PrensaManga, TipoEmpaque = TipoEmpaque,
         UnidadMedidas = UnidadMedidas, UnidadCalibre = UnidadCalibre,
-        Ancho = Ancho, Alto = Alto, FuelleExtendido = FuelleExtendido, SolapaPestana = SolapaPestana, UbicacionSolapa = UbicacionSolapa, Labio = Labio, Fuelles = Fuelles,
+        Ancho = Ancho, Alto = Alto, FuelleExtendido = FuelleExtendido, SolapaPestana = SolapaPestana, UbicacionSolapa = UbicacionSolapa, Labio = Labio, TipoWicket = TipoWicket, Fuelles = Fuelles,
         PiTipoPelicula = PiTipoPelicula, TerminadoPI = TerminadoPI, PiCalibre = PiCalibre, FormulaLDPE_PI = FormulaLDPE_PI,
         PplTipoPelicula = PplTipoPelicula, TerminadoPPL = TerminadoPPL, PplCalibre = PplCalibre, FormulaLDPE_PPL = FormulaLDPE_PPL,
         PslTipoPelicula = PslTipoPelicula, TerminadoPSL = TerminadoPSL, PslCalibre = PslCalibre, FormulaLDPE_PSL = FormulaLDPE_PSL,
@@ -151,7 +156,7 @@ public sealed record NpiCaptureDto
         Formato = c.Formato, Acabado = c.Acabado, Mercado = c.Mercado, SubMercado = c.SubMercado, UnidadVenta = c.UnidadVenta, TipoEntrada = c.TipoEntrada,
         CategoriaSAP = c.CategoriaSAP, TipoImpresion = c.TipoImpresion, TipoTinta = c.TipoTinta, DesarrolloManga = c.DesarrolloManga, PrensaManga = c.PrensaManga, TipoEmpaque = c.TipoEmpaque,
         UnidadMedidas = c.UnidadMedidas, UnidadCalibre = c.UnidadCalibre,
-        Ancho = c.Ancho, Alto = c.Alto, FuelleExtendido = c.FuelleExtendido, SolapaPestana = c.SolapaPestana, UbicacionSolapa = c.UbicacionSolapa, Labio = c.Labio, Fuelles = c.Fuelles,
+        Ancho = c.Ancho, Alto = c.Alto, FuelleExtendido = c.FuelleExtendido, SolapaPestana = c.SolapaPestana, UbicacionSolapa = c.UbicacionSolapa, Labio = c.Labio, TipoWicket = c.TipoWicket, Fuelles = c.Fuelles,
         PiTipoPelicula = c.PiTipoPelicula, TerminadoPI = c.TerminadoPI, PiCalibre = c.PiCalibre, FormulaLDPE_PI = c.FormulaLDPE_PI,
         PplTipoPelicula = c.PplTipoPelicula, TerminadoPPL = c.TerminadoPPL, PplCalibre = c.PplCalibre, FormulaLDPE_PPL = c.FormulaLDPE_PPL,
         PslTipoPelicula = c.PslTipoPelicula, TerminadoPSL = c.TerminadoPSL, PslCalibre = c.PslCalibre, FormulaLDPE_PSL = c.FormulaLDPE_PSL,

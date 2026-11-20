@@ -34,6 +34,7 @@ public static class CatalogRules
         ["CATEGORÍA SAP"] = ["CategoriaSAP"],
         ["CIERRE"] = ["Cierre"],
         ["COLGADERA"] = ["Colgadera"],
+        ["COLOR CINTA UNIONES"] = ["ColorCintaUniones"],
         ["CORE"] = ["Core"],
         ["DESARROLLO MANGA"] = ["DesarrolloManga"],
         ["COSTO DE PREPRENSA"] = ["CostoPreprensa"],
@@ -59,6 +60,7 @@ public static class CatalogRules
 
     private static readonly Dictionary<string, string> Hints = new(StringComparer.OrdinalIgnoreCase)
     {
+        ["COLOR CINTA UNIONES"] = "Colores de la cinta de uniones de la bobina. El formulario agrega siempre «Otro» para que Comercial escriba un color que no esté aquí.",
         ["DESARROLLO MANGA"] = "Desarrollos (mm) de las mangas de impresión que hay en inventario, sin importar la prensa. Escribe solo el número. El buscador de mangas del formulario usa además el inventario por prensa (lib/mangas.ts del front, copia de la tabla «Inventario de mangas por prensa»): si das de alta un desarrollo nuevo, pide que lo agreguen ahí también.",
         ["FORMATO"] = "El formulario filtra los formatos por cómo empiezan: los que empiezan con «BOBINA» son para Bobina, con «BOLSA» para Bolsa y el resto para Pouch. Respeta ese prefijo al agregar o renombrar.",
         ["TIPO DE PRODUCTO"] = "BOBINA, BOLSA y POUCH están protegidos porque el formulario depende de ellos.",

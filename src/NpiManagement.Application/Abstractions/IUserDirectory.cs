@@ -2,7 +2,8 @@ using NpiManagement.Domain;
 
 namespace NpiManagement.Application.Abstractions;
 
-public sealed record UserSummaryDto(Guid Id, string FullName, string Email, string Role, AreaType Area, UserStatus Status);
+/// <param name="DirectorUserId">Director de Comercial del vendedor ("Mi equipo", 2026-11-18).</param>
+public sealed record UserSummaryDto(Guid Id, string FullName, string Email, string Role, AreaType Area, UserStatus Status, Guid? DirectorUserId = null);
 
 /// <summary>Usuarios consultables por área, para asignaciones (docs/api-contract.md §2).</summary>
 public interface IUserDirectory

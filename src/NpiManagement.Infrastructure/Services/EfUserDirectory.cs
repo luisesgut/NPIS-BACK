@@ -22,7 +22,7 @@ public sealed class EfUserDirectory(NpiManagementDbContext dbContext, UserManage
         foreach (var user in users)
         {
             var roles = await userManager.GetRolesAsync(user);
-            result.Add(new UserSummaryDto(user.Id, user.FullName, user.Email ?? string.Empty, roles.FirstOrDefault() ?? string.Empty, user.Area, user.Status));
+            result.Add(new UserSummaryDto(user.Id, user.FullName, user.Email ?? string.Empty, roles.FirstOrDefault() ?? string.Empty, user.Area, user.Status, user.DirectorUserId));
         }
 
         return result;
@@ -46,6 +46,6 @@ public sealed class EfUserDirectory(NpiManagementDbContext dbContext, UserManage
         if (user is null) return null;
 
         var roles = await userManager.GetRolesAsync(user);
-        return new UserSummaryDto(user.Id, user.FullName, user.Email ?? string.Empty, roles.FirstOrDefault() ?? string.Empty, user.Area, user.Status);
+        return new UserSummaryDto(user.Id, user.FullName, user.Email ?? string.Empty, roles.FirstOrDefault() ?? string.Empty, user.Area, user.Status, user.DirectorUserId);
     }
 }

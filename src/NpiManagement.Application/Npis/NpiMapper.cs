@@ -51,7 +51,8 @@ public static class NpiMapper
         npi.PtSapTable,
         npi.FinalPrintCardVersion?.Id,
         Participants: npi.Participants.OrderBy(p => p.AddedAt)
-            .Select(p => new NpiParticipantDto(p.UserId, p.Area.ToString(), p.AddedByName, p.AddedAt)).ToList());
+            .Select(p => new NpiParticipantDto(p.UserId, p.Area.ToString(), p.AddedByName, p.AddedAt)).ToList(),
+        BasedOnNpiId: npi.BasedOnNpiId);
 
     private static readonly System.Text.Json.JsonSerializerOptions SnapshotJson = new(System.Text.Json.JsonSerializerDefaults.Web);
 

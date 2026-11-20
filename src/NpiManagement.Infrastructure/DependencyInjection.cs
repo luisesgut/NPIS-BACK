@@ -49,6 +49,21 @@ public static class DependencyInjection
         // Cotizaciones: se leen de SISPRO (solo lectura). Sin credenciales en Sispro:* la consulta
         // responde 503 "no configurado" y el NPI se captura a mano.
         services.Configure<SisproOptions>(configuration.GetSection(SisproOptions.SectionName));
+        // Órdenes de venta de SAP (vista Cat_Ordenes, sólo lectura). Sin SapOrders:ConnectionString o con
+        // Habilitado=false, la búsqueda responde "apagada" y el pedido se captura a mano.
+        services.Configure<Sap.SapOrdersOptions>(configuration.GetSection(Sap.SapOrdersOptions.SectionName));
+        services.AddScoped<ISapOrdersReader, Sap.SqlSapOrdersReader>();
+        // Mismo origen y conexión: el PT por el código del PrintCard (vista Cat_Productos).
+        services.AddScoped<ISapProductsReader, Sap.SqlSapProductsReader>();
+        // Advance, repositorio de PrintCards de la planta (sin contraseña, intranet). Apagado salvo
+        // Advance:Habilitado=true; entonces además revisa los NPIs cada N minutos.
+        services.Configure<Advance.AdvanceOptions>(configuration.GetSection(Advance.AdvanceOptions.SectionName));
+        services.AddHttpClient<IAdvanceClient, Advance.AdvanceClient>((sp, http) =>
+        {
+            var advance = configuration.GetSection(Advance.AdvanceOptions.SectionName).Get<Advance.AdvanceOptions>() ?? new Advance.AdvanceOptions();
+            http.Timeout = TimeSpan.FromSeconds(Math.Clamp(advance.TimeoutSeconds, 3, 120));
+        });
+        services.AddHostedService<Advance.AdvanceSyncWorker>();
         Domain.SisproQuoteGate.Configured = configuration.GetSection(SisproOptions.SectionName).GetValue<bool>(nameof(SisproOptions.CotizacionObligatoria));
         services.AddHostedService<SisproQuoteWaitRelease>();
         services.AddSingleton<SisproTokenStore>();
@@ -76,6 +91,7 @@ public static class DependencyInjection
         services.AddScoped<NpiManagement.Application.ClientRecipients.IClientRecipientStore, EfClientRecipientStore>();
         services.AddMemoryCache();
         services.AddScoped<NpiManagement.Application.Users.IClientViewGrantStore, EfClientViewGrantStore>();
+        services.AddScoped<NpiManagement.Application.Users.ICommercialTeamStore, EfCommercialTeamStore>();
         services.AddScoped<INpiChatStore, EfNpiChatStore>();
         services.AddScoped<INpiCaptureHistoryStore, EfNpiCaptureHistoryStore>();
         services.AddScoped<IFeedbackService, FeedbackService>();

@@ -28,6 +28,7 @@ public sealed class NpiWorkflowController(
     RemoveNpiParticipantCommandHandler removeParticipantHandler,
     ApproveEngineeringFeasibilityCommandHandler approveEngineeringFeasibilityHandler,
     ReconfirmEngineeringFeasibilityCommandHandler reconfirmEngineeringFeasibilityHandler,
+    ReconfirmDesignAfterClientChangeCommandHandler reconfirmDesignHandler,
     ApproveDesignFeasibilityCommandHandler approveDesignFeasibilityHandler,
     RequestEngineeringChangesCommandHandler requestEngineeringChangesHandler,
     RejectNoFeasibilityCommandHandler rejectNoFeasibilityHandler,
@@ -54,7 +55,7 @@ public sealed class NpiWorkflowController(
     [HttpPost("commercial-edit")]
     [Authorize(Policy = "AreaComercial")]
     public Task<NpiDetailDto> StartCommercialEdit(Guid id, StartCommercialEditRequest request, CancellationToken cancellationToken) =>
-        startCommercialEditHandler.HandleAsync(new StartCommercialEditCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Reason, request.RedoPrintCard), cancellationToken);
+        startCommercialEditHandler.HandleAsync(new StartCommercialEditCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Reason, request.RedoPrintCard, request.ClientEvidenceAttachmentId), cancellationToken);
 
     [HttpPost("assign-engineering")]
     [Authorize(Policy = "AreaIngenieria")]
@@ -88,8 +89,14 @@ public sealed class NpiWorkflowController(
     /// <summary>Ingeniería confirma que sigue siendo factible después de que Comercial cambió campos que ya había revisado.</summary>
     [HttpPost("engineering-reconfirmation")]
     [Authorize(Policy = "AreaIngenieria")]
-    public Task<NpiDetailDto> EngineeringReconfirmation(Guid id, [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] NoteRequest? request, CancellationToken cancellationToken) =>
-        reconfirmEngineeringFeasibilityHandler.HandleAsync(new ReconfirmEngineeringFeasibilityCommand(id, User.ToCurrentUser(), User.DisplayName(), request?.Note), cancellationToken);
+    public Task<NpiDetailDto> EngineeringReconfirmation(Guid id, [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] EngineeringReconfirmationRequest? request, CancellationToken cancellationToken) =>
+        reconfirmEngineeringFeasibilityHandler.HandleAsync(new ReconfirmEngineeringFeasibilityCommand(id, User.ToCurrentUser(), User.DisplayName(), request?.Note, request?.PtDecision), cancellationToken);
+
+    /// <summary>Diseño revisa un cambio del cliente después del PT: el PrintCard sigue igual o necesita versión nueva.</summary>
+    [HttpPost("design-reconfirmation")]
+    [Authorize(Policy = "AreaDiseno")]
+    public Task<NpiDetailDto> DesignReconfirmation(Guid id, DesignReconfirmationRequest request, CancellationToken cancellationToken) =>
+        reconfirmDesignHandler.HandleAsync(new ReconfirmDesignAfterClientChangeCommand(id, User.ToCurrentUser(), User.DisplayName(), request.RedoPrintCard, request.Note), cancellationToken);
 
     [HttpPost("design-feasibility")]
     [Authorize(Policy = "AreaDiseno")]
@@ -108,8 +115,8 @@ public sealed class NpiWorkflowController(
 
     [HttpPost("validate-artwork")]
     [Authorize(Policy = "AreaDiseno")]
-    public Task<NpiDetailDto> ValidateArtwork(Guid id, CancellationToken cancellationToken) =>
-        validateArtworkHandler.HandleAsync(new ValidateArtworkCommand(id, User.ToCurrentUser(), User.DisplayName()), cancellationToken);
+    public Task<NpiDetailDto> ValidateArtwork(Guid id, CancellationToken cancellationToken, [FromQuery] bool closeRejection = false) =>
+        validateArtworkHandler.HandleAsync(new ValidateArtworkCommand(id, User.ToCurrentUser(), User.DisplayName(), closeRejection), cancellationToken);
 
     [HttpPost("register-sap-pt")]
     [Authorize(Policy = "AreaIngenieria")]

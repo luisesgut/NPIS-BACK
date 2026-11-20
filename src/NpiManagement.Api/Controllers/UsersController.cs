@@ -17,7 +17,7 @@ namespace NpiManagement.Api.Controllers;
 [ApiController]
 [Route("api/users")]
 [Authorize(Policy = "AnyAdmin")]
-public sealed class UsersController(IUserDirectory userDirectory, IUserAdminService userAdminService, NpiManagement.Application.Users.IClientViewGrantStore clientViews) : ControllerBase
+public sealed class UsersController(IUserDirectory userDirectory, IUserAdminService userAdminService, NpiManagement.Application.Users.IClientViewGrantStore clientViews, NpiManagement.Application.Users.ICommercialTeamStore teams) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] AreaType? area, CancellationToken cancellationToken)
@@ -103,6 +103,28 @@ public sealed class UsersController(IUserDirectory userDirectory, IUserAdminServ
         var clean = NpiManagement.Application.Users.ClientViewGrants.CleanGrants(request.Clientes, request.Trabajar);
         await clientViews.ReplaceAsync(id, clean, User.ToCurrentUser().UserId, cancellationToken);
         return Ok(clean);
+    }
+
+    /// <summary>
+    /// Director de Comercial de un vendedor ("Mi equipo", 2026-11-18): un Admin Comercial activo. El vendedor
+    /// trabaja los NPIs de su director y el director ve a su equipo en "Mi equipo".
+    /// </summary>
+    [HttpPut("{id:guid}/director")]
+    [Authorize(Policy = "AdminTotal")]
+    public async Task<IActionResult> SetDirector(Guid id, SetDirectorRequest request, CancellationToken cancellationToken)
+    {
+        var user = await userDirectory.FindAsync(id, cancellationToken);
+        if (user is null) return Problem(statusCode: StatusCodes.Status404NotFound, title: "El usuario no existe.");
+        if (request.DirectorUserId is { } directorId)
+        {
+            if (user.Role != ApplicationRoles.UsuarioComercial)
+                return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Sólo los usuarios de Comercial llevan director.");
+            var director = await userDirectory.FindAsync(directorId, cancellationToken);
+            if (director is null || director.Role != ApplicationRoles.AdminComercial || director.Status != UserStatus.Active)
+                return Problem(statusCode: StatusCodes.Status400BadRequest, title: "El director debe ser un Admin Comercial activo.");
+        }
+        await teams.SetDirectorAsync(id, request.DirectorUserId, cancellationToken);
+        return NoContent();
     }
 
     /// <summary>Cambia el rol de una cuenta aprobada (el área la impone el rol). No sobre la cuenta propia.</summary>

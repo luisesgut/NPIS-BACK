@@ -19,6 +19,9 @@ public sealed record ApproveUserRequest(
     [Required] AreaType Area);
 
 /// <param name="Trabajar">De esos clientes, los que además puede trabajar ("Ver y trabajar", 2026-11-10).</param>
+/// <summary>Director de Comercial del vendedor; null = sin director ("Mi equipo", 2026-11-18).</summary>
+public sealed record SetDirectorRequest(Guid? DirectorUserId);
+
 public sealed record SetClientViewsRequest(IReadOnlyList<string>? Clientes, IReadOnlyList<string>? Trabajar = null);
 
 // La validación va en el parámetro, no con [property:]: en un record ASP.NET truena con 500 (2026-11-10).

@@ -135,6 +135,27 @@ public sealed class ClosureProposalTests
         act.Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("closure-proposal-pending");
     }
 
+    private CurrentUser Designer => new(_designerId, "UsuarioDiseno", AreaType.Diseno);
+
+    private Task<NpiDetailDto> ProposeDesignNoFeasibility(Npi npi) =>
+        new RejectDesignNoFeasibilityCommandHandler(_repo, new FakeUnitOfWork(), _clock, _calendar, _notifications, _users)
+            .HandleAsync(new RejectDesignNoFeasibilityCommand(npi.Id, Designer, "Diseñador", "El arte no se puede imprimir"), CancellationToken.None);
+
+    [Fact]
+    public async Task A_design_no_feasibility_is_announced_to_and_can_be_confirmed_by_the_engineering_admin_too()
+    {
+        var npi = ActiveNpi();
+        var proposed = await ProposeDesignNoFeasibility(npi);
+        proposed.ClosureProposals.Should().ContainSingle().Which.Area.Should().Be("Diseno");
+        _notifications.Sent.Select(n => n.RecipientUserId).Should().Contain([_designAdminId, _engineeringAdminId, _adminTotalId]);
+
+        var result = await new ConfirmClosureProposalCommandHandler(_repo, new FakeUnitOfWork(), _clock, _calendar, _notifications)
+            .HandleAsync(new ConfirmClosureProposalCommand(npi.Id, EngineeringAdmin, "Jefa de Ingeniería", null), CancellationToken.None);
+
+        result.LifecycleStatus.Should().Be("Rejected");
+        result.TerminalReason.Should().Be("DesignNoFeasibility");
+    }
+
     [Fact]
     public async Task Another_area_admin_cannot_decide_it()
     {

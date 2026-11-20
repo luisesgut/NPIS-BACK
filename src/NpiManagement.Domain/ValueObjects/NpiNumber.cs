@@ -31,8 +31,24 @@ public sealed partial class NpiNumber : IEquatable<NpiNumber>
         return new NpiNumber(value);
     }
 
+    /// <summary>
+    /// Folio que alguien escribió en un buscador (2026-11-20): "NPI-0080", "npi 80", "0080" u "80" son NPI-0080.
+    /// Sólo si el texto es un folio; cualquier otra cosa (un cliente, una cotización con letras) no.
+    /// </summary>
+    public static bool TryParseSearch(string? text, out NpiNumber? number)
+    {
+        number = null;
+        var match = SearchRegex().Match(text?.Trim() ?? string.Empty);
+        if (!match.Success || !long.TryParse(match.Groups[1].Value, out var value) || value <= 0) return false;
+        number = FromSequenceValue(value);
+        return true;
+    }
+
     [GeneratedRegex(@"^NPI-\d{4,}$")]
     private static partial Regex FormatRegex();
+
+    [GeneratedRegex(@"^(?:NPI[\s-]*)?(\d{1,9})$", RegexOptions.IgnoreCase)]
+    private static partial Regex SearchRegex();
 
     public bool Equals(NpiNumber? other) => other is not null && Value == other.Value;
     public override bool Equals(object? obj) => Equals(obj as NpiNumber);

@@ -13,6 +13,7 @@ public sealed class NpiComment
 {
     public const int MaxTextLength = 4000;
     public const int MaxMentions = 10;
+    public const int MaxAttachments = 10;
 
     public Guid Id { get; }
     public Guid NpiId { get; }
@@ -24,6 +25,12 @@ public sealed class NpiComment
     /// <summary>Usuarios mencionados con @ (ya validados por Application: existen y pueden ver el NPI).</summary>
     public List<Guid> MentionedUserIds { get; private set; } = [];
 
+    /// <summary>
+    /// Fotos y archivos del mensaje (2026-11-19): son adjuntos normales del NPI (contexto Comment, se ven también en
+    /// Adjuntos); aquí sólo se guarda cuáles lleva. Application valida que sean de este NPI.
+    /// </summary>
+    public List<Guid> AttachmentIds { get; private set; } = [];
+
     private NpiComment(Guid id, Guid npiId, Guid authorUserId, string authorName, string text, DateTimeOffset createdAt)
     {
         Id = id;
@@ -34,12 +41,16 @@ public sealed class NpiComment
         CreatedAt = createdAt;
     }
 
-    public static NpiComment Create(Guid npiId, Actor author, IClock clock, string text, IEnumerable<Guid>? mentionedUserIds = null)
+    public static NpiComment Create(Guid npiId, Actor author, IClock clock, string text, IEnumerable<Guid>? mentionedUserIds = null, IEnumerable<Guid>? attachmentIds = null)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        var files = (attachmentIds ?? []).Distinct().ToList();
+        // Un mensaje puede ser sólo una foto o un archivo, sin texto.
+        if (string.IsNullOrWhiteSpace(text) && files.Count == 0)
             throw new NpiValidationException("comment-empty", "El mensaje no puede estar vacío.");
+        if (files.Count > MaxAttachments)
+            throw new NpiValidationException("comment-too-many-attachments", $"Se pueden mandar como máximo {MaxAttachments} archivos por mensaje.");
 
-        var trimmed = text.Trim();
+        var trimmed = (text ?? string.Empty).Trim();
         if (trimmed.Length > MaxTextLength)
             throw new NpiValidationException("comment-too-long", $"El mensaje no puede pasar de {MaxTextLength} caracteres.");
 
@@ -51,6 +62,7 @@ public sealed class NpiComment
         return new NpiComment(Guid.NewGuid(), npiId, author.UserId, author.Name, trimmed, clock.UtcNow)
         {
             MentionedUserIds = mentions,
+            AttachmentIds = files,
         };
     }
 }

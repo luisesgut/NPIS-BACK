@@ -11,7 +11,8 @@ namespace NpiManagement.Application.Npis.Commands;
 /// Después edita en el formulario y reenvía (SubmitNpiCommand). RedoPrintCard: el cambio afecta el
 /// PrintCard y Diseño debe rehacerlo.
 /// </summary>
-public sealed record StartCommercialEditCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Reason, bool RedoPrintCard);
+/// <remarks>Después del PT (2026-11-12) es un cambio del cliente: ClientEvidenceAttachmentId (su correo) es obligatorio.</remarks>
+public sealed record StartCommercialEditCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Reason, bool RedoPrintCard, Guid? ClientEvidenceAttachmentId = null);
 
 public sealed class StartCommercialEditCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
 {
@@ -21,11 +22,14 @@ public sealed class StartCommercialEditCommandHandler(INpiRepository repository,
         if (!NpiAuthorization.CanManageDraft(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
         var retiredBefore = npi.AuditLog.Count(e => e.Action == "PrintCardRetiredByCommercial");
-        npi.StartCommercialEdit(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Reason, command.RedoPrintCard);
+        var afterPt = npi.PtRegisteredAt is not null;
+        npi.StartCommercialEdit(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Reason, command.RedoPrintCard, command.ClientEvidenceAttachmentId);
         var printCardRetired = npi.AuditLog.Count(e => e.Action == "PrintCardRetiredByCommercial") > retiredBefore;
 
         // Diseño se entera siempre (y por correo si tendrá que rehacer el PrintCard); Ingeniería, por la campana.
-        var text = $"Comercial está modificando el NPI {npi.NpiNumber?.Value}: {command.Reason.Trim()}";
+        var text = afterPt
+            ? $"Cambio del cliente después del PT en el NPI {npi.NpiNumber?.Value}: {command.Reason.Trim()}. Cuando Comercial lo reenvíe, te tocará revisar si te afecta. Mientras tanto no se registra pedido ni ET"
+            : $"Comercial está modificando el NPI {npi.NpiNumber?.Value}: {command.Reason.Trim()}";
         if (npi.AssignedDesignUserId is { } designerId)
             notifications.Notify(designerId,
                 printCardRetired ? $"{text}. El cambio afecta el PrintCard: cuando lo reenvíe tendrás que hacer una versión nueva." : text,

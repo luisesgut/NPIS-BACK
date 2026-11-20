@@ -40,6 +40,9 @@ public interface INpiChatStore
 
     void Add(NpiComment message);
 
+    /// <summary>Los archivos del chat (contexto Comment) de ese NPI que existan entre esos Ids; los demás se ignoran.</summary>
+    Task<IReadOnlyList<ChatAttachmentDto>> FindAttachmentsAsync(Guid npiId, IReadOnlyCollection<Guid> attachmentIds, CancellationToken cancellationToken);
+
     /// <summary>Página de mensajes, del más reciente al más antiguo.</summary>
     Task<PagedResult<NpiComment>> ListAsync(Guid npiId, int page, int pageSize, CancellationToken cancellationToken);
 

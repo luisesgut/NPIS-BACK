@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using NpiManagement.Application.Abstractions;
 using NpiManagement.Application.Authorization;
+using NpiManagement.Application.Npis.Dtos;
 using NpiManagement.Application.Npis.Queries;
+using NpiManagement.Domain;
 using NpiManagement.Domain.Entities;
 using NpiManagement.Infrastructure.Persistence;
 using NpiManagement.Infrastructure.Persistence.Entities;
@@ -30,6 +32,17 @@ public sealed class EfNpiChatStore(NpiManagementDbContext dbContext) : INpiChatS
     }
 
     public void Add(NpiComment message) => dbContext.NpiComments.Add(message);
+
+    public async Task<IReadOnlyList<ChatAttachmentDto>> FindAttachmentsAsync(Guid npiId, IReadOnlyCollection<Guid> attachmentIds, CancellationToken cancellationToken)
+    {
+        if (attachmentIds.Count == 0) return [];
+        var ids = attachmentIds.ToList();
+        return await dbContext.Set<Attachment>()
+            .AsNoTracking()
+            .Where(a => EF.Property<Guid>(a, "NpiId") == npiId && a.Context == AttachmentContext.Comment && ids.Contains(a.Id))
+            .Select(a => new ChatAttachmentDto(a.Id, a.FileName, a.ContentType, a.SizeBytes))
+            .ToListAsync(cancellationToken);
+    }
 
     public async Task<PagedResult<NpiComment>> ListAsync(Guid npiId, int page, int pageSize, CancellationToken cancellationToken)
     {

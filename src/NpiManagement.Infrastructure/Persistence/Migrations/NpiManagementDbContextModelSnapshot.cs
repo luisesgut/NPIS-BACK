@@ -559,6 +559,10 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.PrimitiveCollection<string>("AttachmentIds")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("AuthorName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -885,6 +889,9 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("AssignedEngineeringUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("BasedOnNpiId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("CodigoPT")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -1134,6 +1141,9 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("DirectorUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -1190,6 +1200,8 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Area");
+
+                    b.HasIndex("DirectorUserId");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -2433,6 +2445,11 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("TipoTinta")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("TipoWicket")
                                 .IsRequired()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");

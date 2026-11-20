@@ -129,7 +129,8 @@ public sealed class RequestDesignChangesCommandHandler(INpiRepository repository
 }
 
 /// <summary>Ingeniería revisa lo que Comercial cambió después de su factibilidad y confirma que sigue siendo factible.</summary>
-public sealed record ReconfirmEngineeringFeasibilityCommand(Guid NpiId, CurrentUser Actor, string ActorName, string? Note);
+/// <remarks>Después del PT (cambio del cliente, 2026-11-12) PtDecision es obligatoria.</remarks>
+public sealed record ReconfirmEngineeringFeasibilityCommand(Guid NpiId, CurrentUser Actor, string ActorName, string? Note, PtDecision? PtDecision = null);
 
 public sealed class ReconfirmEngineeringFeasibilityCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
 {
@@ -138,10 +139,43 @@ public sealed class ReconfirmEngineeringFeasibilityCommandHandler(INpiRepository
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.ReconfirmEngineeringFeasibility(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Note);
+        var previousPt = npi.CodigoPT;
+        npi.ReconfirmEngineeringFeasibility(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Note, command.PtDecision);
+        var text = command.PtDecision is { } decision && previousPt is not null
+            ? $"Ingeniería revisó el cambio del cliente en el NPI {npi.NpiNumber?.Value}: {Npi.PtDecisionLabel(decision)}.{(string.IsNullOrWhiteSpace(command.Note) ? "" : $" {command.Note.Trim()}")}"
+            : NotificationText.Reconfirmed(npi.NpiNumber?.Value, command.Note);
         if (npi.AssignedDesignUserId is { } designerId)
-            notifications.Notify(designerId, NotificationText.Reconfirmed(npi.NpiNumber?.Value, command.Note), npi.Id);
-        notifications.Notify(npi.AssignedCommercialUserId, NotificationText.Reconfirmed(npi.NpiNumber?.Value, command.Note), npi.Id);
+            notifications.Notify(designerId, text, npi.Id);
+        notifications.Notify(npi.AssignedCommercialUserId, text, npi.Id);
+        // PT nuevo con el pedido ya capturado: no se bloquea, pero Comercial debe corregirlo en SAP (2026-11-12).
+        if (command.PtDecision == PtDecision.NewPt && previousPt is not null && npi.PedidoSapNumber is { } pedido)
+            notifications.Notify(npi.AssignedCommercialUserId,
+                $"Ingeniería dará de alta un PT nuevo para el NPI {npi.NpiNumber?.Value} (antes {previousPt}). El pedido {pedido} ya estaba capturado: corrígelo en SAP con el PT nuevo cuando se registre.",
+                npi.Id, NotificationChannel.BellAndEmail);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+    }
+}
+
+/// <summary>Diseño revisa un cambio del cliente después del PT: el PrintCard sigue igual o necesita versión nueva (2026-11-12).</summary>
+public sealed record ReconfirmDesignAfterClientChangeCommand(Guid NpiId, CurrentUser Actor, string ActorName, bool RedoPrintCard, string? Note);
+
+public sealed class ReconfirmDesignAfterClientChangeCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
+{
+    public async Task<NpiDetailDto> HandleAsync(ReconfirmDesignAfterClientChangeCommand command, CancellationToken cancellationToken)
+    {
+        var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
+
+        npi.ReconfirmDesignAfterClientChange(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.RedoPrintCard, command.Note);
+        var note = string.IsNullOrWhiteSpace(command.Note) ? "" : $" {command.Note.Trim()}";
+        var text = command.RedoPrintCard
+            ? $"Diseño revisó el cambio del cliente en el NPI {npi.NpiNumber?.Value}: hará una versión nueva del PrintCard.{note}"
+            : $"Diseño revisó el cambio del cliente en el NPI {npi.NpiNumber?.Value}: el PrintCard sigue igual.{note}";
+        notifications.Notify(npi.AssignedCommercialUserId, text, npi.Id);
+        if (npi.AssignedEngineeringUserId is { } engineerId)
+            notifications.Notify(engineerId, text, npi.Id, command.RedoPrintCard ? NotificationChannel.BellAndEmail : NotificationChannel.Bell);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));

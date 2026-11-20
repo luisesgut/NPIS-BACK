@@ -28,6 +28,11 @@ public sealed class FakeNpiChatStore : INpiChatStore
 
     public void Add(NpiComment message) => Messages.Add(message);
 
+    public Task<IReadOnlyList<ChatAttachmentDto>> FindAttachmentsAsync(Guid npiId, IReadOnlyCollection<Guid> attachmentIds, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ChatAttachmentDto>>(_npis.TryGetValue(npiId, out var n)
+            ? n.Attachments.Where(a => a.Context == AttachmentContext.Comment && attachmentIds.Contains(a.Id)).Select(a => new ChatAttachmentDto(a.Id, a.FileName, a.ContentType, a.SizeBytes)).ToList()
+            : []);
+
     public Task<PagedResult<NpiComment>> ListAsync(Guid npiId, int page, int pageSize, CancellationToken cancellationToken)
     {
         var all = Messages.Where(m => m.NpiId == npiId).OrderByDescending(m => m.CreatedAt).ToList();

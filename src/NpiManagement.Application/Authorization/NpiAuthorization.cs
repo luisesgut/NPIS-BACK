@@ -6,7 +6,8 @@ namespace NpiManagement.Application.Authorization;
 /// <summary>Identidad resuelta desde el token (nunca desde el body de la petición) — ver docs/api-contract.md §12.</summary>
 /// <param name="ViewClients">Clientes cuyos NPIs puede CONSULTAR aunque no sean suyos ("Clientes que puede ver", 2026-11-10).</param>
 /// <param name="WorkClients">De ésos, los que además puede TRABAJAR ("Ver y trabajar"): actúa como el equipo de su área.</param>
-public sealed record CurrentUser(Guid UserId, string Role, AreaType Area, IReadOnlySet<string>? ViewClients = null, IReadOnlySet<string>? WorkClients = null);
+/// <param name="DirectorUserId">Director de Comercial del vendedor ("Mi equipo", 2026-11-18): trabaja también los NPIs de su director.</param>
+public sealed record CurrentUser(Guid UserId, string Role, AreaType Area, IReadOnlySet<string>? ViewClients = null, IReadOnlySet<string>? WorkClients = null, Guid? DirectorUserId = null);
 
 /// <summary>Snapshot mínimo de propiedad/asignación de un Npi, suficiente para decidir autorización sin cargar el agregado completo.</summary>
 /// <param name="Participants">Equipo del NPI (2026-11-10): actúan como el responsable de su área.</param>
@@ -53,8 +54,17 @@ public static class NpiAuthorization
         };
         return own
             || (UserAreaOf(user) is { } area && npi.Participants?.Any(p => p.UserId == user.UserId && p.Area == area) == true)
-            || (npi.Lifecycle is { } lifecycle && WorksOnClient(user, npi.Cliente, lifecycle));
+            || (npi.Lifecycle is { } lifecycle && (WorksOnClient(user, npi.Cliente, lifecycle) || WorksForDirector(user, npi.CreatedByUserId, npi.AssignedCommercialUserId, lifecycle)));
     }
+
+    /// <summary>
+    /// "Mi equipo" (2026-11-18): el vendedor ve y trabaja los NPIs de su director de Comercial como si
+    /// fueran suyos. Nunca borradores (siguen siendo de quien los captura). El director es AdminComercial
+    /// y ya ve todo; los vendedores no se ven entre ellos.
+    /// </summary>
+    public static bool WorksForDirector(CurrentUser user, Guid createdByUserId, Guid assignedCommercialUserId, LifecycleStatus lifecycle) =>
+        lifecycle != LifecycleStatus.Draft && user.Role == ApplicationRoles.UsuarioComercial && user.DirectorUserId is { } director
+        && (createdByUserId == director || assignedCommercialUserId == director);
 
     /// <summary>
     /// "Ver y trabajar" (2026-11-10): AdminTotal le compartió el cliente para operar sus NPIs como el
@@ -83,12 +93,17 @@ public static class NpiAuthorization
     };
 
     private static bool IsTeamMember(CurrentUser user, Npi npi, AreaType area) =>
-        UserAreaOf(user) == area && (npi.IsParticipant(user.UserId, area) || WorksOnClient(user, npi.Capture.Cliente, npi.LifecycleStatus));
+        UserAreaOf(user) == area && (npi.IsParticipant(user.UserId, area) || WorksOnClient(user, npi.Capture.Cliente, npi.LifecycleStatus)
+            || (area == AreaType.Comercial && WorksForDirector(user, npi.CreatedByUserId, npi.AssignedCommercialUserId, npi.LifecycleStatus)));
 
-    /// <summary>Lo puede trabajar sólo por "Ver y trabajar" (no es responsable ni del equipo): el front lo trata como equipo.</summary>
+    /// <summary>
+    /// Lo puede trabajar sólo por "Ver y trabajar" del cliente o por ser NPI de su director (no es responsable
+    /// ni del equipo): el front lo trata como equipo.
+    /// </summary>
     public static bool WorksOnlyByClient(CurrentUser user, Npi npi) =>
         UserAreaOf(user) is { } area && !npi.IsResponsible(user.UserId, area) && !npi.IsParticipant(user.UserId, area)
-        && WorksOnClient(user, npi.Capture.Cliente, npi.LifecycleStatus);
+        && (WorksOnClient(user, npi.Capture.Cliente, npi.LifecycleStatus)
+            || (area == AreaType.Comercial && WorksForDirector(user, npi.CreatedByUserId, npi.AssignedCommercialUserId, npi.LifecycleStatus)));
 
     /// <summary>Agregar o quitar gente del equipo de un área: su admin, AdminTotal o el responsable de esa área.</summary>
     public static bool CanManageParticipants(CurrentUser user, Npi npi, AreaType area) =>
@@ -118,9 +133,11 @@ public static class NpiAuthorization
 
         var id = user.UserId;
         var clients = user.ViewClients.ToList();
+        var director = user.DirectorUserId;
         return user.Role switch
         {
-            "UsuarioComercial" => npi => npi.CreatedByUserId == id || npi.AssignedCommercialUserId == id || npi.Participants.Any(p => p.UserId == id && p.Area == AreaType.Comercial) || (npi.LifecycleStatus != LifecycleStatus.Draft && clients.Contains(npi.Capture.Cliente)),
+            "UsuarioComercial" => npi => npi.CreatedByUserId == id || npi.AssignedCommercialUserId == id || npi.Participants.Any(p => p.UserId == id && p.Area == AreaType.Comercial) || (npi.LifecycleStatus != LifecycleStatus.Draft && clients.Contains(npi.Capture.Cliente))
+                || (director != null && npi.LifecycleStatus != LifecycleStatus.Draft && (npi.CreatedByUserId == director || npi.AssignedCommercialUserId == director)),
             "UsuarioIngenieria" => npi => npi.AssignedEngineeringUserId == id || npi.Participants.Any(p => p.UserId == id && p.Area == AreaType.Ingenieria) || (npi.LifecycleStatus != LifecycleStatus.Draft && clients.Contains(npi.Capture.Cliente)),
             "UsuarioDiseno" => npi => npi.AssignedDesignUserId == id || npi.Participants.Any(p => p.UserId == id && p.Area == AreaType.Diseno) || (npi.LifecycleStatus != LifecycleStatus.Draft && clients.Contains(npi.Capture.Cliente)),
             _ => _ => false,
@@ -147,7 +164,16 @@ public static class NpiAuthorization
         user.Role is "UsuarioComercial" or "UsuarioIngenieria" or "UsuarioDiseno";
 
     /// <summary>Confirmar o no autorizar una propuesta de cierre: el admin de esa área o AdminTotal (misma regla que asignar).</summary>
-    public static bool CanReviewClosure(CurrentUser user, AreaType area) => CanAssign(user, area);
+    public static bool CanReviewClosure(CurrentUser user, AreaType area) => ClosureReviewerRoles(area).Contains(user.Role);
+
+    /// <summary>
+    /// Quién da el visto bueno a un cierre de esa área: su admin y AdminTotal. La no factibilidad de Diseño también
+    /// la puede decidir el admin de Ingeniería (2026-11-19, pedido de Luis).
+    /// </summary>
+    public static IReadOnlyList<string> ClosureReviewerRoles(AreaType area) =>
+        area == AreaType.Diseno
+            ? ["AdminTotal", AdminRoleOf(AreaType.Diseno), AdminRoleOf(AreaType.Ingenieria)]
+            : ["AdminTotal", AdminRoleOf(area)];
 
     /// <summary>
     /// Editar un borrador (acción 2 de workflow.md) es más estricto que CanAccess: sólo
@@ -165,7 +191,8 @@ public static class NpiAuthorization
     /// pueda traducirla a SQL (WHERE) al listar — nunca se carga todo y se filtra en memoria.
     /// Debe mantenerse en sincronía con CanAccess (ver prueba de consistencia en Application.Tests).
     /// </summary>
-    public static Expression<Func<Npi, bool>> BuildAccessPredicate(CurrentUser user)
+    /// <param name="includeDirector">false: sin los NPIs del director del vendedor ("Tu turno" y su dashboard son de lo suyo).</param>
+    public static Expression<Func<Npi, bool>> BuildAccessPredicate(CurrentUser user, bool includeDirector = true)
     {
         if (AdminRoles.Contains(user.Role) || IsDirector(user))
             return _ => true;
@@ -173,9 +200,11 @@ public static class NpiAuthorization
         var id = user.UserId;
         // "Ver y trabajar": los NPIs (no borradores) de esos clientes también son suyos para operar.
         var work = user.WorkClients?.ToList() ?? [];
+        var director = includeDirector ? user.DirectorUserId : null;
         return user.Role switch
         {
-            "UsuarioComercial" => npi => npi.CreatedByUserId == id || npi.AssignedCommercialUserId == id || npi.Participants.Any(p => p.UserId == id && p.Area == AreaType.Comercial) || (npi.LifecycleStatus != LifecycleStatus.Draft && work.Contains(npi.Capture.Cliente)),
+            "UsuarioComercial" => npi => npi.CreatedByUserId == id || npi.AssignedCommercialUserId == id || npi.Participants.Any(p => p.UserId == id && p.Area == AreaType.Comercial) || (npi.LifecycleStatus != LifecycleStatus.Draft && work.Contains(npi.Capture.Cliente))
+                || (director != null && npi.LifecycleStatus != LifecycleStatus.Draft && (npi.CreatedByUserId == director || npi.AssignedCommercialUserId == director)),
             "UsuarioIngenieria" => npi => npi.AssignedEngineeringUserId == id || npi.Participants.Any(p => p.UserId == id && p.Area == AreaType.Ingenieria) || (npi.LifecycleStatus != LifecycleStatus.Draft && work.Contains(npi.Capture.Cliente)),
             "UsuarioDiseno" => npi => npi.AssignedDesignUserId == id || npi.Participants.Any(p => p.UserId == id && p.Area == AreaType.Diseno) || (npi.LifecycleStatus != LifecycleStatus.Draft && work.Contains(npi.Capture.Cliente)),
             _ => _ => false,

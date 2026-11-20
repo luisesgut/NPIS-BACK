@@ -28,6 +28,8 @@ public sealed class NpiCommentConfiguration : IEntityTypeConfiguration<NpiCommen
         // Lista corta de Guids guardada como JSON: sólo se usa para mostrar y resaltar la mención,
         // nunca se filtra por ella en SQL (los pendientes salen de NpiChatReads).
         builder.PrimitiveCollection(c => c.MentionedUserIds).IsRequired();
+        // Igual: los archivos del mensaje (2026-11-19); los datos de cada archivo están en Attachments.
+        builder.PrimitiveCollection(c => c.AttachmentIds).IsRequired();
 
         builder.HasOne<Npi>()
             .WithMany()

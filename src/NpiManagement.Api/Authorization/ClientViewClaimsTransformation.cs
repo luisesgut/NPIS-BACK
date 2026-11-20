@@ -10,11 +10,13 @@ namespace NpiManagement.Api.Authorization;
 /// 2026-11-10). Van como claims de la petición y no en el token: así un cambio de AdminTotal aplica
 /// al momento (con un minuto de caché), sin que la persona tenga que volver a entrar.
 /// </summary>
-public sealed class ClientViewClaimsTransformation(IClientViewGrantStore grants) : IClaimsTransformation
+public sealed class ClientViewClaimsTransformation(IClientViewGrantStore grants, ICommercialTeamStore teams) : IClaimsTransformation
 {
     public const string ClaimType = "view_client";
     /// <summary>"Ver y trabajar": clientes cuyos NPIs además puede operar como el equipo de su área.</summary>
     public const string WorkClaimType = "work_client";
+    /// <summary>Director de Comercial del vendedor ("Mi equipo", 2026-11-18): trabaja también los NPIs de él.</summary>
+    public const string DirectorClaimType = "commercial_director";
     private const string LoadedMarker = "view_clients_loaded";
 
     public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
@@ -32,6 +34,8 @@ public sealed class ClientViewClaimsTransformation(IClientViewGrantStore grants)
         identity.AddClaim(new Claim(LoadedMarker, "1"));
         foreach (var cliente in clients.View) identity.AddClaim(new Claim(ClaimType, cliente));
         foreach (var cliente in clients.Work) identity.AddClaim(new Claim(WorkClaimType, cliente));
+        if (role == ApplicationRoles.UsuarioComercial && await teams.GetDirectorIdAsync(userId, CancellationToken.None) is { } directorId)
+            identity.AddClaim(new Claim(DirectorClaimType, directorId.ToString()));
         principal.AddIdentity(identity);
         return principal;
     }

@@ -31,7 +31,10 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
             var term = filter.Search.Trim();
             // También por el nombre de quien lo tiene asignado (Comercial, Ingeniería o Diseño).
             var usersMatching = dbContext.Users.Where(u => EF.Functions.Like(u.FullName, $"%{term}%")).Select(u => u.Id);
+            // Por folio (2026-11-20): "NPI-0080", "0080" u "80" encuentran NPI-0080 (exacto, usa el índice).
+            var folio = Domain.ValueObjects.NpiNumber.TryParseSearch(term, out var parsed) ? parsed : null;
             query = query.Where(n =>
+                (folio != null && n.NpiNumber == folio) ||
                 EF.Functions.Like(n.Capture.Cliente, $"%{term}%") ||
                 EF.Functions.Like(n.Capture.NumeroCotizacion, $"%{term}%") ||
                 EF.Functions.Like(n.Capture.DescripcionProducto, $"%{term}%") ||
@@ -61,6 +64,23 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
 
         if (!string.IsNullOrWhiteSpace(filter.Priority) && Enum.TryParse<Priority>(filter.Priority, true, out var priority))
             query = query.Where(n => n.Priority == priority);
+
+        if (filter.MineUserId is { } me)
+            query = filter.MineArea switch
+            {
+                AreaType.Ingenieria => query.Where(n => n.AssignedEngineeringUserId == me || n.AssignedEngineeringUserId == null ||
+                    n.Participants.Any(p => p.UserId == me && p.Area == AreaType.Ingenieria)),
+                AreaType.Diseno => query.Where(n => n.AssignedDesignUserId == me || n.AssignedDesignUserId == null ||
+                    n.Participants.Any(p => p.UserId == me && p.Area == AreaType.Diseno)),
+                _ => query.Where(n => n.CreatedByUserId == me || n.AssignedCommercialUserId == me ||
+                    n.Participants.Any(p => p.UserId == me && p.Area == AreaType.Comercial)),
+            };
+
+        if (filter.TeamUserIds is { } team)
+            query = query.Where(n => team.Contains(n.CreatedByUserId) || team.Contains(n.AssignedCommercialUserId));
+
+        if (filter.CreatedByAnyOf is { } creators)
+            query = query.Where(n => creators.Contains(n.CreatedByUserId));
 
         if (filter.CreatedByUserId is { } createdBy)
             query = query.Where(n => n.CreatedByUserId == createdBy);
@@ -104,6 +124,10 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                 n.Capture.Cliente,
                 n.Capture.NumeroCotizacion,
                 n.Capture.DescripcionProducto,
+                n.Capture.TipoProducto,
+                n.Capture.Ancho,
+                n.Capture.Alto,
+                n.Capture.UnidadMedidas,
                 n.RequestDate,
                 n.CreatedByUserId,
                 n.AssignedEngineeringUserId,
@@ -122,6 +146,7 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                 PrintCardLoaded = n.PrintCardLoadedAt != null,
                 PtRegistered = n.PtRegisteredAt != null,
                 SapOrderRegistered = n.PedidoSapNumber != null,
+                n.PedidoSapNumber,
                 EtLoadedInSispro = n.EtLoadedInSisproAt != null,
                 // Mismo criterio que NpiStageMilestones.CountsAsLinked / Npi.SisproQuoteAccepted: una
                 // aceptada impide ligar otra, así que "existe una aceptada" equivale a "la vigente está aceptada".
@@ -199,6 +224,8 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                     _ => null,
                 },
                 r.PendingReconfirmation, r.CommercialEditing,
+                PedidoSapNumber: r.PedidoSapNumber,
+                TipoProducto: r.TipoProducto, Ancho: r.Ancho, Alto: r.Alto, UnidadMedidas: r.UnidadMedidas,
                 Team: r.Team.Select(t => new NpiTeamMemberDto(t.UserId, NameOf(t.UserId) ?? GetNpiAssigneesQueryHandler.UnknownUserName, t.Area.ToString())).ToList()))
             .ToList();
 
@@ -209,7 +236,7 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
 
     // Versiones retiradas porque cambió la información (no porque Ingeniería las rechazara).
     private static readonly HashSet<string> RetiredReasons =
-        [Npi.PrintCardRetiredByDesignReason, Npi.PrintCardRetiredByEngineeringReason, Npi.PrintCardRetiredByCommercialReason];
+        [Npi.PrintCardRetiredByDesignReason, Npi.PrintCardRetiredByEngineeringReason, Npi.PrintCardRetiredByCommercialReason, Npi.PrintCardRetiredByClientChangeReason];
 
     private static string? PrintCardStepOf(PrintCardFacts? pc, bool loaded)
     {

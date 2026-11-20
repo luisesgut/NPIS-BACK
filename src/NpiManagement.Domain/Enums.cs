@@ -182,6 +182,22 @@ public enum ChangeRequestOrigin
     Reconfirmation = 3,
     /// <summary>Comercial→Comercial: Comercial modifica el NPI por su cuenta (Npi.StartCommercialEdit); se resuelve al reenviar.</summary>
     CommercialEdit = 4,
+    /// <summary>
+    /// Comercial→Diseño (2026-11-12): un cambio del cliente después del PT tocó datos del PrintCard; Diseño
+    /// revisa si sigue igual o necesita versión nueva (Npi.ReconfirmDesignAfterClientChange). 20 caracteres justos.
+    /// </summary>
+    DesignReconfirmation = 5,
+}
+
+/// <summary>
+/// Qué decide Ingeniería sobre el PT al revisar un cambio del cliente después del PT (2026-11-12).
+/// NewPt: el PT actual pasa al historial (bitácora) y el NPI regresa a "Alta en sistemas".
+/// </summary>
+public enum PtDecision
+{
+    KeepPt = 0,
+    UpdatePtSameCode = 1,
+    NewPt = 2,
 }
 
 /// <summary>

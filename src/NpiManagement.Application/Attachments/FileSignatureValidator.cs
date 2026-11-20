@@ -10,6 +10,8 @@ public static class FileSignatureValidator
     public static bool MatchesContentType(ReadOnlySpan<byte> header, string contentType) => contentType switch
     {
         "application/pdf" => StartsWith(header, [0x25, 0x50, 0x44, 0x46]), // %PDF
+        // .ai guardado "compatible con PDF" (opción por omisión de Illustrator): también empieza con %PDF.
+        IllustratorFiles.ContentType => StartsWith(header, [0x25, 0x50, 0x44, 0x46]),
         "image/jpeg" => StartsWith(header, [0xFF, 0xD8, 0xFF]),
         "image/png" => StartsWith(header, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
         _ => false,

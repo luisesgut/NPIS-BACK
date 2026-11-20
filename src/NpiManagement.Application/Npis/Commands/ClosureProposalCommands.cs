@@ -61,12 +61,12 @@ internal static class Closure
         }
     }
 
-    /// <summary>Al admin del área y a AdminTotal: hay un cierre esperando su visto bueno.</summary>
+    /// <summary>A quienes pueden decidir (admin del área, AdminTotal; en Diseño también el de Ingeniería): hay un cierre esperando su visto bueno.</summary>
     private static async Task NotifyReviewersAsync(Npi npi, ClosureProposal proposal, IUserDirectory userDirectory, INotificationService notifications, CancellationToken cancellationToken)
     {
-        var areaAdmin = NpiAuthorization.AdminRoleOf(proposal.Area);
+        var reviewerRoles = NpiAuthorization.ClosureReviewerRoles(proposal.Area);
         var reviewers = (await userDirectory.ListAsync(null, cancellationToken))
-            .Where(u => u.Status == UserStatus.Active && (u.Role == areaAdmin || u.Role == "AdminTotal"))
+            .Where(u => u.Status == UserStatus.Active && reviewerRoles.Contains(u.Role))
             .Select(u => u.Id);
         notifications.NotifyMany(reviewers,
             NotificationText.ClosureProposed(npi.NpiNumber?.Value, proposal.ProposedByName, Label(proposal.Reason), proposal.Note),

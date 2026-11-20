@@ -26,7 +26,8 @@ public sealed class NpiAttachmentsController(
     /// <summary>Límite razonable de tamaño de request para evitar que un cliente intente enviar
     /// un archivo enorme antes de que la validación de negocio (IAttachmentPolicy) lo rechace.</summary>
     [HttpPost]
-    [RequestSizeLimit(20 * 1024 * 1024)]
+    // El archivo (50 MB, FileStorageOptions) más el sobre del formulario multipart.
+    [RequestSizeLimit(55 * 1024 * 1024)]
     public async Task<ActionResult<AttachmentDto>> Upload(Guid id, IFormFile file, [FromForm] AttachmentContext context, CancellationToken cancellationToken)
     {
         await using var stream = file.OpenReadStream();

@@ -12,7 +12,8 @@ namespace NpiManagement.Application.Npis.Commands;
 /// Acción 28 de workflow.md — Mensaje en el chat del NPI (antes "comentario"). Permitido incluso en
 /// estado terminal (registro histórico).
 /// </summary>
-public sealed record AddCommentCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Text, IReadOnlyCollection<Guid>? MentionedUserIds = null);
+/// <summary>AttachmentIds: fotos/archivos ya subidos al NPI con contexto Comment (2026-11-19).</summary>
+public sealed record AddCommentCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Text, IReadOnlyCollection<Guid>? MentionedUserIds = null, IReadOnlyCollection<Guid>? AttachmentIds = null);
 
 public sealed class AddCommentCommandHandler(
     INpiChatStore chat,
@@ -30,8 +31,13 @@ public sealed class AddCommentCommandHandler(
             throw new RequestValidationException("chat-not-participant", "Sólo los participantes de este NPI (quien lo creó y sus responsables de Comercial, Ingeniería y Diseño) y los administradores pueden escribir en el chat.");
 
         var author = new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName);
-        var message = NpiComment.Create(npi.NpiId, author, clock, command.Text, command.MentionedUserIds);
+        var message = NpiComment.Create(npi.NpiId, author, clock, command.Text, command.MentionedUserIds, command.AttachmentIds);
         await EnsureMentionsAreParticipantsAsync(message.MentionedUserIds, npi, cancellationToken);
+
+        // Sólo archivos del chat de este mismo NPI: no se puede "colgar" un adjunto de otro NPI ni el PrintCard.
+        var files = await chat.FindAttachmentsAsync(npi.NpiId, message.AttachmentIds, cancellationToken);
+        if (files.Count != message.AttachmentIds.Count)
+            throw new RequestValidationException("chat-invalid-attachment", "Alguno de los archivos ya no existe o no es de este NPI. Vuelve a adjuntarlo.");
 
         chat.Add(message);
         // Quien escribe ya está viendo la conversación: su marca de leído avanza con su propio mensaje.
@@ -42,21 +48,33 @@ public sealed class AddCommentCommandHandler(
         // spam y la gente acaba filtrando el remitente. Ahora el correo es sólo para quien mencionan
         // (le piden algo a esa persona); al resto le queda un único aviso de campana por NPI.
         var mentioned = message.MentionedUserIds;
-        notifications.NotifyMany(mentioned, NotificationText.Mention(npi.NpiNumber, author.Name, message.Text), npi.NpiId, NotificationChannel.BellAndEmail);
+        var noticeText = NoticeText(message.Text, files.Count);
+        notifications.NotifyMany(mentioned, NotificationText.Mention(npi.NpiNumber, author.Name, noticeText), npi.NpiId, NotificationChannel.BellAndEmail);
 
         var others = npi.ParticipantIds.Where(id => id != author.UserId && !mentioned.Contains(id)).ToList();
         foreach (var recipient in others)
-            await notifications.NotifyGroupedAsync(recipient, NotificationText.ChatGroupKey(npi.NpiId), NotificationText.ChatMessage(npi.NpiNumber, author.Name, message.Text), npi.NpiId, cancellationToken);
+            await notifications.NotifyGroupedAsync(recipient, NotificationText.ChatGroupKey(npi.NpiId), NotificationText.ChatMessage(npi.NpiNumber, author.Name, noticeText), npi.NpiId, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var dto = ToDto(message);
+        var dto = ToDto(message, files);
         await realtime.MessagePostedAsync(dto, others.Concat(mentioned).ToList(), cancellationToken);
         return dto;
     }
 
-    internal static CommentDto ToDto(NpiComment c) =>
-        new(c.Id, c.NpiId, c.AuthorUserId, c.AuthorName, c.Text, c.CreatedAt, c.MentionedUserIds.ToList());
+    internal static CommentDto ToDto(NpiComment c, IEnumerable<ChatAttachmentDto>? files = null)
+    {
+        // En el orden en que se adjuntaron; los que se borraron de Adjuntos simplemente ya no salen.
+        var byId = (files ?? []).ToDictionary(f => f.Id);
+        var attachments = c.AttachmentIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
+        return new(c.Id, c.NpiId, c.AuthorUserId, c.AuthorName, c.Text, c.CreatedAt, c.MentionedUserIds.ToList(), attachments);
+    }
+
+    /// <summary>Texto de la campana/correo: si el mensaje es sólo un archivo, que diga eso en vez de quedar vacío.</summary>
+    internal static string NoticeText(string text, int fileCount) =>
+        fileCount == 0 ? text
+        : string.IsNullOrEmpty(text) ? (fileCount == 1 ? "📎 Mandó un archivo" : $"📎 Mandó {fileCount} archivos")
+        : $"{text} (📎 {fileCount})";
 
     /// <summary>
     /// Sólo se puede mencionar a participantes activos: una mención no da acceso, y avisarle a alguien

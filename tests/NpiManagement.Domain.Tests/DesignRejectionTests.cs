@@ -148,6 +148,25 @@ public class DesignRejectionTests
     }
 
     [Fact]
+    public void Design_can_close_its_own_artwork_rejection_and_validate_in_one_step_after_approving_feasibility()
+    {
+        // Bug NPI-0080 (2026-11-20): rechazo de artes → factibilidad aprobada → el rechazo abierto bloqueaba el PrintCard.
+        var npi = CreateActiveAssigned(_clock);
+        npi.RejectArtwork(Designer, _clock, Calendar, "¿Transparente o blanco?", null);
+        npi.ApproveDesignFeasibility(Designer, _clock, null, ArtClassification.A);
+        _clock.Advance(TimeSpan.FromHours(1));
+
+        npi.ValidateArtwork(Designer, _clock, Calendar, closeRejection: true);
+
+        npi.ArtesValidadasAt.Should().NotBeNull();
+        var rejection = npi.ChangeRequests.Single(c => c.Origin == ChangeRequestOrigin.ArtworkRejected);
+        rejection.IsResolved.Should().BeTrue();
+        rejection.WithdrawnAt.Should().NotBeNull();
+        npi.CommercialTimer.IsRunning.Should().BeFalse("ya no espera nada de Comercial");
+        npi.AuditLog.Should().Contain(e => e.Action == "ArtworkRejectionWithdrawn");
+    }
+
+    [Fact]
     public void Commercial_must_upload_new_artwork_before_returning_it()
     {
         var npi = CreateActiveAssigned(_clock);

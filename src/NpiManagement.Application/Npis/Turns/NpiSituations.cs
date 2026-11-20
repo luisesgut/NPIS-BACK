@@ -109,7 +109,7 @@ public sealed class NpiSituationResolver(INpiTurnReader reader, DashboardGoals g
                 var (stage, _) = goals.ForAction(t.Action)!.Value;
                 if (stage == "correcciones") situations.Add(NpiSituation.Changes);
                 if (NpiStageGroup.FromDashboardStage(stage) is { } group) stages.Add(group);
-                if (t.Action == NpiTurns.ReconfirmFeasibility) situations.Add(NpiSituation.Reconfirmation);
+                if (t.Action is NpiTurns.ReconfirmFeasibility or NpiTurns.ReviewClientChange) situations.Add(NpiSituation.Reconfirmation);
             }
             result[npi.Key] = new NpiSituationFlags(situations, stages);
         }

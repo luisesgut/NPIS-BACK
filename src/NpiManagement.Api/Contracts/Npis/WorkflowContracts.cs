@@ -17,7 +17,14 @@ public sealed record AssignDesignRequest([Required] Guid UserId, ArtClassificati
 public sealed record NoteRequest(string? Note);
 
 /// <summary>Comercial modifica el NPI por su cuenta: motivo (lo ven Ingeniería y Diseño) y si el cambio afecta el PrintCard.</summary>
-public sealed record StartCommercialEditRequest([Required] string Reason, bool RedoPrintCard = false);
+/// <summary>ClientEvidenceAttachmentId: el correo del cliente; obligatorio después del PT (2026-11-12).</summary>
+public sealed record StartCommercialEditRequest([Required] string Reason, bool RedoPrintCard = false, Guid? ClientEvidenceAttachmentId = null);
+
+/// <summary>PtDecision: obligatoria si el NPI ya tiene PT (cambio del cliente después del PT).</summary>
+public sealed record EngineeringReconfirmationRequest(string? Note, NpiManagement.Domain.PtDecision? PtDecision = null);
+
+/// <summary>Diseño revisa un cambio del cliente después del PT. Note obligatoria si RedoPrintCard.</summary>
+public sealed record DesignReconfirmationRequest(bool RedoPrintCard, string? Note);
 
 /// <summary>Reabrir un NPI cerrado por error: el motivo es obligatorio (queda en el historial).</summary>
 public sealed record ReopenNpiRequest([Required] string Reason);

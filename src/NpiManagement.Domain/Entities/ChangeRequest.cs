@@ -72,6 +72,12 @@ public sealed class ChangeRequest
 
     public bool IsResolved => ResolvedAt is not null;
 
+    /// <summary>
+    /// "Modificar NPI" después del PT por un cambio del cliente (2026-11-12): es la única modificación de
+    /// Comercial que trae evidencia (el correo del cliente, obligatorio). Antes del PT nunca la lleva.
+    /// </summary>
+    public bool IsClientChangeAfterPt => Origin == ChangeRequestOrigin.CommercialEdit && EvidenceAttachmentId is not null;
+
     /// <summary>Quien la pidió la retiró antes de que Comercial la atendiera (cuenta como cerrada, sin cambios).</summary>
     public DateTimeOffset? WithdrawnAt { get; private set; }
 
@@ -82,13 +88,13 @@ public sealed class ChangeRequest
         FieldKeys = fieldKeys;
     }
 
-    internal void Withdraw(Actor actor, DateTimeOffset at)
+    internal void Withdraw(Actor actor, DateTimeOffset at, string? comment = null)
     {
         WithdrawnAt = at;
         ResolvedAt = at;
         ResolvedByUserId = actor.UserId;
         ResolvedByName = actor.Name;
-        ResponseComment = "Retirada por quien la pidió";
+        ResponseComment = comment ?? "Retirada por quien la pidió";
     }
 
     public IReadOnlyList<FieldChange> ChangesApplied =>

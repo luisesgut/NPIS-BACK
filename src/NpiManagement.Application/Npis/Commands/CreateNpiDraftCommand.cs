@@ -6,7 +6,8 @@ using NpiManagement.Domain.Common;
 namespace NpiManagement.Application.Npis.Commands;
 
 /// <summary>Acción 1 de workflow.md — Crear borrador. Actor siempre viene del token, nunca del body.</summary>
-public sealed record CreateNpiDraftCommand(Guid ActorUserId, string ActorRole, string ActorName, NpiCaptureDto Capture, Priority Priority, Guid? PreAssignedEngineeringUserId);
+/// <param name="Viewer">Usuario completo del token (director, clientes compartidos) para decidir si puede ligar el NPI de origen.</param>
+public sealed record CreateNpiDraftCommand(Guid ActorUserId, string ActorRole, string ActorName, NpiCaptureDto Capture, Priority Priority, Guid? PreAssignedEngineeringUserId, Guid? BasedOnNpiId = null, Authorization.CurrentUser? Viewer = null);
 
 public sealed class CreateNpiDraftCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IUserDirectory userDirectory)
 {
@@ -17,6 +18,16 @@ public sealed class CreateNpiDraftCommandHandler(INpiRepository repository, IUni
 
         var actor = new Actor(command.ActorUserId, command.ActorRole, command.ActorName);
         var npi = Npi.CreateDraft(Guid.NewGuid(), actor, clock, command.Capture.ToDomain(), command.Priority, command.PreAssignedEngineeringUserId);
+
+        // "Partir de un NPI anterior": sólo se liga si existe y quien captura lo puede ver; si no, se ignora
+        // (nunca hace fallar la captura). Con el usuario completo: un vendedor puede partir de un NPI de su
+        // director (2026-11-20); antes se armaba sin director y la liga se perdía sin avisar.
+        var viewer = command.Viewer ?? new Authorization.CurrentUser(command.ActorUserId, command.ActorRole, AreaType.Comercial);
+        if (command.BasedOnNpiId is { } sourceId
+            && await repository.GetByIdAsync(sourceId, cancellationToken) is { } source
+            && Authorization.NpiAuthorization.CanView(viewer,
+                Authorization.NpiAuthorization.OwnershipOf(source), source.Capture.Cliente, source.LifecycleStatus))
+            npi.MarkBasedOn(sourceId);
 
         repository.Add(npi);
         await unitOfWork.SaveChangesAsync(cancellationToken);

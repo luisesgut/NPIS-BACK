@@ -57,6 +57,7 @@ public sealed class EfNpiTurnReader(NpiManagementDbContext dbContext, IClock clo
                 SisproQuoteAccepted = n.SisproQuotes.Any(q => q.Status == SisproQuoteStatus.Accepted),
                 PendingReconfirmation = n.ChangeRequests.Any(c => c.Origin == ChangeRequestOrigin.Reconfirmation && c.ResolvedAt == null),
                 PendingCommercialEdit = n.ChangeRequests.Any(c => c.Origin == ChangeRequestOrigin.CommercialEdit && c.ResolvedAt == null),
+                PendingDesignReconfirmation = n.ChangeRequests.Any(c => c.Origin == ChangeRequestOrigin.DesignReconfirmation && c.ResolvedAt == null),
             })
             .ToListAsync(cancellationToken);
 
@@ -82,7 +83,8 @@ public sealed class EfNpiTurnReader(NpiManagementDbContext dbContext, IClock clo
                 SisproQuoteGate.Enabled && r.LifecycleStatus == LifecycleStatus.Active && r.EngineeringFeasibility && !r.SisproQuoteAccepted && r.Current is null,
                 r.PendingReconfirmation,
                 r.PendingCommercialEdit,
-                r.PendingEngineeringInfo);
+                r.PendingEngineeringInfo,
+                r.PendingDesignReconfirmation);
 
             foreach (var turn in NpiTurns.For(facts))
             {

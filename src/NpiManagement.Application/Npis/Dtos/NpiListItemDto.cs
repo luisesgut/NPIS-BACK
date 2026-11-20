@@ -52,4 +52,11 @@ public sealed record NpiListItemDto(
     /// <summary>Comercial abrió "Modificar NPI" y no lo ha reenviado.</summary>
     bool CommercialEditing = false,
     /// <summary>Equipo del NPI con nombres (2026-11-10), para mostrarlo junto al responsable.</summary>
-    IReadOnlyList<Queries.NpiTeamMemberDto>? Team = null);
+    IReadOnlyList<Queries.NpiTeamMemberDto>? Team = null,
+    /// <summary>Tipo de producto y medida (en mm, con la unidad en que se capturó) para reconocer el NPI en los paneles (2026-11-10).</summary>
+    string? TipoProducto = null,
+    string? Ancho = null,
+    string? Alto = null,
+    string? UnidadMedidas = null,
+    /// <summary>Número de la orden de venta en SAP, para verlo en los paneles sin abrir el NPI (2026-11-10).</summary>
+    string? PedidoSapNumber = null);

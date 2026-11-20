@@ -33,7 +33,8 @@ public sealed record TurnFacts(
     bool AwaitingSisproQuote,
     bool PendingEngineeringReconfirmation = false,
     bool PendingCommercialEdit = false,
-    bool PendingEngineeringInfo = false);
+    bool PendingEngineeringInfo = false,
+    bool PendingDesignReconfirmation = false);
 
 /// <summary>Qué le toca a un área en un NPI. Action es un código estable; el texto lo pone el frontend.</summary>
 public sealed record AreaTurn(AreaType Area, string Action);
@@ -70,6 +71,7 @@ public static class NpiTurns
     public const string MakePrintCard = "MakePrintCard";
     public const string FixPrintCard = "FixPrintCard";
     public const string LoadPrintCard = "LoadPrintCard";
+    public const string ReviewClientChange = "ReviewClientChange";
 
     /// <summary>Acciones que sólo hace el admin del área (asignar).</summary>
     public static readonly IReadOnlySet<string> AdminOnly = new HashSet<string> { AssignEngineer, AssignDesigner };
@@ -86,6 +88,9 @@ public static class NpiTurns
         }
         if (f.Lifecycle != LifecycleStatus.Active) return turns;
 
+        // Cambio del cliente después del PT sin terminar (Npi.ClientChangeUnderReview): no hay pedido ni ET.
+        var clientChangeUnderReview = f.PendingDesignReconfirmation
+            || (f.PtRegistered && (f.PendingEngineeringReconfirmation || f.PendingCommercialEdit || !f.PrintCardLoaded));
         var printCardWithClient = f.HasPrintCard && !f.PrintCardRejected && f.PrintCardEngineeringApproved && !f.PrintCardClientApproved && !f.PendingClientChanges && !f.PrintCardLoaded;
         var printCardWithEngineering = f.HasPrintCard && !f.PrintCardRejected && !f.PrintCardEngineeringApproved && !f.PendingClientChanges && !f.PrintCardLoaded;
 
@@ -98,7 +103,7 @@ public static class NpiTurns
         if (f.SuppliesTemporaryRejection) Add(AreaType.Comercial, ResolveSupplies);
         if (f.AwaitingSisproQuote) Add(AreaType.Comercial, QuoteInSispro);
         if (printCardWithClient) Add(AreaType.Comercial, f.PrintCardSentToClient ? RegisterClientResponse : SendPrintCardToClient);
-        if (f.PtRegistered && !f.SapOrderRegistered) Add(AreaType.Comercial, RegisterSapOrder);
+        if (f.PtRegistered && !f.SapOrderRegistered && !clientChangeUnderReview) Add(AreaType.Comercial, RegisterSapOrder);
 
         // ===== Ingeniería =====
         // Mientras Comercial atiende los cambios que pidió Ingeniería, su reloj está en pausa (Npi.RequestEngineeringChanges):
@@ -107,13 +112,14 @@ public static class NpiTurns
         else if (!f.EngineeringFeasibility && !f.PendingEngineeringChanges && !f.SuppliesTemporaryRejection) Add(AreaType.Ingenieria, ReviewEngineeringFeasibility);
         if (f.PendingEngineeringReconfirmation && !f.PendingEngineeringChanges) Add(AreaType.Ingenieria, ReconfirmFeasibility);
         if (printCardWithEngineering && !f.PendingEngineeringChanges) Add(AreaType.Ingenieria, ReviewPrintCard);
-        if (f.PrintCardLoaded && !f.PtRegistered && !f.PendingEngineeringChanges && !f.PendingEngineeringReconfirmation && !f.PendingCommercialEdit) Add(AreaType.Ingenieria, RegisterPt);
-        if (f.SapOrderRegistered && !f.EtCreated) Add(AreaType.Ingenieria, CreateEt);
-        if (f.EtCreated && !f.EtLoaded) Add(AreaType.Ingenieria, LoadEtInSispro);
+        if (f.PrintCardLoaded && !f.PtRegistered && !f.PendingEngineeringChanges && !f.PendingEngineeringReconfirmation && !f.PendingCommercialEdit && !f.PendingDesignReconfirmation) Add(AreaType.Ingenieria, RegisterPt);
+        if (f.SapOrderRegistered && f.PtRegistered && !f.EtCreated && !clientChangeUnderReview) Add(AreaType.Ingenieria, CreateEt);
+        if (f.EtCreated && !f.EtLoaded && !clientChangeUnderReview) Add(AreaType.Ingenieria, LoadEtInSispro);
         if (f.PendingEngineeringInfo) Add(AreaType.Ingenieria, AnswerDesignQuestions);
 
         // ===== Diseño =====
         // Mientras espera lo que pidió a Comercial o a Ingeniería, su reloj está en pausa: no le toca.
+        if (f.DesignerAssigned && f.PendingDesignReconfirmation) Add(AreaType.Diseno, ReviewClientChange);
         if (!f.DesignerAssigned) Add(AreaType.Diseno, AssignDesigner);
         else if (f.PendingCommercialInfo || f.PendingEngineeringInfo) { }
         else if (!f.DesignFeasibility)

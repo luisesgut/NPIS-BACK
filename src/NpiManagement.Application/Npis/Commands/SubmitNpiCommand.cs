@@ -36,6 +36,7 @@ public sealed class SubmitNpiCommandHandler(
         var designWasWaiting = npi.DesignAreaStatus == DesignAreaStatus.ChangesRequested;
         var commercialEdit = npi.PendingCommercialEdit;
         var reconfirmationsBefore = npi.AuditLog.Count(e => e.Action == "EngineeringReconfirmationRequested");
+        var designReconfirmationsBefore = npi.AuditLog.Count(e => e.Action == "DesignReconfirmationRequested");
 
         npi.Submit(actor, clock, calendar, number, command.Comment);
 
@@ -69,8 +70,12 @@ public sealed class SubmitNpiCommandHandler(
             if (commercialEdit is not null)
             {
                 var edited = $"Comercial modificó el NPI {npi.NpiNumber?.Value} ({commercialEdit.ChangesApplied.Count} campo{(commercialEdit.ChangesApplied.Count == 1 ? "" : "s")}). Motivo: {commercialEdit.Description}";
+                // Cambio del cliente tras el PT que toca el PrintCard: a Diseño le toca revisarlo (un solo aviso).
+                var designMustReview = npi.AuditLog.Count(e => e.Action == "DesignReconfirmationRequested") > designReconfirmationsBefore;
                 if (npi.AssignedDesignUserId is { } designer)
-                    notifications.Notify(designer, edited, npi.Id, NotificationChannel.BellAndEmail);
+                    notifications.Notify(designer,
+                        designMustReview ? $"{edited}. Es un cambio del cliente después del PT: revisa si el PrintCard sigue igual o necesita una versión nueva." : edited,
+                        npi.Id, NotificationChannel.BellAndEmail);
                 if (npi.PendingEngineeringReconfirmation is null && npi.AssignedEngineeringUserId is { } engineer)
                     notifications.Notify(engineer, edited, npi.Id);
             }

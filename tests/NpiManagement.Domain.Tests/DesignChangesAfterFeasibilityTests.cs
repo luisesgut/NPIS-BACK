@@ -207,13 +207,14 @@ public class DesignChangesAfterFeasibilityTests
     }
 
     [Fact]
-    public void Commercial_edit_needs_a_reason_and_is_not_allowed_after_the_pt()
+    public void Commercial_edit_needs_a_reason_and_after_the_pt_the_clients_email()
     {
         var npi = CreateWithPrintCardLoaded(_clock);
         ((Action)(() => npi.StartCommercialEdit(Commercial, _clock, Calendar, " ", false))).Should().Throw<NpiValidationException>();
         npi.RegisterSapPt(Engineer, _clock, Calendar, "PT-1", null);
+        // Desde 2026-11-12 sí se puede después del PT (cambio del cliente), con su correo: ClientChangeAfterPtTests.
         ((Action)(() => npi.StartCommercialEdit(Commercial, _clock, Calendar, "x", false)))
-            .Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("pt-already-registered");
+            .Should().Throw<NpiValidationException>().Which.Code.Should().Be("client-change-evidence-required");
     }
 
     [Fact]

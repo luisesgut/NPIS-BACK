@@ -33,7 +33,7 @@ public sealed class NpiCommentsController(
     public async Task<ActionResult<CommentDto>> Add(Guid id, AddCommentRequest request, CancellationToken cancellationToken)
     {
         var comment = await addHandler.HandleAsync(
-            new AddCommentCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Text, request.MentionedUserIds),
+            new AddCommentCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Text ?? string.Empty, request.MentionedUserIds, request.AttachmentIds),
             cancellationToken);
         return StatusCode(StatusCodes.Status201Created, comment);
     }

@@ -20,7 +20,18 @@ public sealed record NpiListFilter(
     string? Situation = null,
     string? Stage = null,
     string? Area = null,
-    IReadOnlyCollection<Guid>? OnlyIds = null)
+    IReadOnlyCollection<Guid>? OnlyIds = null,
+    /// <summary>
+    /// "Mis NPIs" del admin de un área (2026-11-11). Comercial: los que capturó, tiene asignados o en los
+    /// que está en el equipo. Ingeniería/Diseño: los suyos (responsable o equipo) más los que faltan por
+    /// asignar en esa área, porque asignar es su trabajo. Lo llena el handler con el token, nunca el cliente.
+    /// </summary>
+    Guid? MineUserId = null,
+    Domain.AreaType? MineArea = null,
+    /// <summary>"Mi equipo": NPIs capturados o asignados (Comercial) a estas personas. Lo llena el handler.</summary>
+    IReadOnlyCollection<Guid>? TeamUserIds = null,
+    /// <summary>"Partir de un NPI anterior": NPIs capturados por alguna de estas personas (el vendedor y su director). Lo llena el handler.</summary>
+    IReadOnlyCollection<Guid>? CreatedByAnyOf = null)
 {
     public int NormalizedPage => Page < 1 ? 1 : Page;
     public int NormalizedPageSize => PageSize is < 1 or > 100 ? 20 : PageSize;

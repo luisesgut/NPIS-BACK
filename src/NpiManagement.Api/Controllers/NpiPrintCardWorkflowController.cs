@@ -21,9 +21,37 @@ public sealed class NpiPrintCardWorkflowController(
     RejectPrintCardCommandHandler rejectPrintCardHandler,
     SetClientChangeItemCommandHandler setClientChangeItemHandler,
     SetPrintCardObservationCommandHandler setPrintCardObservationHandler,
-    ReplacePrintCardFileCommandHandler replaceFileHandler) : ControllerBase
+    ReplacePrintCardFileCommandHandler replaceFileHandler,
+    ReplaceApprovedPrintCardCommandHandler replaceApprovedHandler,
+    UpdateFinalPrintCardCommandHandler updateFinalHandler) : ControllerBase
 {
+    public sealed record UpdateFinalPrintCardRequest(
+        [System.ComponentModel.DataAnnotations.Required] string Code,
+        Guid? AttachmentId,
+        [System.ComponentModel.DataAnnotations.Required] string Reason);
+
+    /// <summary>Diseño actualiza el PrintCard final ya cargado en sistema (también con PT o NPI completado).</summary>
+    [HttpPost("printcard-final")]
+    [Authorize(Policy = "AreaDiseno")]
+    public Task<NpiDetailDto> UpdateFinalPrintCard(Guid id, UpdateFinalPrintCardRequest request, CancellationToken cancellationToken) =>
+        updateFinalHandler.HandleAsync(new UpdateFinalPrintCardCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Code, request.AttachmentId, request.Reason), cancellationToken);
+
     public sealed record ReplacePrintCardFileRequest(Guid AttachmentId);
+
+    /// <summary>Validación en el parámetro, no con [property:] (ver RequestContractsTests).</summary>
+    public sealed record ReplaceApprovedPrintCardRequest(
+        [System.ComponentModel.DataAnnotations.Required] string Code,
+        Guid? AttachmentId,
+        [System.ComponentModel.DataAnnotations.Required] string Reason,
+        bool NeedsEngineeringApproval,
+        bool NeedsClientApproval);
+
+    /// <summary>Diseño reemplaza un PrintCard ya aprobado, hasta que se registra el PT (2026-11-11).</summary>
+    [HttpPost("printcard-replace")]
+    [Authorize(Policy = "AreaDiseno")]
+    public Task<NpiDetailDto> ReplaceApprovedPrintCard(Guid id, ReplaceApprovedPrintCardRequest request, CancellationToken cancellationToken) =>
+        replaceApprovedHandler.HandleAsync(new ReplaceApprovedPrintCardCommand(id, User.ToCurrentUser(), User.DisplayName(),
+            request.Code, request.AttachmentId, request.Reason, request.NeedsEngineeringApproval, request.NeedsClientApproval), cancellationToken);
 
     /// <summary>Reemplaza el archivo del PrintCard vigente mientras Ingeniería no lo ha revisado.</summary>
     [HttpPost("printcard-file")]

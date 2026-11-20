@@ -10,7 +10,11 @@ namespace NpiManagement.Application.Npis.Dtos;
 public sealed record TimerDto(bool HasStarted, bool IsRunning, bool IsClosed, long ElapsedMs, bool IsTicking = false, long? MsUntilChange = null);
 
 /// <summary>Mensaje del chat del NPI (antes "comentario"). MentionedUserIds: a quiénes se mencionó con @.</summary>
-public sealed record CommentDto(Guid Id, Guid NpiId, Guid AuthorUserId, string AuthorName, string Text, DateTimeOffset CreatedAt, IReadOnlyList<Guid> MentionedUserIds);
+/// <summary>Attachments: fotos y archivos del mensaje (2026-11-19); los que se borraron de Adjuntos ya no salen.</summary>
+public sealed record CommentDto(Guid Id, Guid NpiId, Guid AuthorUserId, string AuthorName, string Text, DateTimeOffset CreatedAt, IReadOnlyList<Guid> MentionedUserIds, IReadOnlyList<ChatAttachmentDto>? Attachments = null);
+
+/// <summary>Lo que el chat necesita de un archivo para pintarlo (miniatura si es imagen) y descargarlo.</summary>
+public sealed record ChatAttachmentDto(Guid Id, string FileName, string ContentType, long SizeBytes);
 
 public sealed record FieldChangeDto(string Field, string Before, string After);
 
@@ -124,7 +128,9 @@ public sealed record NpiDetailDto(
     /// <summary>Equipo del NPI (2026-11-10): los nombres vienen en /assignees.</summary>
     IReadOnlyList<NpiParticipantDto>? Participants = null,
     /// <summary>Quien lo consulta puede trabajarlo porque AdminTotal le compartió el cliente con "Ver y trabajar".</summary>
-    bool ClientWork = false);
+    bool ClientWork = false,
+    /// <summary>NPI del que partió; el folio y qué cambió vienen en /based-on (2026-11-11).</summary>
+    Guid? BasedOnNpiId = null);
 
 public sealed record NpiParticipantDto(Guid UserId, string Area, string AddedByName, DateTimeOffset AddedAt);
 

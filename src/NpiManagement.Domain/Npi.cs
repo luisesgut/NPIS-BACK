@@ -25,6 +25,8 @@ public sealed class Npi
     public DesignAreaStatus DesignAreaStatus { get; private set; }
 
     public Guid CreatedByUserId { get; }
+    /// <summary>NPI del que partió Comercial al capturar éste ("Partir de un NPI anterior", 2026-11-11).</summary>
+    public Guid? BasedOnNpiId { get; private set; }
     public DateTimeOffset CreatedAt { get; }
 
     /// <summary>
@@ -156,6 +158,13 @@ public sealed class Npi
     }
 
     /// <summary>Acción 1 — Crear borrador.</summary>
+    /// <summary>Se anota al crear el borrador; después ya no cambia.</summary>
+    public void MarkBasedOn(Guid sourceNpiId)
+    {
+        if (LifecycleStatus != Domain.LifecycleStatus.Draft || BasedOnNpiId is not null || sourceNpiId == Id) return;
+        BasedOnNpiId = sourceNpiId;
+    }
+
     public static Npi CreateDraft(
         Guid id,
         Actor actor,
@@ -250,7 +259,8 @@ public sealed class Npi
 
         // Reenvío tras "Rechazar con cambios" de Ingeniería, de Diseño o de ambos: Comercial corrige la
         // captura una sola vez y el mismo reenvío atiende las dos solicitudes.
-        var engineeringChangesPending = EngineeringAreaStatus == EngineeringAreaStatus.ChangesRequested;
+        // También una solicitud de Ingeniería que quedó abierta aunque el estatus ya diga otra cosa (NPI-0037).
+        var engineeringChangesPending = EngineeringAreaStatus == EngineeringAreaStatus.ChangesRequested || PendingEngineeringChangeRequest is not null;
         var designChangesPending = PendingDesignChangeRequest is not null;
         var commercialEdit = PendingCommercialEdit;
         if (LifecycleStatus == Domain.LifecycleStatus.Active && (engineeringChangesPending || designChangesPending || commercialEdit is not null))
@@ -287,6 +297,7 @@ public sealed class Npi
             {
                 commercialEdit.Resolve(actor, now, comment, Capture);
                 resolved.Add(commercialEdit);
+                if (commercialEdit.IsClientChangeAfterPt) RequestDesignReconfirmation(actor, clock, now, commercialEdit);
                 // Si Diseño esperaba algo del cliente, la modificación lo resuelve: se cierra con lo que cambió.
                 if (_informationRequests.FirstOrDefault(r => r.Type == InformationRequestType.Commercial && r.Status == InformationRequestStatus.Pending) is { } info)
                 {
@@ -423,6 +434,13 @@ public sealed class Npi
             throw new InvalidNpiTransitionException("engineering-feasibility-already-approved", "La factibilidad de Ingeniería ya fue aprobada.");
 
         var now = clock.UtcNow;
+        // Bug NPI-0037 (2026-11-13): Ingeniería pidió cambios (una pregunta), aprobó sin esperar la respuesta y
+        // la solicitud quedó abierta para siempre, bloqueando el PrintCard sin verse. Al aprobar, se cierra sola.
+        if (PendingEngineeringChangeRequest is { } open)
+        {
+            open.Withdraw(actor, now, "Se cerró sola: Ingeniería aprobó la factibilidad sin esperar la corrección.");
+            Audit(actor, now, "ChangeRequestWithdrawn", AreaType.Ingenieria.ToString());
+        }
         _feasibilityReviews.Add(new FeasibilityReview(Guid.NewGuid(), AreaType.Ingenieria, actor.UserId, actor.Name, now, note, confirmedFieldKeys));
         EngineeringAreaStatus = EngineeringAreaStatus.FeasibilityApproved;
 
@@ -432,6 +450,8 @@ public sealed class Npi
         TryStartDesignTimer(actor, clock, now);
         // Con la estructura validada, a Comercial le toca cotizarla en SISPRO.
         if (AwaitingSisproQuote) RunCommercialTimer(actor, clock, now, "Factibilidad aprobada: cotizar en SISPRO");
+        // Si el reloj de Comercial corría sólo por la solicitud que se cerró, se detiene.
+        else if (!CommercialHasPendingWork) PauseTimer(TimerStage.Commercial, actor, clock, calendar, now);
 
         Audit(actor, now, "EngineeringFeasibilityApproved", note);
         _domainEvents.Add(new EngineeringFeasibilityApprovedEvent(Id, now));
@@ -555,8 +575,12 @@ public sealed class Npi
     public void RejectNoFeasibility(Actor actor, IClock clock, IBusinessCalendar calendar, string? note) =>
         Close(Domain.TerminalReason.NoFeasibility, actor, clock, calendar, note, null);
 
-    /// <summary>Acción 11 — Artes Validadas (Diseño).</summary>
-    public void ValidateArtwork(Actor actor, IClock clock)
+    /// <summary>
+    /// Acción 11 — Artes Validadas (Diseño). Con <paramref name="closeRejection"/>, Diseño cierra su propio rechazo de
+    /// artes y las valida en el mismo paso: el cliente confirmó por fuera o Diseño ya tiene las correctas (bug NPI-0080,
+    /// 2026-11-20: Diseño rechazó las artes, luego aprobó su factibilidad y el rechazo abierto bloqueaba el PrintCard sin verse).
+    /// </summary>
+    public void ValidateArtwork(Actor actor, IClock clock, IBusinessCalendar? calendar = null, bool closeRejection = false)
     {
         EnsureNotTerminal();
         EnsureNoClosureUnderReview(AreaType.Diseno);
@@ -565,15 +589,24 @@ public sealed class Npi
             throw new InvalidNpiTransitionException("design-not-assigned", "El NPI no tiene un diseñador asignado.");
         if (ArtesValidadasAt is not null)
             throw new InvalidNpiTransitionException("artwork-already-validated", "Las artes ya fueron validadas.");
-        if (PendingArtworkRejection is not null)
+        var rejection = PendingArtworkRejection;
+        if (rejection is not null && (!closeRejection || calendar is null))
             throw new InvalidNpiTransitionException("artwork-rejection-pending", "Diseño rechazó las artes y Comercial aún no sube las corregidas.");
 
         var now = clock.UtcNow;
+        if (rejection is not null)
+        {
+            rejection.Withdraw(actor, now, "Diseño validó las artes: cerró su propio rechazo.");
+            Audit(actor, now, "ArtworkRejectionWithdrawn", null);
+            if (!CommercialHasPendingWork) PauseTimer(TimerStage.Commercial, actor, clock, calendar!, now);
+        }
         ArtesValidadasAt = now;
         ArtesValidadasByUserId = actor.UserId;
         DesignAreaStatus = DesignAreaStatus.ArtesValidadas;
 
-        TryStartDesignTimer(actor, clock, now);
+        // El rechazo había pausado el reloj de Diseño: se reanuda (o arranca, si es la primera vez).
+        if (rejection is not null) ResumeDesignTimer(actor, clock, now);
+        else TryStartDesignTimer(actor, clock, now);
 
         Audit(actor, now, "ArtworkValidated", null);
     }
@@ -787,7 +820,8 @@ public sealed class Npi
         || _informationRequests.Any(r => r.Type == InformationRequestType.Commercial && r.Status == InformationRequestStatus.Pending)
         || SuppliesTemporaryRejection is not null
         || PrintCardAwaitingClient
-        || AwaitingSisproQuote;
+        || AwaitingSisproQuote
+        || (CodigoPT is not null && PedidoSapRegisteredAt is null && !ClientChangeUnderReview);
 
     /// <summary>
     /// Campos de la captura que definen lo que se cotizó en SISPRO: si cambian, la cotización vigente
@@ -883,7 +917,7 @@ public sealed class Npi
     /// reenviar (Submit), igual que cuando se los pide otra área: queda el antes → después y, si tocó
     /// campos de Ingeniería, ésta reconfirma. Si dice que afecta el PrintCard, la versión se retira.
     /// </summary>
-    public void StartCommercialEdit(Actor actor, IClock clock, IBusinessCalendar calendar, string reason, bool redoPrintCard)
+    public void StartCommercialEdit(Actor actor, IClock clock, IBusinessCalendar calendar, string reason, bool redoPrintCard, Guid? clientEvidenceAttachmentId = null)
     {
         EnsureActive();
         EnsureNoClosureUnderReview(AreaType.Comercial);
@@ -891,8 +925,20 @@ public sealed class Npi
             throw new NpiValidationException("commercial-edit-reason-required", "Escribe el motivo: es lo que verán Ingeniería y Diseño.");
         if (reason.Trim().Length > 2000)
             throw new NpiValidationException("commercial-edit-reason-too-long", "El motivo no puede exceder 2000 caracteres.");
-        if (PtRegisteredAt is not null)
-            throw new InvalidNpiTransitionException("pt-already-registered", "El PT ya se cargó en SAP: ya no se puede modificar el NPI.");
+        // Después del PT (2026-11-12): sólo por un cambio del cliente, con su correo como evidencia, y hasta
+        // antes de cargar la ET en SisPro. Ingeniería y Diseño revisan qué pasa con el PT y el PrintCard.
+        var afterPt = PtRegisteredAt is not null;
+        if (afterPt)
+        {
+            if (EtLoadedInSisproAt is not null)
+                throw new InvalidNpiTransitionException("et-already-loaded", "La ET ya se cargó en SisPro: el NPI ya no se puede modificar.");
+            if (PendingDesignReconfirmation is not null || PendingEngineeringReconfirmation is not null)
+                throw new InvalidNpiTransitionException("client-change-under-review", "Ingeniería o Diseño aún revisan el cambio anterior del cliente: espera a que terminen.");
+            if (clientEvidenceAttachmentId is null)
+                throw new NpiValidationException("client-change-evidence-required", "Adjunta el correo o archivo del cliente con el cambio: después del PT es obligatorio.");
+            if (_attachments.All(a => a.Id != clientEvidenceAttachmentId))
+                throw new NpiValidationException("evidence-not-found", "La evidencia indicada no pertenece a este NPI.");
+        }
         if (PendingCommercialEdit is not null)
             throw new InvalidNpiTransitionException("commercial-edit-in-progress", "Ya estás modificando el NPI: termina y reenvíalo.");
         if (_changeRequests.Any(c => c.ToArea == AreaType.Comercial && c.Origin == ChangeRequestOrigin.Internal && !c.IsResolved))
@@ -900,8 +946,9 @@ public sealed class Npi
 
         var now = clock.UtcNow;
         _changeRequests.Add(new ChangeRequest(Guid.NewGuid(), actor.UserId, actor.Name, now, AreaType.Comercial, AreaType.Comercial, ChangeRequestOrigin.CommercialEdit,
-            reason.Trim(), [], ChangeRequest.SnapshotOf(Capture)));
-        if (redoPrintCard) RetirePrintCard(actor, now, PrintCardRetiredByCommercialReason, "PrintCardRetiredByCommercial");
+            reason.Trim(), [], ChangeRequest.SnapshotOf(Capture), afterPt ? clientEvidenceAttachmentId : null));
+        // Después del PT, si el PrintCard cambia lo decide Diseño al revisar (no Comercial).
+        if (redoPrintCard && !afterPt) RetirePrintCard(actor, now, PrintCardRetiredByCommercialReason, "PrintCardRetiredByCommercial");
 
         // Nadie trabaja con datos que están por cambiar.
         if (!DesignHasPendingWork) PauseTimer(TimerStage.Design, actor, clock, calendar, now);
@@ -971,7 +1018,7 @@ public sealed class Npi
     }
 
     /// <summary>Ingeniería revisa los cambios de Comercial y confirma que sigue siendo factible.</summary>
-    public void ReconfirmEngineeringFeasibility(Actor actor, IClock clock, IBusinessCalendar calendar, string? note)
+    public void ReconfirmEngineeringFeasibility(Actor actor, IClock clock, IBusinessCalendar calendar, string? note, PtDecision? ptDecision = null)
     {
         EnsureActive();
         EnsureNoClosureUnderReview(AreaType.Ingenieria);
@@ -981,13 +1028,123 @@ public sealed class Npi
             throw new InvalidNpiTransitionException("engineering-changes-pending", "Comercial aún no atiende los cambios que pidió Ingeniería.");
         if (note is { Length: > 2000 })
             throw new NpiValidationException("reconfirmation-note-too-long", "La nota no puede exceder 2000 caracteres.");
+        var afterPt = PtRegisteredAt is not null;
+        if (afterPt && ptDecision is null)
+            throw new NpiValidationException("pt-decision-required", "Indica qué pasa con el PT: sigue igual, se modifica en SAP o se necesita uno nuevo.");
 
         var now = clock.UtcNow;
-        pending.Acknowledge(actor, now, note);
+        var label = afterPt ? PtDecisionLabel(ptDecision!.Value) : null;
+        pending.Acknowledge(actor, now, label is null ? note : string.IsNullOrWhiteSpace(note) ? label : $"{label}. {note.Trim()}");
+        if (afterPt) ApplyPtDecision(actor, now, ptDecision!.Value);
         EngineeringAreaStatus = CurrentEngineeringAreaStatus();
-        if (!EngineeringHasPendingWork) PauseTimer(TimerStage.Engineering, actor, clock, calendar, now);
+        if (afterPt) SyncAreaTimers(actor, clock, calendar, now);
+        else if (!EngineeringHasPendingWork) PauseTimer(TimerStage.Engineering, actor, clock, calendar, now);
 
         Audit(actor, now, "EngineeringFeasibilityReconfirmed", note);
+    }
+
+    // ===== Cambio del cliente después del PT (2026-11-12) =====
+    // Comercial modifica el NPI con el correo del cliente; al reenviar, Ingeniería reconfirma (si tocó sus
+    // campos) diciendo qué pasa con el PT, y Diseño revisa (si tocó datos del PrintCard) si sigue igual o
+    // necesita versión nueva. Mientras tanto no se registra pedido ni ET. Un pedido ya capturado no se
+    // bloquea: se le avisa a Comercial que lo corrija en SAP.
+
+    public static string PtDecisionLabel(PtDecision decision) => decision switch
+    {
+        PtDecision.KeepPt => "Sigue el mismo PT",
+        PtDecision.UpdatePtSameCode => "Se modifica el PT en SAP (mismo código)",
+        _ => "Se necesita un PT nuevo",
+    };
+
+    /// <summary>
+    /// PT nuevo: el actual queda en la bitácora (código, nombre, quién y cuándo) y se borra para registrar
+    /// el nuevo; la ET creada se hizo con el PT anterior y también se rehace. El pedido se conserva.
+    /// </summary>
+    private void ApplyPtDecision(Actor actor, DateTimeOffset now, PtDecision decision)
+    {
+        Audit(actor, now, "PtDecisionAfterClientChange", decision.ToString());
+        if (decision != PtDecision.NewPt) return;
+        Audit(actor, now, "SapPtVoided", $"pt={CodigoPT};nombre={PtName};registrado={PtRegisteredAt:O};por={PtRegisteredByUserId};et={EtCreatedAt:O};pedido={PedidoSapNumber}");
+        CodigoPT = null;
+        PtName = null;
+        PtSapTable = null;
+        PtRegisteredAt = null;
+        PtRegisteredByUserId = null;
+        EtCreatedAt = null;
+        EtCreatedByUserId = null;
+    }
+
+    /// <summary>Motivo con el que se retira el PrintCard cuando Diseño decide rehacerlo por un cambio del cliente tras el PT (el front lo reconoce).</summary>
+    public const string PrintCardRetiredByClientChangeReason = "Cambio del cliente después del PT: Diseño hará una versión nueva del PrintCard.";
+
+    /// <summary>Campos que no tocan el PrintCard: contactos internos, cotización y observaciones.</summary>
+    private static readonly HashSet<string> NonDesignFields = ["numeroCotizacion", "ejecutivoVenta", "contactoCompras", "observaciones"];
+
+    /// <summary>La revisión de Diseño de un cambio del cliente después del PT que aún no da.</summary>
+    public ChangeRequest? PendingDesignReconfirmation =>
+        _changeRequests.FirstOrDefault(c => c.Origin == ChangeRequestOrigin.DesignReconfirmation && !c.IsResolved);
+
+    /// <summary>
+    /// Hay un cambio del cliente posterior al PT sin terminar: Comercial lo está capturando, Ingeniería o
+    /// Diseño lo revisan, o el PrintCard se está rehaciendo. Mientras tanto no hay pedido ni ET.
+    /// </summary>
+    public bool ClientChangeUnderReview =>
+        PendingDesignReconfirmation is not null
+        || (PtRegisteredAt is not null && (PendingEngineeringReconfirmation is not null || PendingCommercialEdit is not null || PrintCardLoadedAt is null));
+
+    private void EnsureNoClientChangeUnderReview()
+    {
+        if (ClientChangeUnderReview)
+            throw new InvalidNpiTransitionException("client-change-under-review",
+                "Hay un cambio del cliente en revisión: espera a que Ingeniería y Diseño lo revisen (y, si hace falta, a que se cargue el PrintCard nuevo).");
+    }
+
+    /// <summary>Al reenviar un cambio del cliente tras el PT: si tocó datos del PrintCard, Diseño lo revisa.</summary>
+    private void RequestDesignReconfirmation(Actor actor, IClock clock, DateTimeOffset now, ChangeRequest edit)
+    {
+        var changes = edit.ChangesApplied.Where(c => !NonDesignFields.Contains(c.Field)).ToList();
+        if (changes.Count == 0 || CurrentPrintCardVersion is null) return;
+        var fields = changes.Select(c => c.Field).Distinct().ToList();
+        var request = new ChangeRequest(Guid.NewGuid(), actor.UserId, actor.Name, now, AreaType.Comercial, AreaType.Diseno, ChangeRequestOrigin.DesignReconfirmation,
+            $"Cambio del cliente después del PT: {edit.Description}", fields);
+        request.MergePendingChanges(changes);
+        _changeRequests.Add(request);
+        // El reloj de Diseño se cerró al cargar el PrintCard: se reabre con su acumulado mientras revisa.
+        DesignTimer = DesignTimer.Reopen();
+        ResumeDesignTimer(actor, clock, now);
+        Audit(actor, now, "DesignReconfirmationRequested", string.Join(", ", fields));
+    }
+
+    /// <summary>
+    /// Diseño revisa el cambio del cliente después del PT: el PrintCard sigue igual (se queda cargado y su
+    /// reloj se vuelve a cerrar) o necesita versión nueva (se retira y descarga; sigue el flujo normal:
+    /// Ingeniería → cliente → carga, y en NPIs nuevos Advance lo reconoce al subirlo).
+    /// </summary>
+    public void ReconfirmDesignAfterClientChange(Actor actor, IClock clock, IBusinessCalendar calendar, bool redoPrintCard, string? note)
+    {
+        EnsureActive();
+        EnsureNoClosureUnderReview(AreaType.Diseno);
+        var pending = PendingDesignReconfirmation
+            ?? throw new InvalidNpiTransitionException("no-pending-design-reconfirmation", "No hay un cambio del cliente pendiente de revisar.");
+        if (note is { Length: > 2000 })
+            throw new NpiValidationException("design-reconfirmation-note-too-long", "La nota no puede exceder 2000 caracteres.");
+        if (redoPrintCard && string.IsNullOrWhiteSpace(note))
+            throw new NpiValidationException("design-reconfirmation-note-required", "Escribe qué cambia en el PrintCard: es lo que verán Ingeniería y Comercial.");
+
+        var now = clock.UtcNow;
+        var label = redoPrintCard ? "Necesita versión nueva del PrintCard" : "El PrintCard sigue igual";
+        pending.Acknowledge(actor, now, string.IsNullOrWhiteSpace(note) ? label : $"{label}. {note.Trim()}");
+        if (redoPrintCard)
+            RetirePrintCard(actor, now, PrintCardRetiredByClientChangeReason, "PrintCardRetiredByClientChange");
+        else if (PrintCardLoadedAt is not null && DesignTimer.HasStarted && !DesignTimer.IsClosed)
+        {
+            DesignTimer = DesignTimer.Close(clock, calendar);
+            AppendTimerEvent(TimerStage.Design, TimerAction.Close, now, actor.UserId, DesignTimer.AccumulatedBusinessMs);
+        }
+        DesignAreaStatus = CurrentDesignAreaStatus();
+        SyncAreaTimers(actor, clock, calendar, now);
+
+        Audit(actor, now, "DesignReconfirmedAfterClientChange", redoPrintCard ? "redo" : "keep");
     }
 
     /// <summary>
@@ -1077,8 +1234,8 @@ public sealed class Npi
         || _informationRequests.Any(r => r.Type == InformationRequestType.Engineering && r.Status == InformationRequestStatus.Pending)
         || (PendingEngineeringReconfirmation is not null && PendingEngineeringChangeRequest is null)
         || (PrintCardAwaitingEngineering && PendingEngineeringChangeRequest is null)
-        || (PrintCardLoadedAt is not null && PtRegisteredAt is null && PendingEngineeringChangeRequest is null && PendingCommercialEdit is null)
-        || (PedidoSapRegisteredAt is not null && EtLoadedInSisproAt is null);
+        || (PrintCardLoadedAt is not null && PtRegisteredAt is null && PendingEngineeringChangeRequest is null && PendingCommercialEdit is null && PendingDesignReconfirmation is null)
+        || (PedidoSapRegisteredAt is not null && EtLoadedInSisproAt is null && !ClientChangeUnderReview);
 
     /// <summary>Reanuda un reloj que ya arrancó y está en pausa (nunca arranca uno nuevo ni reabre uno cerrado).</summary>
     private void ResumeTimer(TimerStage stage, Actor actor, IClock clock, DateTimeOffset now)
@@ -1333,6 +1490,146 @@ public sealed class Npi
         Audit(actor, clock.UtcNow, "PrintCardFileReplaced", $"v{version.VersionNumber}: {previous?.FileName ?? "sin archivo"} → {file.FileName}");
     }
 
+    public const int PrintCardReplaceReasonMaxLength = 1500;
+
+    /// <summary>
+    /// Diseño actualiza el PrintCard final (2026-11-12): ya se cargó en BFX ADVANCED y después se corrigió
+    /// algo (una cota) que también se subió allá, aunque ya haya PT o el NPI esté completado. Es una
+    /// corrección del documento, no un cambio de flujo: no reabre el NPI ni pide aprobaciones otra vez.
+    /// La versión nueva hereda las aprobaciones de la final y pasa a ser la final; la anterior queda en
+    /// el historial y el motivo en la bitácora.
+    /// </summary>
+    public PrintCardVersion UpdateFinalPrintCard(Actor actor, IClock clock, string code, Guid? attachmentId, string reason)
+    {
+        if (LifecycleStatus is not (Domain.LifecycleStatus.Active or Domain.LifecycleStatus.Completed))
+            throw new InvalidNpiTransitionException("printcard-final-update-not-allowed", "Sólo se actualiza el PrintCard final de un NPI activo o completado.");
+        var final = FinalPrintCardVersion
+            ?? throw new InvalidNpiTransitionException("printcard-not-loaded", "El PrintCard todavía no se carga en sistema: no hay PrintCard final que actualizar.");
+        if (string.IsNullOrWhiteSpace(code))
+            throw new NpiValidationException("printcard-code-required", "El código de PrintCard es obligatorio.");
+        if (attachmentId is null)
+            throw new NpiValidationException("printcard-file-required", "Adjunta el archivo o link del PrintCard corregido.");
+        if (_attachments.All(a => a.Id != attachmentId))
+            throw new NpiValidationException("evidence-not-found", "El archivo del PrintCard no pertenece a este NPI.");
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new NpiValidationException("printcard-update-reason-required", "Explica qué se corrigió: es lo que verán Ingeniería y Comercial.");
+        if (reason.Trim().Length > PrintCardReplaceReasonMaxLength)
+            throw new NpiValidationException("printcard-update-reason-too-long", $"El motivo no puede exceder {PrintCardReplaceReasonMaxLength} caracteres.");
+
+        var now = clock.UtcNow;
+        var why = reason.Trim();
+        var version = new PrintCardVersion(Guid.NewGuid(), _printCardVersions.Count + 1, code.Trim(), attachmentId, actor.UserId, actor.Name, now, why);
+        version.AddApproval(Guid.NewGuid(), ApproverRole.Design, actor.UserId, actor.Name, now, null, null);
+        foreach (var approval in final.Approvals.Where(a => a.Role != ApproverRole.Design))
+            version.AddApproval(Guid.NewGuid(), approval.Role, approval.ByUserId, approval.ByName, now,
+                $"Heredada de la v{final.VersionNumber}: {actor.Name} (Diseño) actualizó el PrintCard final ya cargado en sistema.", approval.EvidenceAttachmentId);
+        _printCardVersions.Add(version);
+        // Sigue cargado desde la misma fecha; sólo cambia cuál versión es la final.
+        PrintCardLoadedVersionId = version.Id;
+
+        Audit(actor, now, "PrintCardFinalUpdated", $"v{final.VersionNumber} → v{version.VersionNumber} ({version.Code}) · {why}");
+        return version;
+    }
+
+    /// <summary>
+    /// Diseño reemplaza un PrintCard que ya estaba aprobado (2026-11-11): antes sólo se podía hacer otra
+    /// versión si Ingeniería la rechazaba o el cliente pedía cambios. Vale hasta que Ingeniería registra
+    /// el PT en SAP (después ya está dado de alta). La versión anterior queda retirada con el motivo
+    /// (y, si estaba cargada en sistema, se descarga); Diseño decide si la nueva necesita otra vez el
+    /// visto bueno de Ingeniería y/o del cliente. Lo que no necesita se hereda de la versión anterior,
+    /// con una nota que lo dice, y queda en la bitácora quién lo decidió.
+    /// </summary>
+    public PrintCardVersion ReplaceApprovedPrintCard(
+        Actor actor, IClock clock, IBusinessCalendar calendar, string code, Guid? attachmentId, string reason,
+        bool needsEngineeringApproval, bool needsClientApproval)
+    {
+        EnsureNotTerminal();
+        EnsureNoClosureUnderReview(AreaType.Diseno);
+        if (PtRegisteredAt is not null)
+            throw new InvalidNpiTransitionException("printcard-replace-after-pt", "Ingeniería ya registró el PT en SAP: el PrintCard ya no se puede reemplazar.");
+        var old = CurrentPrintCardVersion
+            ?? throw new InvalidNpiTransitionException("no-printcard-version", "No hay un PrintCard que reemplazar.");
+        if (old.IsRejected)
+            throw new InvalidNpiTransitionException("printcard-version-rejected", "Esa versión ya se retiró: sube una versión nueva.");
+        if (!old.HasApprovalFrom(ApproverRole.Engineering))
+            throw new InvalidNpiTransitionException("printcard-not-approved-yet", "Esta versión todavía no la aprueba Ingeniería: usa «Reemplazar archivo».");
+        if (PendingClientChangeRequest is not null)
+            throw new InvalidNpiTransitionException("client-changes-pending", "El cliente pidió cambios: súbelos como versión nueva.");
+        if (PendingEngineeringChangeRequest is not null || PendingDesignChangeRequest is not null || PendingCommercialEdit is not null)
+            throw new InvalidNpiTransitionException("commercial-changes-pending", "Comercial aún está corrigiendo datos del NPI: haz la versión cuando reenvíe.");
+        if (string.IsNullOrWhiteSpace(code))
+            throw new NpiValidationException("printcard-code-required", "El código de PrintCard es obligatorio.");
+        if (attachmentId is null)
+            throw new NpiValidationException("printcard-file-required", "Adjunta el archivo o link del PrintCard nuevo.");
+        if (_attachments.All(a => a.Id != attachmentId))
+            throw new NpiValidationException("evidence-not-found", "El archivo del PrintCard no pertenece a este NPI.");
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new NpiValidationException("printcard-replace-reason-required", "Explica por qué se reemplaza: es lo que verán Ingeniería y Comercial.");
+        if (reason.Trim().Length > PrintCardReplaceReasonMaxLength)
+            throw new NpiValidationException("printcard-replace-reason-too-long", $"El motivo no puede exceder {PrintCardReplaceReasonMaxLength} caracteres.");
+
+        var now = clock.UtcNow;
+        var why = reason.Trim();
+        var oldEngineering = old.Approvals.First(a => a.Role == ApproverRole.Engineering);
+        var oldClient = old.Approvals.FirstOrDefault(a => a.Role == ApproverRole.Client);
+        var wasSentToClient = PrintCardSentToClientAt;
+        var wasSentBy = PrintCardSentToClientByUserId;
+
+        // La anterior queda retirada con el motivo; si estaba cargada en sistema, se descarga.
+        RetirePrintCard(actor, now, $"Diseño la reemplazó por una versión nueva: {why}", "PrintCardReplacedByDesign");
+
+        var version = new PrintCardVersion(Guid.NewGuid(), _printCardVersions.Count + 1, code.Trim(), attachmentId, actor.UserId, actor.Name, now, why);
+        version.AddApproval(Guid.NewGuid(), ApproverRole.Design, actor.UserId, actor.Name, now, null, null);
+        if (!needsEngineeringApproval)
+            version.AddApproval(Guid.NewGuid(), ApproverRole.Engineering, oldEngineering.ByUserId, oldEngineering.ByName, now,
+                $"Heredada de la v{old.VersionNumber}: {actor.Name} (Diseño) indicó que no necesita nueva revisión de Ingeniería.", null);
+        // La del cliente sólo se hereda si el cliente ya la había dado; si no, el cliente la ve como siempre.
+        var inheritClient = !needsClientApproval && oldClient is not null;
+        if (inheritClient)
+            version.AddApproval(Guid.NewGuid(), ApproverRole.Client, oldClient!.ByUserId, oldClient.ByName, now,
+                $"Heredada de la v{old.VersionNumber}: {actor.Name} (Diseño) indicó que no necesita nueva aprobación del cliente.", oldClient.EvidenceAttachmentId);
+        _printCardVersions.Add(version);
+
+        if (inheritClient)
+        {
+            PrintCardSentToClientAt = wasSentToClient;
+            PrintCardSentToClientByUserId = wasSentBy;
+        }
+        else
+        {
+            // Una versión nueva necesita su propio envío al cliente.
+            PrintCardSentToClientAt = null;
+            PrintCardSentToClientByUserId = null;
+        }
+
+        // ¿A quién le toca ahora?
+        if (!version.HasApprovalFrom(ApproverRole.Engineering))
+        {
+            PauseTimer(TimerStage.Design, actor, clock, calendar, now);
+            ResumeTimer(TimerStage.Engineering, actor, clock, now);
+        }
+        else if (!version.HasApprovalFrom(ApproverRole.Client))
+        {
+            PauseTimer(TimerStage.Design, actor, clock, calendar, now);
+            RunCommercialTimer(actor, clock, now, "PrintCard reemplazado por Diseño: enviarlo al cliente");
+        }
+        else
+        {
+            // Todo heredado: Diseño lo carga en sistema.
+            ResumeDesignTimer(actor, clock, now);
+        }
+        DesignAreaStatus = CurrentDesignAreaStatus();
+
+        Audit(actor, now, "PrintCardReplacedByDesign",
+            $"v{old.VersionNumber} → v{version.VersionNumber} · Ingeniería: {(needsEngineeringApproval ? "revisa de nuevo" : "no revisa")} · Cliente: {(needsClientApproval ? "aprueba de nuevo" : "no aprueba de nuevo")} · {why}");
+        if (version.IsFullyApproved)
+        {
+            Audit(actor, now, "PrintCardFullyApproved", null);
+            _domainEvents.Add(new PrintCardFullyApprovedEvent(Id, version.Id, now));
+        }
+        return version;
+    }
+
     public void ApprovePrintCard(Actor actor, IClock clock, IBusinessCalendar calendar, ApproverRole role, string? note, Guid? evidenceAttachmentId)
     {
         EnsureNotTerminal();
@@ -1362,7 +1659,13 @@ public sealed class Npi
         version.AddApproval(Guid.NewGuid(), role, actor.UserId, actor.Name, now, note, evidenceAttachmentId);
         Audit(actor, now, "PrintCardApproved", $"role={role}");
 
-        if (role == ApproverRole.Engineering)
+        if (role == ApproverRole.Engineering && version.HasApprovalFrom(ApproverRole.Client))
+        {
+            // Reemplazo de Diseño con la aprobación del cliente heredada: ya sólo falta cargarlo.
+            PauseTimer(TimerStage.Engineering, actor, clock, calendar, now);
+            ResumeDesignTimer(actor, clock, now);
+        }
+        else if (role == ApproverRole.Engineering)
         {
             // Ingeniería ya revisó: ahora Comercial lo lleva al cliente.
             PauseTimer(TimerStage.Engineering, actor, clock, calendar, now);
@@ -1525,7 +1828,9 @@ public sealed class Npi
 
         DesignTimer = DesignTimer.Close(clock, calendar);
         AppendTimerEvent(TimerStage.Design, TimerAction.Close, now, actor.UserId, DesignTimer.AccumulatedBusinessMs);
-        ResumeTimer(TimerStage.Engineering, actor, clock, now); // le toca registrar el PT
+        // Le toca registrar el PT; si ya lo tenía (PrintCard rehecho por un cambio del cliente), a quien siga.
+        if (PtRegisteredAt is null) ResumeTimer(TimerStage.Engineering, actor, clock, now);
+        else SyncAreaTimers(actor, clock, calendar, now);
 
         Audit(actor, now, "PrintCardLoadedInSystem", null);
     }
@@ -1543,6 +1848,8 @@ public sealed class Npi
             throw new InvalidNpiTransitionException("pt-already-registered", "El PT ya fue registrado en SAP.");
         if (PendingEngineeringChangeRequest is not null || PendingEngineeringReconfirmation is not null || PendingCommercialEdit is not null)
             throw new InvalidNpiTransitionException("engineering-changes-open", "Antes de cargar el PT, Comercial debe atender los cambios y tú reconfirmar la factibilidad.");
+        if (PendingDesignReconfirmation is not null)
+            throw new InvalidNpiTransitionException("design-reconfirmation-pending", "Diseño aún revisa si el cambio del cliente afecta el PrintCard: el PT nuevo va con el PrintCard definitivo.");
         var table = string.IsNullOrWhiteSpace(sapTable) ? null : sapTable.Trim('\r', '\n');
         if (table is { Length: > PtSapTableMaxLength })
             throw new NpiValidationException("pt-sap-table-too-long", "La tabla pegada es demasiado grande: pega sólo las filas del PT.");
@@ -1554,9 +1861,13 @@ public sealed class Npi
         PtRegisteredAt = now;
         PtRegisteredByUserId = actor.UserId;
         EngineeringAreaStatus = EngineeringAreaStatus.PtRegistered;
-        PauseTimer(TimerStage.Engineering, actor, clock, calendar, now); // espera el Pedido de Comercial
-        CommercialTimer = CommercialTimer.StartOrResume(clock);              // le toca registrar el Pedido
-        AppendTimerEvent(TimerStage.Commercial, TimerAction.Resume, now, actor.UserId);
+        if (PedidoSapRegisteredAt is null)
+        {
+            PauseTimer(TimerStage.Engineering, actor, clock, calendar, now); // espera el Pedido de Comercial
+            CommercialTimer = CommercialTimer.StartOrResume(clock);              // le toca registrar el Pedido
+            AppendTimerEvent(TimerStage.Commercial, TimerAction.Resume, now, actor.UserId);
+        }
+        // PT nuevo por un cambio del cliente con el pedido ya capturado: Ingeniería sigue con la ET.
 
         Audit(actor, now, "SapPtRegistered", codigoPT);
     }
@@ -1572,6 +1883,7 @@ public sealed class Npi
             throw new InvalidNpiTransitionException("pt-not-registered", "Debe registrarse el PT en SAP antes del Pedido.");
         if (PedidoSapRegisteredAt is not null)
             throw new InvalidNpiTransitionException("pedido-sap-already-registered", "El Pedido en SAP ya fue registrado.");
+        EnsureNoClientChangeUnderReview();
 
         var now = clock.UtcNow;
         PedidoSapNumber = pedidoSapNumber;
@@ -1592,6 +1904,7 @@ public sealed class Npi
             throw new InvalidNpiTransitionException("et-preconditions-not-met", "La ET requiere PT y Pedido en SAP registrados.");
         if (EtCreatedAt is not null)
             throw new InvalidNpiTransitionException("et-already-created", "La ET ya fue creada.");
+        EnsureNoClientChangeUnderReview();
 
         var now = clock.UtcNow;
         EtCreatedAt = now;
@@ -1610,6 +1923,7 @@ public sealed class Npi
             throw new InvalidNpiTransitionException("et-not-created", "La ET debe crearse antes de cargarse en SisPro.");
         if (EtLoadedInSisproAt is not null)
             throw new InvalidNpiTransitionException("et-already-loaded", "La ET ya fue cargada en SisPro.");
+        EnsureNoClientChangeUnderReview();
 
         var now = clock.UtcNow;
         EtLoadedInSisproAt = now;
@@ -2213,10 +2527,12 @@ public sealed class Npi
         "EngineeringFeasibilityApproved", "DesignFeasibilityApproved", "ArtworkValidated",
         "PrintCardApproved", "PrintCardRejectedByEngineering", "PrintCardSentToClient",
         "EngineeringRequestedChanges", "DesignRequestedChanges", "ArtworkRejected", "CommercialEditStarted",
+        // Se mandaba por error en lugar de "Rechazar con cambios" (NPI-0060, 2026-11-12).
+        "SuppliesTemporaryRejection",
     ];
 
     /// <summary>Eventos que no cuentan como "alguien actuó después" (adjuntos y lo que se registra solo).</summary>
-    private static readonly HashSet<string> IgnoredForUndo = ["ParticipantAdded", "ParticipantRemoved", "AttachmentUploaded", "LinkAdded", "AttachmentDeleted", "DesignInstructionsUpdated", "ChangeRequestEdited", "InformationRequestEdited", "PrintCardFullyApproved", "SisproQuoteWaitReleased", "PrintCardRetiredByDesign", "PrintCardRetiredByEngineering", "PrintCardUnloadedByEngineering", "PrintCardRetiredByCommercial"];
+    private static readonly HashSet<string> IgnoredForUndo = ["PrintCardFinalUpdated", "ParticipantAdded", "ParticipantRemoved", "AttachmentUploaded", "LinkAdded", "AttachmentDeleted", "DesignInstructionsUpdated", "ChangeRequestEdited", "InformationRequestEdited", "PrintCardFullyApproved", "SisproQuoteWaitReleased", "PrintCardRetiredByDesign", "PrintCardRetiredByEngineering", "PrintCardUnloadedByEngineering", "PrintCardRetiredByCommercial"];
 
     /// <summary>Lo último que pasó en el NPI, sin contar los eventos de IgnoredForUndo.</summary>
     private AuditEvent? LastRelevantAuditEvent =>
@@ -2232,8 +2548,9 @@ public sealed class Npi
         EnsureActive();
         var last = UndoableLastAction
             ?? throw new InvalidNpiTransitionException("nothing-to-undo", "No hay nada que deshacer: alguien ya actuó después o la última acción no se puede deshacer.");
-        if (last.ActorUserId != actor.UserId)
-            throw new InvalidNpiTransitionException("undo-not-yours", "Sólo quien hizo la acción puede deshacerla.");
+        // AdminTotal también puede deshacerla (2026-11-12), con la misma regla: mientras nadie haya actuado después.
+        if (last.ActorUserId != actor.UserId && actor.Role != ApplicationRoles.AdminTotal)
+            throw new InvalidNpiTransitionException("undo-not-yours", "Sólo quien hizo la acción (o AdminTotal) puede deshacerla.");
 
         switch (last.Action)
         {
@@ -2274,6 +2591,10 @@ public sealed class Npi
                 break;
             case "ArtworkRejected":
                 RemoveLatestRequest(c => c.Origin == ChangeRequestOrigin.ArtworkRejected);
+                break;
+            case "SuppliesTemporaryRejection":
+                // Los relojes regresan solos con SyncAreaTimers (Ingeniería otra vez; Comercial se pausa si no tiene nada más).
+                SuppliesTemporaryRejection = null;
                 break;
         }
 
@@ -2366,6 +2687,7 @@ public sealed class Npi
 
     /// <summary>A Diseño le toca trabajar: arrancó su parte y no espera a Ingeniería, al cliente ni a Comercial.</summary>
     private bool DesignHasPendingWork =>
+        PendingDesignReconfirmation is not null ||
         EngineeringFeasibility is not null && ArtesValidadasAt is not null && !AwaitingSisproQuote
         && PrintCardLoadedAt is null && !PrintCardAwaitingEngineering && !PrintCardAwaitingClient
         && PendingDesignChangeRequest is null && PendingEngineeringChangeRequest is null && PendingCommercialEdit is null && PendingArtworkRejection is null

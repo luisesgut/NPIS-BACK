@@ -60,6 +60,7 @@ public sealed class NpiConfiguration : IEntityTypeConfiguration<Npi>
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(n => n.AssignedDesignUserId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(n => n.CreatedByUserId);
+        builder.Property(n => n.BasedOnNpiId);
         builder.HasIndex(n => n.AssignedCommercialUserId);
         builder.HasIndex(n => n.AssignedEngineeringUserId);
         builder.HasIndex(n => n.AssignedDesignUserId);
