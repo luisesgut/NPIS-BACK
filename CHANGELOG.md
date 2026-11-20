@@ -7,6 +7,13 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.1.0] — 2026-11-20
+
+### Agregado
+- `GET /api/version` (abierto): versión publicada del API, para que el front la compare con la suya.
+
+Sin script SQL.
+
 ## [1.0.0] — 2026-11-20
 
 Línea base del versionado: todo lo que estaba en `main` ("4ta version") más lo siguiente.
