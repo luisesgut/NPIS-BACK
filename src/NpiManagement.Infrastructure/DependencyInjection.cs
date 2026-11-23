@@ -81,6 +81,8 @@ public static class DependencyInjection
         services.AddScoped<INpiListReader, EfNpiListReader>();
         services.AddScoped<IDashboardReader, EfDashboardReader>();
         services.AddScoped<NpiManagement.Application.Dashboard.IDashboardOverviewReader, EfDashboardOverviewReader>();
+        services.AddScoped<NpiManagement.Application.PrintCards.IPrintCardReportReader, EfPrintCardReportReader>();
+        services.AddScoped<NpiManagement.Application.PrintCards.IPrintCardReportExporter, NpiManagement.Infrastructure.Export.PrintCardReportExporter>();
         services.AddScoped<NpiManagement.Application.Clients.IClientNameStore, EfClientNameStore>();
         services.AddScoped<IUserDirectory, EfUserDirectory>();
         services.AddScoped<IUserAdminService, UserAdminService>();

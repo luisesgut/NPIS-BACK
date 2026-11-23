@@ -110,6 +110,8 @@ public static class DependencyInjection
         services.AddScoped<GetDashboardSummaryQueryHandler>();
         // Dashboard por rol (2026-11-09). Las metas se registran en la API desde "Dashboard:Metas".
         services.AddScoped<NpiManagement.Application.Dashboard.DashboardOverviewQueryHandler>();
+        // Módulo PrintCards (2026-11-23): historial e indicadores de Diseño.
+        services.AddScoped<NpiManagement.Application.PrintCards.PrintCardReportQueryHandler>();
 
         // Nombres de cliente: listado para sugerencias y unificar duplicados (2026-11-04).
         services.AddScoped<NpiManagement.Application.Clients.ListClientNamesQueryHandler>();

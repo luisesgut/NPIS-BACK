@@ -194,6 +194,8 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("AreaComercial", p => p.RequireRole("AdminTotal", "AdminComercial", "UsuarioComercial"))
     .AddPolicy("AreaIngenieria", p => p.RequireRole("AdminTotal", "AdminIngenieria", "UsuarioIngenieria"))
     .AddPolicy("AreaDiseno", p => p.RequireRole("AdminTotal", "AdminDiseno", "UsuarioDiseno"))
+    // Módulo PrintCards (2026-11-23): Diseño, AdminTotal y Dirección (sólo consulta).
+    .AddPolicy("PrintCardsReport", p => p.RequireRole("AdminTotal", "AdminDiseno", "UsuarioDiseno", "Director"))
     .AddPolicy("QuotationsRead", p => p.RequireRole("AdminTotal", "AdminComercial", "AdminIngenieria", "AdminDiseno", "UsuarioComercial"));
 
 var app = builder.Build();

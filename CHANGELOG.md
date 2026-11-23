@@ -7,6 +7,13 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.2.0] — 2026-11-23
+
+### Agregado
+- Módulo PrintCards (pedido del admin de Diseño): `GET /api/printcards/report` y `/report/export` (Excel). Resumen del área, indicadores por diseñador e historial con versiones. Tiempo activo = horas hábiles del cronómetro de Diseño hasta el primer envío al cliente; días naturales = de la asignación a ese envío. Política `PrintCardsReport`: AdminTotal, AdminDiseno, UsuarioDiseno (sólo lo suyo) y Director.
+
+Sin script SQL.
+
 ## [1.1.0] — 2026-11-20
 
 ### Agregado
