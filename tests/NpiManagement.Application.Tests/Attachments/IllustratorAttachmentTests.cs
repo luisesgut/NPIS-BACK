@@ -63,4 +63,30 @@ public class IllustratorAttachmentTests
 
         await act.Should().ThrowAsync<RequestValidationException>().Where(e => e.Code == "attachment-ai-not-pdf-compatible");
     }
+    // .eps (2026-11-24): en artes, PrintCard y anexos; PostScript de texto o EPS binario para DOS.
+    [Theory]
+    [InlineData(AttachmentContext.Artwork, false)]
+    [InlineData(AttachmentContext.PrintCard, false)]
+    [InlineData(AttachmentContext.PrintCardAnnex, true)]
+    public async Task An_eps_is_accepted_in_artwork_printcard_and_annexes(AttachmentContext context, bool binaryDosEps)
+    {
+        var upload = await UploaderAsync();
+        var bytes = binaryDosEps ? new byte[] { 0xC5, 0xD0, 0xD3, 0xC6, 0x20, 0, 0, 0 } : "%!PS-Adobe-3.0 EPSF-3.0"u8.ToArray();
+
+        var result = await upload("Logo cliente.EPS", bytes, context);
+
+        result.ContentType.Should().Be(EpsFiles.ContentType);
+    }
+
+    [Fact]
+    public async Task An_eps_is_not_accepted_elsewhere_and_a_fake_one_is_rejected()
+    {
+        var upload = await UploaderAsync();
+
+        var elsewhere = () => upload("logo.eps", "%!PS-Adobe-3.0 EPSF-3.0"u8.ToArray(), AttachmentContext.Comment);
+        await elsewhere.Should().ThrowAsync<RequestValidationException>().Where(e => e.Code == "attachment-content-type-not-allowed");
+
+        var fake = () => upload("logo.eps", new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, AttachmentContext.Artwork);
+        await fake.Should().ThrowAsync<RequestValidationException>().Where(e => e.Code == "attachment-eps-invalid");
+    }
 }

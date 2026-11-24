@@ -12,6 +12,8 @@ public static class FileSignatureValidator
         "application/pdf" => StartsWith(header, [0x25, 0x50, 0x44, 0x46]), // %PDF
         // .ai guardado "compatible con PDF" (opción por omisión de Illustrator): también empieza con %PDF.
         IllustratorFiles.ContentType => StartsWith(header, [0x25, 0x50, 0x44, 0x46]),
+        // .eps: PostScript de texto ("%!PS") o EPS binario para DOS (C5 D0 D3 C6, con vista previa TIFF/WMF).
+        EpsFiles.ContentType => StartsWith(header, [0x25, 0x21, 0x50, 0x53]) || StartsWith(header, [0xC5, 0xD0, 0xD3, 0xC6]),
         "image/jpeg" => StartsWith(header, [0xFF, 0xD8, 0xFF]),
         "image/png" => StartsWith(header, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
         _ => false,

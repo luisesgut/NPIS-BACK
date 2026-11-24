@@ -7,6 +7,13 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.4.0] — 2026-11-24
+
+### Agregado
+- Adjuntos `.eps` en contextos Artwork, PrintCard y PrintCardAnnex (`EpsFiles`): se decide por la extensión, se guarda como `application/postscript` y se valida la firma real (PostScript `%!PS` o EPS binario para DOS `C5 D0 D3 C6`). Código de error nuevo `attachment-eps-invalid`.
+
+Sin script SQL (el de la 1.3.0 sigue siendo necesario).
+
 ## [1.3.0] — 2026-11-24
 
 ### Agregado
