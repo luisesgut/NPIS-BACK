@@ -99,4 +99,33 @@ public class RegisterAttachmentCommandHandlerTests
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
+    // 2026-11-24: ya no se copia el archivo a memoria. Un stream que no se puede rebobinar se pasa a un temporal en disco.
+    [Fact]
+    public async Task A_stream_that_cannot_rewind_is_still_validated_and_saved_complete()
+    {
+        var (repo, npiId, creatorId) = await SeedNpiAsync();
+        var handler = new RegisterAttachmentCommandHandler(repo, new FakeUnitOfWork(), TestClock.Default(), new FakeFileStorage(), new FakeAttachmentPolicy(), new FakeNotificationService());
+        var actor = new CurrentUser(creatorId, "UsuarioComercial", AreaType.Comercial);
+
+        var result = await handler.HandleAsync(new RegisterAttachmentCommand(
+            npiId, actor, "Creador", "arte.pdf", "application/pdf", ValidPdfBytes.Length, new ForwardOnlyStream(ValidPdfBytes), AttachmentContext.Artwork),
+            CancellationToken.None);
+
+        result.SizeBytes.Should().Be(ValidPdfBytes.Length);
+    }
+
+    private sealed class ForwardOnlyStream(byte[] bytes) : Stream
+    {
+        private readonly MemoryStream inner = new(bytes);
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
 }

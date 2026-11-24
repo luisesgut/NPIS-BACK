@@ -36,8 +36,11 @@ public sealed class RegisterAttachmentCommandHandler(INpiRepository repository, 
 
         // Lee el encabezado para validar la firma real del archivo (nunca confiar sólo en el
         // Content-Type declarado por el cliente) sin consumir el stream que usará IFileStorage.
-        using var buffered = new MemoryStream();
-        await command.Content.CopyToAsync(buffered, cancellationToken);
+        // Antes se copiaba todo a memoria; con archivos de 200 MB (2026-11-24) eso pesa en el servidor. El
+        // archivo que llega por IFormFile ya está en disco y se puede rebobinar: se usa tal cual. Si el stream
+        // no se puede rebobinar, se copia a un temporal en disco (se borra solo al cerrarlo).
+        await using var tempCopy = command.Content.CanSeek ? null : await CopyToTempFileAsync(command.Content, cancellationToken);
+        var buffered = tempCopy ?? command.Content;
         if (buffered.Length > policy.MaxSizeBytes)
             throw new RequestValidationException("attachment-too-large", $"El archivo excede el tamaño máximo permitido ({FormatMaxSize(policy.MaxSizeBytes)}).");
 
@@ -64,4 +67,11 @@ public sealed class RegisterAttachmentCommandHandler(INpiRepository repository, 
     }
 
     private static string FormatMaxSize(long maxSizeBytes) => $"{maxSizeBytes / (1024 * 1024)} MB";
+
+    private static async Task<Stream> CopyToTempFileAsync(Stream content, CancellationToken cancellationToken)
+    {
+        var temp = new FileStream(Path.GetTempFileName(), FileMode.Create, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.DeleteOnClose | FileOptions.Asynchronous);
+        await content.CopyToAsync(temp, cancellationToken);
+        return temp;
+    }
 }

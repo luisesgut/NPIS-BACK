@@ -7,6 +7,14 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.5.0] — 2026-11-24
+
+### Cambiado
+- Límite de adjuntos de 50 MB a **200 MB** (`FileStorageOptions.DefaultMaxSizeBytes`). El endpoint de subida permite 205 MB (`RequestSizeLimit` + `RequestFormLimits`, porque el tope de .NET para formularios con archivos es 128 MB).
+- La subida ya no copia el archivo completo a memoria: usa el archivo que ASP.NET ya dejó en disco (o un temporal si el stream no se puede rebobinar).
+
+**Manual en producción:** en el `web.config` del API, `<requestLimits maxAllowedContentLength="230686720" />` (220 MB) dentro de `<system.webServer><security><requestFiltering>`. Sin script SQL.
+
 ## [1.4.0] — 2026-11-24
 
 ### Agregado

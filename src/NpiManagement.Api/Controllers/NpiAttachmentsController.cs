@@ -23,11 +23,15 @@ public sealed class NpiAttachmentsController(
     GetAttachmentForDownloadQueryHandler downloadHandler,
     DeleteAttachmentCommandHandler deleteHandler) : ControllerBase
 {
+    private const long UploadRequestLimit = Infrastructure.FileStorage.FileStorageOptions.DefaultMaxSizeBytes + 5 * 1024 * 1024;
+
     /// <summary>Límite razonable de tamaño de request para evitar que un cliente intente enviar
     /// un archivo enorme antes de que la validación de negocio (IAttachmentPolicy) lo rechace.</summary>
     [HttpPost]
-    // El archivo (50 MB, FileStorageOptions) más el sobre del formulario multipart.
-    [RequestSizeLimit(55 * 1024 * 1024)]
+    // El archivo (200 MB, FileStorageOptions) más el sobre del formulario multipart. RequestFormLimits porque el
+    // tope de .NET para un formulario con archivos es 128 MB aunque el request permita más.
+    [RequestSizeLimit(UploadRequestLimit)]
+    [RequestFormLimits(MultipartBodyLengthLimit = UploadRequestLimit)]
     public async Task<ActionResult<AttachmentDto>> Upload(Guid id, IFormFile file, [FromForm] AttachmentContext context, CancellationToken cancellationToken)
     {
         await using var stream = file.OpenReadStream();

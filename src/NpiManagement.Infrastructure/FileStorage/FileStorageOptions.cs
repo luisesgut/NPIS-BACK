@@ -12,8 +12,13 @@ public sealed class FileStorageOptions
     /// </summary>
     public string RootPath { get; set; } = Path.Combine(Path.GetTempPath(), "NpiManagement", "attachments");
 
-    // 50 MB desde 2026-11-11 (antes 10): las artes en buena resolución no cabían. Arriba de eso, link.
-    public long MaxSizeBytes { get; set; } = 50 * 1024 * 1024;
+    /// <summary>
+    /// 200 MB desde 2026-11-24 (antes 50, y 10 antes del 2026-11-11): Comercial y Diseño suben artes y EPS de
+    /// hasta ~180 MB. El endpoint de subida y el web.config de IIS deben permitir al menos esto más el sobre multipart.
+    /// </summary>
+    public const long DefaultMaxSizeBytes = 200L * 1024 * 1024;
+
+    public long MaxSizeBytes { get; set; } = DefaultMaxSizeBytes;
 
     public string[] AllowedContentTypes { get; set; } = ["application/pdf", "image/jpeg", "image/png"];
 }

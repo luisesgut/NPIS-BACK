@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>ccfa94b4-126c-4047-9db7-05c46b7625c5</UserSecretsId>
     <!-- Versión del sistema (SemVer, ver CHANGELOG.md). Se sube junto con la del front en cada feature. -->
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
