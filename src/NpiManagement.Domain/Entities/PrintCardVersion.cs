@@ -105,6 +105,22 @@ public sealed class PrintCardVersion
     /// <summary>Diseño subió el archivo equivocado y lo cambia antes de que Ingeniería revise (misma versión).</summary>
     internal void ReplaceFile(Guid attachmentId) => AttachmentId = attachmentId;
 
+    /// <summary>
+    /// Anexos de la versión (2026-11-24): archivos que acompañan al principal (el .ai editable, otras caras,
+    /// variantes). Son adjuntos normales del NPI con contexto PrintCardAnnex; aquí sólo se guarda cuáles lleva.
+    /// No se aprueban: Ingeniería y el cliente aprueban el archivo principal (AttachmentId).
+    /// </summary>
+    public List<Guid> AnnexAttachmentIds { get; private set; } = [];
+
+    internal void AddAnnexes(IEnumerable<Guid> ids) => AnnexAttachmentIds = [.. AnnexAttachmentIds, .. ids.Where(id => !AnnexAttachmentIds.Contains(id))];
+
+    internal bool RemoveAnnex(Guid id)
+    {
+        if (!AnnexAttachmentIds.Contains(id)) return false;
+        AnnexAttachmentIds = AnnexAttachmentIds.Where(a => a != id).ToList();
+        return true;
+    }
+
     internal void ClearRejection()
     {
         RejectedAt = null;

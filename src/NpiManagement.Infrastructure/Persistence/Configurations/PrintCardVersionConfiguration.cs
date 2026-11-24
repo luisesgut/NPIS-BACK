@@ -28,6 +28,7 @@ public sealed class PrintCardVersionConfiguration : IEntityTypeConfiguration<Pri
         builder.Ignore(v => v.IsFullyApproved);
         builder.Property(v => v.CommercialChecklistJson);
         builder.Ignore(v => v.CommercialChecklist);
+        builder.PrimitiveCollection(v => v.AnnexAttachmentIds).IsRequired();
 
         builder.Property<Guid>("NpiId").IsRequired();
         builder.HasIndex("NpiId");

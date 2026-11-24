@@ -7,6 +7,13 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.3.0] — 2026-11-24
+
+### Agregado
+- Anexos del PrintCard: contexto de adjunto `PrintCardAnnex`, `PrintCardVersion.AnnexAttachmentIds` (máx. 10 por versión), `annexAttachmentIds` en `POST /npis/{id}/printcards` y `POST /npis/{id}/printcard-annexes` (Diseño agrega anexos a la versión vigente no rechazada; no toca aprobaciones). Los anexos no son evidencia: se pueden eliminar y se quitan de su versión. Bitácora `PrintCardAnnexesAdded`.
+
+**Script SQL:** `scripts/migracion-2026-11-24-anexos-printcard.sql` (columna `AnnexAttachmentIds` en `PrintCardVersions`). Correrlo ANTES de publicar: sin él, el detalle de cualquier NPI con PrintCard da 500.
+
 ## [1.2.0] — 2026-11-23
 
 ### Agregado

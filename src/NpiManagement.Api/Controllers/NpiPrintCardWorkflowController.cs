@@ -23,8 +23,17 @@ public sealed class NpiPrintCardWorkflowController(
     SetPrintCardObservationCommandHandler setPrintCardObservationHandler,
     ReplacePrintCardFileCommandHandler replaceFileHandler,
     ReplaceApprovedPrintCardCommandHandler replaceApprovedHandler,
-    UpdateFinalPrintCardCommandHandler updateFinalHandler) : ControllerBase
+    UpdateFinalPrintCardCommandHandler updateFinalHandler,
+    AddPrintCardAnnexesCommandHandler addAnnexesHandler) : ControllerBase
 {
+    public sealed record AddPrintCardAnnexesRequest(IReadOnlyList<Guid> AttachmentIds);
+
+    /// <summary>Diseño agrega anexos a la versión vigente del PrintCard (no cambia lo que se aprueba).</summary>
+    [HttpPost("printcard-annexes")]
+    [Authorize(Policy = "AreaDiseno")]
+    public Task<NpiDetailDto> AddPrintCardAnnexes(Guid id, AddPrintCardAnnexesRequest request, CancellationToken cancellationToken) =>
+        addAnnexesHandler.HandleAsync(new AddPrintCardAnnexesCommand(id, User.ToCurrentUser(), User.DisplayName(), request.AttachmentIds ?? []), cancellationToken);
+
     public sealed record UpdateFinalPrintCardRequest(
         [System.ComponentModel.DataAnnotations.Required] string Code,
         Guid? AttachmentId,
@@ -62,7 +71,7 @@ public sealed class NpiPrintCardWorkflowController(
     [HttpPost("printcards")]
     [Authorize(Policy = "AreaDiseno")]
     public Task<NpiDetailDto> CreateVersion(Guid id, CreatePrintCardVersionRequest request, CancellationToken cancellationToken) =>
-        createVersionHandler.HandleAsync(new CreatePrintCardVersionCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Code, request.AttachmentId, request.Note, request.CommercialChecklist), cancellationToken);
+        createVersionHandler.HandleAsync(new CreatePrintCardVersionCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Code, request.AttachmentId, request.Note, request.CommercialChecklist, request.AnnexAttachmentIds), cancellationToken);
 
     /// <summary>Comercial palomea un punto que Diseño le pidió revisar con el cliente.</summary>
     [HttpPost("printcard-observations/{itemId:guid}")]

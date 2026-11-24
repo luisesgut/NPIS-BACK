@@ -1409,7 +1409,7 @@ public sealed class Npi
     // Comercial; cuando hay que rehacer la versión o cargarla corre Diseño.
 
     /// <summary>Acción 12 — Crear versión de PrintCard. Exige las 4 condiciones de la decisión 2 y el archivo del PrintCard.</summary>
-    public void CreatePrintCardVersion(Actor actor, IClock clock, IBusinessCalendar calendar, string code, Guid? attachmentId, string? note, IReadOnlyList<string>? commercialChecklist = null)
+    public void CreatePrintCardVersion(Actor actor, IClock clock, IBusinessCalendar calendar, string code, Guid? attachmentId, string? note, IReadOnlyList<string>? commercialChecklist = null, IReadOnlyList<Guid>? annexAttachmentIds = null)
     {
         EnsureNotTerminal();
         EnsureNoClosureUnderReview(AreaType.Diseno);
@@ -1443,9 +1443,11 @@ public sealed class Npi
             throw new NpiValidationException("printcard-checklist-too-long", "Máximo 20 puntos para Comercial.");
         if (checklist.Any(t => t.Length > 500))
             throw new NpiValidationException("printcard-checklist-item-too-long", "Cada punto para Comercial puede tener máximo 500 caracteres.");
+        var annexes = ValidPrintCardAnnexes(annexAttachmentIds, attachmentId.Value, alreadyAttached: 0);
 
         var now = clock.UtcNow;
         var version = new PrintCardVersion(Guid.NewGuid(), _printCardVersions.Count + 1, code.Trim(), attachmentId, actor.UserId, actor.Name, now, note);
+        if (annexes.Count > 0) version.AddAnnexes(annexes);
         // Quien la genera ya está de acuerdo con ella: la aprobación de Diseño queda registrada sola.
         version.AddApproval(Guid.NewGuid(), ApproverRole.Design, actor.UserId, actor.Name, now, null, null);
         if (checklist.Count > 0) version.SetCommercialChecklist(checklist.Select(text => new ChecklistItem(Guid.NewGuid(), text)));
@@ -1488,6 +1490,44 @@ public sealed class Npi
         var previous = _attachments.FirstOrDefault(a => a.Id == version.AttachmentId);
         version.ReplaceFile(attachmentId);
         Audit(actor, clock.UtcNow, "PrintCardFileReplaced", $"v{version.VersionNumber}: {previous?.FileName ?? "sin archivo"} → {file.FileName}");
+    }
+
+    public const int MaxPrintCardAnnexes = 10;
+
+    /// <summary>
+    /// Diseño agrega anexos a la versión vigente del PrintCard (2026-11-24; p. ej. se le olvidó el .ai). No
+    /// cambia lo que se aprueba ni regresa la revisión: el principal sigue siendo el mismo.
+    /// </summary>
+    public void AddPrintCardAnnexes(Actor actor, IClock clock, IReadOnlyList<Guid> attachmentIds)
+    {
+        EnsureNotTerminal();
+        var version = CurrentPrintCardVersion
+            ?? throw new InvalidNpiTransitionException("no-printcard-version", "Todavía no hay un PrintCard al que agregarle anexos.");
+        if (version.IsRejected)
+            throw new InvalidNpiTransitionException("printcard-version-rejected", "Esa versión ya se rechazó: agrega los anexos en la versión nueva.");
+        var annexes = ValidPrintCardAnnexes(attachmentIds, version.AttachmentId, version.AnnexAttachmentIds.Count, version.AnnexAttachmentIds);
+        if (annexes.Count == 0)
+            throw new NpiValidationException("printcard-annex-required", "Elige al menos un archivo para anexar.");
+        version.AddAnnexes(annexes);
+        Audit(actor, clock.UtcNow, "PrintCardAnnexesAdded", $"v{version.VersionNumber}: {string.Join(", ", annexes.Select(id => _attachments.First(a => a.Id == id).FileName))}");
+    }
+
+    /// <summary>Anexos válidos: archivos de este NPI subidos como anexo de PrintCard, sin repetir ni contar el principal.</summary>
+    private List<Guid> ValidPrintCardAnnexes(IReadOnlyList<Guid>? ids, Guid? mainAttachmentId, int alreadyAttached, IReadOnlyCollection<Guid>? existing = null)
+    {
+        var distinct = (ids ?? []).Distinct().Where(id => id != mainAttachmentId && !(existing?.Contains(id) ?? false)).ToList();
+        if (alreadyAttached + distinct.Count > MaxPrintCardAnnexes)
+            throw new NpiValidationException("too-many-printcard-annexes", $"Cada versión del PrintCard lleva máximo {MaxPrintCardAnnexes} anexos.");
+        foreach (var id in distinct)
+        {
+            var attachment = _attachments.FirstOrDefault(a => a.Id == id)
+                ?? throw new NpiValidationException("printcard-annex-not-found", "Uno de los anexos no pertenece a este NPI.");
+            if (attachment.Context != AttachmentContext.PrintCardAnnex)
+                throw new NpiValidationException("printcard-annex-wrong-context", "Uno de los anexos no se subió como anexo del PrintCard.");
+            if (_printCardVersions.Any(v => v.AnnexAttachmentIds.Contains(id)))
+                throw new NpiValidationException("printcard-annex-in-use", "Uno de los anexos ya es de otra versión del PrintCard.");
+        }
+        return distinct;
     }
 
     public const int PrintCardReplaceReasonMaxLength = 1500;
@@ -2209,6 +2249,8 @@ public sealed class Npi
         if (AttachmentUse(attachmentId) is { } use)
             throw new InvalidNpiTransitionException("attachment-in-use", $"No se puede eliminar: es {use} y forma parte del historial del NPI.");
 
+        // Un anexo del PrintCard no es evidencia de nada (lo aprobado es el principal): se puede quitar.
+        foreach (var version in _printCardVersions) version.RemoveAnnex(attachmentId);
         _attachments.Remove(attachment);
         Audit(actor, clock.UtcNow, "AttachmentDeleted", attachment.IsLink ? $"{attachment.FileName} ({attachment.Url})" : $"{attachment.FileName} (archivo en el servidor: {attachment.StorageKey})");
         return attachment;

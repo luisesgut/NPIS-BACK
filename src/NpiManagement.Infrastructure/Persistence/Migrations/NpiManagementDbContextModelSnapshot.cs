@@ -676,6 +676,10 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.PrimitiveCollection<string>("AnnexAttachmentIds")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid?>("AttachmentId")
                         .HasColumnType("uniqueidentifier");
 

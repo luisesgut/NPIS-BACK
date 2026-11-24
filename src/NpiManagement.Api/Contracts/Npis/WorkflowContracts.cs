@@ -43,7 +43,7 @@ public sealed record DesignClassificationRequest(ArtClassification? ArtClassific
 /// <param name="RedoPrintCard">Sólo Ingeniería después de su factibilidad: el cambio afecta el PrintCard y Diseño debe rehacerlo.</param>
 public sealed record RequestChangesRequest([Required] string Description, IReadOnlyList<string>? FieldKeys, IReadOnlyDictionary<string, string>? FieldNotes = null, bool RedoPrintCard = false, IReadOnlyList<Guid>? ImageAttachmentIds = null);
 
-public sealed record CreatePrintCardVersionRequest([Required] string Code, Guid? AttachmentId, string? Note, IReadOnlyList<string>? CommercialChecklist = null);
+public sealed record CreatePrintCardVersionRequest([Required] string Code, Guid? AttachmentId, string? Note, IReadOnlyList<string>? CommercialChecklist = null, IReadOnlyList<Guid>? AnnexAttachmentIds = null);
 
 public sealed record ApprovePrintCardRequest([Required] ApproverRole Role, string? Note, Guid? EvidenceAttachmentId);
 

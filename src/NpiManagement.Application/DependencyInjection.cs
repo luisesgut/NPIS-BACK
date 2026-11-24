@@ -61,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<ValidateArtworkCommandHandler>();
         services.AddScoped<CreatePrintCardVersionCommandHandler>();
         services.AddScoped<ReplacePrintCardFileCommandHandler>();
+        services.AddScoped<AddPrintCardAnnexesCommandHandler>();
         services.AddScoped<ReplaceApprovedPrintCardCommandHandler>();
         services.AddScoped<UpdateFinalPrintCardCommandHandler>();
         services.AddScoped<ApprovePrintCardCommandHandler>();

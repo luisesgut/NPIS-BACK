@@ -43,7 +43,9 @@ public sealed record PrintCardApprovalDto(Guid Id, string Role, Guid ByUserId, s
 public sealed record PrintCardVersionDto(Guid Id, int VersionNumber, string Code, Guid? AttachmentId, Guid UploadedByUserId, string UploadedByName, DateTimeOffset UploadedAt, string? Note, IReadOnlyList<PrintCardApprovalDto> Approvals,
     DateTimeOffset? RejectedAt, string? RejectedByName, string? RejectionReason, Guid? RejectionEvidenceAttachmentId,
     /// <summary>Puntos que Diseño pidió a Comercial revisar con el cliente; Comercial los palomea.</summary>
-    IReadOnlyList<ChecklistItemDto>? CommercialChecklist = null);
+    IReadOnlyList<ChecklistItemDto>? CommercialChecklist = null,
+    /// <summary>Anexos de la versión (2026-11-24): acompañan al archivo principal, no se aprueban.</summary>
+    IReadOnlyList<Guid>? AnnexAttachmentIds = null);
 
 /// <summary>Url != null: el adjunto es un link externo y se abre directamente, no se descarga.</summary>
 public sealed record AttachmentDto(Guid Id, string FileName, string ContentType, long SizeBytes, string Context, int Version, Guid UploadedByUserId, DateTimeOffset UploadedAt, string? Url);

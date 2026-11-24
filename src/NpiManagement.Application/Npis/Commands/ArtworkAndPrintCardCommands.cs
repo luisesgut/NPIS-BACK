@@ -26,7 +26,7 @@ public sealed class ValidateArtworkCommandHandler(INpiRepository repository, IUn
 }
 
 /// <summary>Acción 12 de workflow.md — Crear versión de PrintCard (exige las 4 condiciones de la decisión 2).</summary>
-public sealed record CreatePrintCardVersionCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Code, Guid? AttachmentId, string? Note, IReadOnlyList<string>? CommercialChecklist = null);
+public sealed record CreatePrintCardVersionCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Code, Guid? AttachmentId, string? Note, IReadOnlyList<string>? CommercialChecklist = null, IReadOnlyList<Guid>? AnnexAttachmentIds = null);
 
 public sealed class CreatePrintCardVersionCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
 {
@@ -35,7 +35,7 @@ public sealed class CreatePrintCardVersionCommandHandler(INpiRepository reposito
         var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
         if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
 
-        npi.CreatePrintCardVersion(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Code, command.AttachmentId, command.Note, command.CommercialChecklist);
+        npi.CreatePrintCardVersion(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Code, command.AttachmentId, command.Note, command.CommercialChecklist, command.AnnexAttachmentIds);
 
         // Le toca revisar a Ingeniería; Comercial se entera cuando Ingeniería la apruebe.
         if (npi.AssignedEngineeringUserId is { } engineerId)
@@ -256,6 +256,22 @@ public sealed class ResolveArtworkRejectionCommandHandler(INpiRepository reposit
         if (npi.AssignedDesignUserId is { } designerId)
             notifications.Notify(designerId, NotificationText.ArtworkResubmitted(npi.NpiNumber?.Value, command.Comment), npi.Id, NotificationChannel.BellAndEmail);
 
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+    }
+}
+
+/// <summary>Diseño agrega anexos (.ai editable, otras caras…) a la versión vigente del PrintCard (2026-11-24).</summary>
+public sealed record AddPrintCardAnnexesCommand(Guid NpiId, CurrentUser Actor, string ActorName, IReadOnlyList<Guid> AttachmentIds);
+
+public sealed class AddPrintCardAnnexesCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar)
+{
+    public async Task<NpiDetailDto> HandleAsync(AddPrintCardAnnexesCommand command, CancellationToken cancellationToken)
+    {
+        var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsDesign(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
+
+        npi.AddPrintCardAnnexes(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.AttachmentIds);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
     }

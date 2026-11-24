@@ -38,7 +38,8 @@ public static class NpiMapper
             v.Id, v.VersionNumber, v.Code, v.AttachmentId, v.UploadedByUserId, v.UploadedByName, v.UploadedAt, v.Note,
             v.Approvals.Select(a => new PrintCardApprovalDto(a.Id, a.Role.ToString(), a.ByUserId, a.ByName, a.At, a.Note, a.EvidenceAttachmentId)).ToList(),
             v.RejectedAt, v.RejectedByName, v.RejectionReason, v.RejectionEvidenceAttachmentId,
-            v.CommercialChecklist.Select(i => new ChecklistItemDto(i.Id, i.Text, i.DoneAt, i.DoneByName, i.Comment)).ToList()))
+            v.CommercialChecklist.Select(i => new ChecklistItemDto(i.Id, i.Text, i.DoneAt, i.DoneByName, i.Comment)).ToList(),
+            v.AnnexAttachmentIds.ToList()))
             .ToList(),
         npi.SisproQuotes.OrderBy(q => q.VersionNumber).Select(ToSisproQuoteDto).ToList(),
         npi.ClosureProposals.OrderBy(p => p.ProposedAt).Select(p => new ClosureProposalDto(

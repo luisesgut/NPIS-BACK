@@ -117,6 +117,11 @@ public enum AttachmentContext
     ClientRejection = 8,
     /// <summary>Artes o archivos de referencia del NPI (típicamente links a archivos pesados).</summary>
     Artwork = 9,
+    /// <summary>
+    /// Anexo de una versión del PrintCard (2026-11-24): el .ai editable, otras caras o variantes. Se ve junto a
+    /// la versión, pero lo que se aprueba sigue siendo el archivo principal (PrintCard).
+    /// </summary>
+    PrintCardAnnex = 10,
 }
 
 public enum TimerStage

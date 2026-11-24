@@ -14,6 +14,6 @@ public static class IllustratorFiles
     public const string ContentType = "application/illustrator";
 
     public static bool Applies(string fileName, AttachmentContext context) =>
-        context is AttachmentContext.Artwork or AttachmentContext.PrintCard
+        context is AttachmentContext.Artwork or AttachmentContext.PrintCard or AttachmentContext.PrintCardAnnex
         && Path.GetExtension(fileName ?? string.Empty).Equals(".ai", StringComparison.OrdinalIgnoreCase);
 }
