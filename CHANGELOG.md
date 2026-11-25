@@ -7,6 +7,10 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.8.0] — 2026-11-25
+
+Sin cambios en el back: versión compartida con el front ("Te toca en este NPI" en el detalle).
+
 ## [1.7.0] — 2026-11-25
 
 ### Agregado
