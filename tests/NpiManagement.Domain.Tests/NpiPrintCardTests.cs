@@ -302,9 +302,13 @@ public class NpiPrintCardTests
 
         ClientRequest(npi).ImageAttachmentIds.Should().Equal(pdf.Id, shot.Id);
 
-        // Las demás solicitudes siguen siendo sólo imágenes.
-        var questionWithPdf = () => npi.RequestInformation(Designer, clock, Calendar, InformationRequestType.Engineering, "¿Y esto?", [pdf.Id]);
-        questionWithPdf.Should().Throw<NpiValidationException>().Which.Code.Should().Be("request-image-not-image");
+        // Desde 2026-11-25 las demás solicitudes también aceptan archivos (PDF, .ai, .eps); un link no.
+        var ai = npi.RegisterAttachment(Designer, clock, "arte.ai", "application/illustrator", 100, "k-ai", null, AttachmentContext.InfoRequest);
+        npi.RequestInformation(Designer, clock, Calendar, InformationRequestType.Engineering, "¿Y esto?", [pdf.Id, ai.Id]);
+        npi.InformationRequests.Last().ImageAttachmentIds.Should().Equal(pdf.Id, ai.Id);
+        var link = npi.RegisterLink(Designer, clock, "Arte", "https://bioflex.sharepoint.com/arte", AttachmentContext.InfoRequest);
+        var withLink = () => npi.EditInformationRequest(Designer, clock, npi.InformationRequests.Last().Id, "¿Y esto?", [link.Id]);
+        withLink.Should().Throw<NpiValidationException>().Which.Code.Should().Be("request-image-not-image");
     }
 
     [Fact]

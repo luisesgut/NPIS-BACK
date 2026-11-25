@@ -33,14 +33,15 @@ public class NpiRequestImagesTests
     }
 
     [Fact]
-    public void Rechaza_un_pdf_o_un_adjunto_de_otro_npi()
+    public void Rechaza_un_link_o_un_adjunto_de_otro_npi()
     {
         var clock = TestClock.MondayMorning();
         var npi = CreateReadyForPrintCard(clock);
-        var pdf = npi.RegisterAttachment(Designer, clock, "ficha.pdf", "application/pdf", 100, "k1", null, AttachmentContext.InfoRequest);
+        // Desde 2026-11-25 un PDF, .ai o .eps sí se puede; un link no (va en el texto o en Adjuntos).
+        var link = npi.RegisterLink(Designer, clock, "Arte", "https://bioflex.sharepoint.com/arte", AttachmentContext.InfoRequest);
 
-        var withPdf = () => npi.RequestInformation(Designer, clock, Calendar, InformationRequestType.Commercial, "Pregunta", [pdf.Id]);
-        withPdf.Should().Throw<NpiValidationException>();
+        var withLink = () => npi.RequestInformation(Designer, clock, Calendar, InformationRequestType.Commercial, "Pregunta", [link.Id]);
+        withLink.Should().Throw<NpiValidationException>();
 
         var foreign = () => npi.RequestInformation(Designer, clock, Calendar, InformationRequestType.Commercial, "Pregunta", [Guid.NewGuid()]);
         foreign.Should().Throw<NpiValidationException>();

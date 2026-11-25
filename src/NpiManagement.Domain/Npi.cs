@@ -742,26 +742,23 @@ public sealed class Npi
 
     /// <summary>Comentarios por campo: sólo de campos marcados, sin vacíos, máximo 500 caracteres cada uno.</summary>
     /// <summary>
-    /// Imágenes de una solicitud (capturas o fotos, 2026-11-04): deben ser adjuntos de este mismo NPI y
-    /// ser imagen (JPG/PNG). Con <paramref name="allowPdf"/> también PDF (los cambios del cliente suelen
-    /// venir en el PrintCard anotado, 2026-11-06). Un link se adjunta aparte, en Adjuntos. Máximo RequestImages.Max.
+    /// Archivos de una solicitud (capturas o fotos, 2026-11-04; PDF en los cambios del cliente, 2026-11-06):
+    /// deben ser adjuntos de este mismo NPI. Desde 2026-11-25 cualquier archivo que acepte la subida (JPG,
+    /// PNG, PDF, .ai o .eps) y en todas las solicitudes: Diseño y Comercial mandan el .ai/.eps. Un link se
+    /// adjunta aparte, en Adjuntos. Máximo RequestImages.Max.
     /// </summary>
-    private IReadOnlyList<Guid> ValidRequestImages(IReadOnlyList<Guid>? ids, bool allowPdf = false)
+    private IReadOnlyList<Guid> ValidRequestImages(IReadOnlyList<Guid>? ids)
     {
         if (ids is null || ids.Count == 0) return [];
         var distinct = ids.Distinct().ToList();
         if (distinct.Count > RequestImages.Max)
-            throw new NpiValidationException("too-many-request-images", $"Adjunta máximo {RequestImages.Max} imágenes.");
+            throw new NpiValidationException("too-many-request-images", $"Adjunta máximo {RequestImages.Max} archivos.");
         foreach (var id in distinct)
         {
             var attachment = _attachments.FirstOrDefault(a => a.Id == id)
-                ?? throw new NpiValidationException("request-image-not-found", "Una de las imágenes no pertenece a este NPI.");
-            var isImage = attachment.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
-            var isPdf = allowPdf && string.Equals(attachment.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase);
-            if (attachment.IsLink || !(isImage || isPdf))
-                throw new NpiValidationException("request-image-not-image", allowPdf
-                    ? "Sólo se pueden adjuntar imágenes (JPG o PNG) o PDF a la solicitud."
-                    : "Sólo se pueden adjuntar imágenes (JPG o PNG) a la solicitud.");
+                ?? throw new NpiValidationException("request-image-not-found", "Uno de los archivos no pertenece a este NPI.");
+            if (attachment.IsLink)
+                throw new NpiValidationException("request-image-not-image", "Un link no se adjunta a la solicitud: pégalo en el texto o en Adjuntos.");
         }
         return distinct;
     }
@@ -1821,7 +1818,7 @@ public sealed class Npi
         if (PendingClientChangeRequest is not null)
             throw new InvalidNpiTransitionException("client-changes-already-pending", "Ya hay cambios del cliente pendientes de que Diseño los atienda.");
         // Capturas, fotos o el PDF anotado que mandó el cliente (2026-11-06).
-        var files = ValidRequestImages(attachmentIds, allowPdf: true);
+        var files = ValidRequestImages(attachmentIds);
 
         var now = clock.UtcNow;
         var request = new ChangeRequest(Guid.NewGuid(), actor.UserId, actor.Name, now, AreaType.Comercial, AreaType.Diseno, ChangeRequestOrigin.ClientReported, description?.Trim() ?? string.Empty, []);

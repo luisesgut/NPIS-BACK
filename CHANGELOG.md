@@ -7,6 +7,14 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.6.0] — 2026-11-25
+
+### Agregado
+- .ai (compatible con PDF) y .eps se aceptan en cualquier contexto de adjunto, no sólo artes, PrintCard y anexos. Se sigue validando la firma real del archivo.
+- Las solicitudes (`ValidRequestImages`) aceptan cualquier archivo subido (JPG, PNG, PDF, .ai, .eps) en todas; sólo rechazan links.
+
+Sin script SQL.
+
 ## [1.5.2] — 2026-11-25
 
 ### Corregido

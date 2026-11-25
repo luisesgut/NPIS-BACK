@@ -23,12 +23,13 @@ public sealed class RegisterAttachmentCommandHandler(INpiRepository repository, 
         var ownership = NpiAuthorization.OwnershipOf(npi);
         if (!NpiAuthorization.CanAccess(command.Actor, ownership)) throw new NotFoundException("Npi", command.NpiId);
 
-        // .ai (2026-11-12) y .eps (2026-11-24) sólo en artes, PrintCard y sus anexos; en lo demás siguen PDF, JPG o PNG.
-        var isIllustrator = IllustratorFiles.Applies(command.FileName, command.Context);
-        var isEps = !isIllustrator && EpsFiles.Applies(command.FileName, command.Context);
+        // .ai (2026-11-12) y .eps (2026-11-24): al principio sólo en artes y PrintCard; desde 2026-11-25 en
+        // cualquier adjunto (pedido de Diseño: también los mandan en solicitudes, chat y evidencias, igual Comercial).
+        var isIllustrator = IllustratorFiles.Applies(command.FileName);
+        var isEps = !isIllustrator && EpsFiles.Applies(command.FileName);
         var contentType = isIllustrator ? IllustratorFiles.ContentType : isEps ? EpsFiles.ContentType : command.ContentType;
         if (!isIllustrator && !isEps && !policy.IsAllowedContentType(contentType))
-            throw new RequestValidationException("attachment-content-type-not-allowed", $"El tipo de archivo '{command.ContentType}' no está permitido. Formatos soportados: PDF, JPG o PNG (y .ai o .eps en artes y PrintCard).");
+            throw new RequestValidationException("attachment-content-type-not-allowed", $"El tipo de archivo '{command.ContentType}' no está permitido. Formatos soportados: PDF, JPG, PNG, .ai o .eps.");
         if (command.DeclaredSizeBytes <= 0 || command.DeclaredSizeBytes > policy.MaxSizeBytes)
             throw new RequestValidationException("attachment-too-large", $"El archivo excede el tamaño máximo permitido ({FormatMaxSize(policy.MaxSizeBytes)}).");
 
@@ -52,7 +53,7 @@ public sealed class RegisterAttachmentCommandHandler(INpiRepository repository, 
         if (isEps && !FileSignatureValidator.MatchesContentType(header, contentType))
             throw new RequestValidationException("attachment-eps-invalid", "El archivo no es un .eps válido (la extensión no coincide con el contenido). Vuelve a exportarlo desde Illustrator o súbelo como PDF.");
         if (!FileSignatureValidator.MatchesContentType(header, contentType))
-            throw new RequestValidationException("attachment-signature-mismatch", "El contenido del archivo no corresponde a un PDF, JPG o PNG válido (la extensión no coincide con el contenido real del archivo).");
+            throw new RequestValidationException("attachment-signature-mismatch", "El contenido del archivo no corresponde a un PDF, JPG, PNG, .ai o .eps válido (la extensión no coincide con el contenido real del archivo).");
 
         buffered.Position = 0;
         var stored = await fileStorage.SaveAsync(buffered, sanitizedFileName, cancellationToken);

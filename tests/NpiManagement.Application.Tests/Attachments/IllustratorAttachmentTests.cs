@@ -44,14 +44,18 @@ public class IllustratorAttachmentTests
         result.ContentType.Should().Be(IllustratorFiles.ContentType);
     }
 
-    [Fact]
-    public async Task An_ai_is_not_accepted_elsewhere()
+    // 2026-11-25: en cualquier adjunto (chat, solicitudes, evidencias), no sólo en artes y PrintCard.
+    [Theory]
+    [InlineData(AttachmentContext.Comment)]
+    [InlineData(AttachmentContext.InfoRequest)]
+    [InlineData(AttachmentContext.ChangeRequest)]
+    public async Task An_ai_is_accepted_in_any_attachment(AttachmentContext context)
     {
         var upload = await UploaderAsync();
 
-        var act = () => upload("arte.ai", PdfCompatibleAi, AttachmentContext.Comment);
+        var result = await upload("arte.ai", PdfCompatibleAi, context);
 
-        await act.Should().ThrowAsync<RequestValidationException>().Where(e => e.Code == "attachment-content-type-not-allowed");
+        result.ContentType.Should().Be(IllustratorFiles.ContentType);
     }
 
     [Fact]
@@ -79,12 +83,12 @@ public class IllustratorAttachmentTests
     }
 
     [Fact]
-    public async Task An_eps_is_not_accepted_elsewhere_and_a_fake_one_is_rejected()
+    public async Task An_eps_is_accepted_in_any_attachment_and_a_fake_one_is_rejected()
     {
         var upload = await UploaderAsync();
 
-        var elsewhere = () => upload("logo.eps", "%!PS-Adobe-3.0 EPSF-3.0"u8.ToArray(), AttachmentContext.Comment);
-        await elsewhere.Should().ThrowAsync<RequestValidationException>().Where(e => e.Code == "attachment-content-type-not-allowed");
+        var inChat = await upload("logo.eps", "%!PS-Adobe-3.0 EPSF-3.0"u8.ToArray(), AttachmentContext.Comment);
+        inChat.ContentType.Should().Be(EpsFiles.ContentType);
 
         var fake = () => upload("logo.eps", new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, AttachmentContext.Artwork);
         await fake.Should().ThrowAsync<RequestValidationException>().Where(e => e.Code == "attachment-eps-invalid");
