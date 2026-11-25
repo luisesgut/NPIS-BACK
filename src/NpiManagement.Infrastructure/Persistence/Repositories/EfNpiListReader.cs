@@ -141,7 +141,6 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                 // misma consulta, sin cargar factibilidades ni versiones de PrintCard por fila.
                 EngineeringFeasibilityApproved = n.FeasibilityReviews.Any(f => f.Area == AreaType.Ingenieria),
                 DesignFeasibilityApproved = n.FeasibilityReviews.Any(f => f.Area == AreaType.Diseno),
-                ClientApprovedPrintCard = n.PrintCardVersions.Any(v => v.Approvals.Any(a => a.Role == ApproverRole.Client)),
                 PrintCardSentToClient = n.PrintCardSentToClientAt != null,
                 PrintCardLoaded = n.PrintCardLoadedAt != null,
                 PtRegistered = n.PtRegisteredAt != null,
@@ -201,7 +200,8 @@ public sealed class EfNpiListReader(NpiManagementDbContext dbContext, IClock clo
                 NpiMapper.ToTimerDto(r.GlobalTimer, clock, calendar), NpiMapper.ToTimerDto(r.CommercialTimer, clock, calendar),
                 NpiMapper.ToTimerDto(r.EngineeringTimer, clock, calendar), NpiMapper.ToTimerDto(r.DesignTimer, clock, calendar),
                 new NpiStageMilestones(
-                    r.EngineeringFeasibilityApproved, r.DesignFeasibilityApproved, r.PrintCardSentToClient, r.ClientApprovedPrintCard,
+                    // Aprobación del cliente: la de la versión vigente, no la de una anterior (2026-11-25, mismo criterio que NpiStageMilestones.FromNpi).
+                    r.EngineeringFeasibilityApproved, r.DesignFeasibilityApproved, r.PrintCardSentToClient, r.CurrentPrintCard?.ClientApproved == true,
                     r.PrintCardLoaded, r.PtRegistered, r.SapOrderRegistered, r.EtLoadedInSispro,
                     r.SisproQuoteLinked, r.SisproQuoteAccepted, r.HasPrintCard).CompletedStages,
                 // Un NPI ya cerrado no espera visto bueno (el dominio deja sin efecto la propuesta al cerrarse).

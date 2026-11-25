@@ -7,6 +7,13 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.6.1] — 2026-11-25
+
+### Corregido
+- Avance del listado (`NpiStageMilestones`): la etapa "Aprobación del cliente" cuenta sólo si la versión vigente del PrintCard tiene la aprobación del cliente (antes, cualquier versión). Los reemplazos que no piden reaprobar ya heredan la aprobación a la versión nueva.
+
+Sin script SQL.
+
 ## [1.6.0] — 2026-11-25
 
 ### Agregado

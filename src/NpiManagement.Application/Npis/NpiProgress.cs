@@ -64,7 +64,9 @@ public sealed record NpiStageMilestones(
         npi.FeasibilityReviews.Any(f => f.Area == AreaType.Ingenieria),
         npi.FeasibilityReviews.Any(f => f.Area == AreaType.Diseno),
         npi.PrintCardSentToClientAt is not null,
-        npi.PrintCardVersions.Any(v => v.Approvals.Any(a => a.Role == ApproverRole.Client)),
+        // Sólo la versión vigente (2026-11-25): si el cliente aprobó la v3 y ahora la v4 está con Ingeniería,
+        // la etapa no está hecha. Los reemplazos que no piden reaprobar heredan la aprobación a la versión nueva.
+        npi.CurrentPrintCardVersion?.Approvals.Any(a => a.Role == ApproverRole.Client) == true,
         npi.PrintCardLoadedAt is not null,
         npi.PtRegisteredAt is not null,
         npi.PedidoSapNumber is not null,
