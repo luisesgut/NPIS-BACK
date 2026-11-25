@@ -7,6 +7,13 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.9.0] — 2026-11-25
+
+### Agregado
+- "Tu turno" (`GET api/npis/turns`): cada turno trae `waitingAreas` (qué otras áreas esperan esa acción, `NpiTurns.WaitingOn`) y `priority` (orden dentro del NPI por área, 0 = primero; `NpiTurns.Prioritized`: lo que destraba a más áreas va primero).
+
+Sin script SQL.
+
 ## [1.8.0] — 2026-11-25
 
 Sin cambios en el back: versión compartida con el front ("Te toca en este NPI" en el detalle).

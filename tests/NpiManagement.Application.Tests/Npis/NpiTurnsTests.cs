@@ -40,6 +40,19 @@ public sealed class NpiTurnsTests
     }
 
     [Fact]
+    public void With_several_actions_the_one_that_unblocks_more_areas_goes_first()
+    {
+        // NPI-0095 (2026-11-25): modificar, subir artes e insumos. Insumos detiene a Ingeniería y Diseño: va primero.
+        var f = Active() with { SuppliesTemporaryRejection = true, PendingArtworkRejection = true, PendingCommercialEdit = true };
+        var commercial = NpiTurns.Prioritized(f).Where(x => x.Turn.Area == AreaType.Comercial).OrderBy(x => x.Priority).ToList();
+
+        commercial.Select(x => x.Turn.Action).Should().Equal(NpiTurns.ResolveSupplies, NpiTurns.UploadNewArtwork, NpiTurns.FinishCommercialEdit);
+        commercial[0].WaitingOn.Should().Equal(AreaType.Ingenieria, AreaType.Diseno);
+        NpiTurns.WaitingOn(NpiTurns.UploadNewArtwork, f).Should().Equal(AreaType.Diseno);
+        NpiTurns.WaitingOn(NpiTurns.FinishCommercialEdit, f).Should().BeEmpty("sin factibilidades todavía nadie espera la modificación");
+    }
+
+    [Fact]
     public void Requested_changes_move_the_ball_to_commercial()
     {
         var f = Active() with { PendingEngineeringChanges = true };

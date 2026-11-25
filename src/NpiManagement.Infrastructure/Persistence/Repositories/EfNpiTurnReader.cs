@@ -86,7 +86,7 @@ public sealed class EfNpiTurnReader(NpiManagementDbContext dbContext, IClock clo
                 r.PendingEngineeringInfo,
                 r.PendingDesignReconfirmation);
 
-            foreach (var turn in NpiTurns.For(facts))
+            foreach (var (turn, waitingOn, priority) in NpiTurns.Prioritized(facts))
             {
                 var (timer, assignee) = turn.Area switch
                 {
@@ -97,7 +97,8 @@ public sealed class EfNpiTurnReader(NpiManagementDbContext dbContext, IClock clo
                 DateTimeOffset? since = timer.IsRunning ? timer.RunningSinceAt : null;
                 items.Add(new TurnItemDto(
                     r.Id, r.NpiNumber?.Value, r.Cliente, r.DescripcionProducto, turn.Area.ToString(), turn.Action,
-                    since, since is { } s ? calendar.BusinessMillisecondsBetween(s, now) : null, NameOf(assignee)));
+                    since, since is { } s ? calendar.BusinessMillisecondsBetween(s, now) : null, NameOf(assignee),
+                    waitingOn.Select(a => a.ToString()).ToList(), priority));
             }
         }
         return items;

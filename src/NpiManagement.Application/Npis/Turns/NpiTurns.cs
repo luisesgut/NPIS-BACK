@@ -73,6 +73,58 @@ public static class NpiTurns
     public const string LoadPrintCard = "LoadPrintCard";
     public const string ReviewClientChange = "ReviewClientChange";
 
+    /// <summary>
+    /// Qué otras áreas están detenidas esperando esta acción (2026-11-25): "Ingeniería y Diseño esperan esto".
+    /// Con eso se ordena qué hacer primero cuando a alguien le tocan varias cosas en un NPI (lo que destraba a más va arriba).
+    /// </summary>
+    public static IReadOnlyList<AreaType> WaitingOn(string action, TurnFacts f)
+    {
+        var waiting = new List<AreaType>();
+        void If(bool condition, AreaType area) { if (condition) waiting.Add(area); }
+        switch (action)
+        {
+            case AttendEngineeringChanges:
+                waiting.Add(AreaType.Ingenieria);
+                If(f.DesignFeasibility && f.ArtesValidadas && !f.PrintCardLoaded, AreaType.Diseno); // el PrintCard también espera
+                break;
+            case AttendDesignChanges or UploadNewArtwork or AnswerInformationRequest or QuoteInSispro or RegisterClientResponse or AnswerDesignQuestions:
+                waiting.Add(AreaType.Diseno);
+                break;
+            case FinishCommercialEdit:
+                If(f.EngineeringFeasibility && !f.EtLoaded, AreaType.Ingenieria);
+                If(f.DesignFeasibility && !f.PrintCardLoaded, AreaType.Diseno);
+                break;
+            case ResolveSupplies:
+                // Mientras esté abierto el NPI está detenido: Ingeniería y Diseño no avanzan.
+                waiting.Add(AreaType.Ingenieria);
+                If(f.DesignerAssigned, AreaType.Diseno);
+                break;
+            case RegisterSapOrder or MakePrintCard or FixPrintCard or LoadPrintCard or ReviewClientChange:
+                waiting.Add(AreaType.Ingenieria);
+                break;
+            case AssignEngineer or ReviewEngineeringFeasibility:
+                If(f.DesignFeasibility, AreaType.Diseno); // el PrintCard necesita la factibilidad de Ingeniería
+                break;
+            case ReviewPrintCard or ReconfirmFeasibility or RegisterPt:
+                waiting.Add(AreaType.Comercial);
+                break;
+        }
+        return waiting;
+    }
+
+    /// <summary>
+    /// Los turnos de un NPI en el orden en que conviene atenderlos, por área: primero lo que tiene esperando a más
+    /// áreas; a igualdad, el orden de siempre. Priority 0 = "Empieza aquí".
+    /// </summary>
+    public static IReadOnlyList<(AreaTurn Turn, IReadOnlyList<AreaType> WaitingOn, int Priority)> Prioritized(TurnFacts f) =>
+        For(f)
+            .Select((turn, index) => (turn, waiting: WaitingOn(turn.Action, f), index))
+            .GroupBy(x => x.turn.Area)
+            .SelectMany(g => g.OrderByDescending(x => x.waiting.Count).ThenBy(x => x.index).Select((x, priority) => (x.turn, x.waiting, priority, x.index)))
+            .OrderBy(x => x.index)
+            .Select(x => (x.turn, x.waiting, x.priority))
+            .ToList();
+
     /// <summary>Acciones que sólo hace el admin del área (asignar).</summary>
     public static readonly IReadOnlySet<string> AdminOnly = new HashSet<string> { AssignEngineer, AssignDesigner };
 

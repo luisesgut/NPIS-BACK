@@ -7,10 +7,13 @@ namespace NpiManagement.Application.Npis.Turns;
 /// <summary>
 /// Un NPI que espera a un área ("Tu turno"). WaitingSince: desde cuándo corre el reloj de esa área
 /// (null si su reloj no corre, p. ej. un borrador); WaitingBusinessMs: ese tiempo en horario hábil.
+/// WaitingAreas: qué otras áreas esperan esta acción; Priority: en qué orden atenderla dentro del NPI
+/// (0 = primero) cuando al área le tocan varias (2026-11-25, NpiTurns.Prioritized).
 /// </summary>
 public sealed record TurnItemDto(
     Guid NpiId, string? NpiNumber, string Cliente, string DescripcionProducto, string Area, string Action,
-    DateTimeOffset? WaitingSince, long? WaitingBusinessMs, string? AssigneeName);
+    DateTimeOffset? WaitingSince, long? WaitingBusinessMs, string? AssigneeName,
+    IReadOnlyList<string>? WaitingAreas = null, int Priority = 0);
 
 public interface INpiTurnReader
 {
