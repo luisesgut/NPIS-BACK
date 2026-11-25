@@ -7,6 +7,63 @@ namespace NpiManagement.Domain.Tests;
 
 public class NpiSuppliesRejectionTests
 {
+    // 2026-11-25 (NPI-0095/0096): con el rechazo abierto el NPI queda detenido; Ingeniería lo puede retirar.
+    [Fact]
+    public void While_the_supplies_rejection_is_open_design_and_engineering_cannot_advance()
+    {
+        var clock = TestClock.MondayMorning();
+        var npi = CreateActiveAssigned(clock);
+        npi.RejectSuppliesTemporary(Engineer, clock, Calendar, "Falta película");
+
+        Action[] blocked =
+        [
+            () => npi.ApproveDesignFeasibility(Designer, clock, null, null),
+            () => npi.RejectArtwork(Designer, clock, Calendar, "Falta el logo", null),
+            () => npi.ValidateArtwork(Designer, clock, Calendar),
+            () => npi.RequestDesignChanges(Designer, clock, Calendar, "Corregir ancho", ["ancho"]),
+            () => npi.RequestInformation(Designer, clock, Calendar, InformationRequestType.Commercial, "¿Pantone?"),
+            () => npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null),
+            () => npi.RequestEngineeringChanges(Engineer, clock, Calendar, "Cambiar calibre", ["calibre"]),
+        ];
+        foreach (var act in blocked)
+            act.Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("supplies-rejection-open");
+    }
+
+    [Fact]
+    public void Engineering_can_withdraw_the_rejection_with_a_reason_and_resume_its_review()
+    {
+        var clock = TestClock.MondayMorning();
+        var npi = CreateActiveAssigned(clock);
+        npi.RejectSuppliesTemporary(Engineer, clock, Calendar, "Falta película");
+
+        ((Action)(() => npi.WithdrawSuppliesRejection(Engineer, clock, Calendar, " ")))
+            .Should().Throw<NpiValidationException>().Which.Code.Should().Be("supplies-withdraw-reason-required");
+
+        npi.WithdrawSuppliesRejection(Engineer, clock, Calendar, "Ya llegaron los insumos");
+
+        npi.SuppliesTemporaryRejection.Should().BeNull();
+        npi.EngineeringAreaStatus.Should().NotBe(EngineeringAreaStatus.SuppliesTemporaryRejection);
+        npi.EngineeringTimer.IsRunning.Should().BeTrue();
+        npi.CommercialTimer.IsRunning.Should().BeFalse("Comercial ya no tiene nada pendiente");
+        npi.ApproveEngineeringFeasibility(Engineer, clock, Calendar, null);
+        ((Action)(() => npi.WithdrawSuppliesRejection(Engineer, clock, Calendar, "otra vez")))
+            .Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("no-open-supplies-rejection");
+    }
+
+    [Fact]
+    public void The_agreement_keeps_commercial_running_if_it_still_has_new_artwork_to_upload()
+    {
+        var clock = TestClock.MondayMorning();
+        var npi = CreateActiveAssigned(clock);
+        npi.RejectArtwork(Designer, clock, Calendar, "Falta el logo", null);
+        npi.RejectSuppliesTemporary(Engineer, clock, Calendar, "Falta película");
+
+        npi.ResolveSuppliesAgreement(Commercial, clock, Calendar, "El cliente acepta otra película", Guid.NewGuid());
+
+        npi.CommercialTimer.IsRunning.Should().BeTrue("todavía le toca subir las artes nuevas");
+        npi.EngineeringTimer.IsRunning.Should().BeTrue();
+    }
+
     [Fact]
     public void RejectSuppliesTemporary_pauses_engineering_but_not_commercial_or_global()
     {

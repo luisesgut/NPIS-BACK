@@ -84,6 +84,7 @@ public static class DependencyInjection
         services.AddScoped<WithdrawClosureProposalCommandHandler>();
         services.AddScoped<RejectSuppliesTemporaryCommandHandler>();
         services.AddScoped<ResolveSuppliesAgreementCommandHandler>();
+        services.AddScoped<WithdrawSuppliesRejectionCommandHandler>();
         services.AddScoped<RejectSuppliesTotalCommandHandler>();
         services.AddScoped<RequestInformationCommandHandler>();
         services.AddScoped<ResolveClientInformationCommandHandler>();

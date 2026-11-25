@@ -428,6 +428,7 @@ public sealed class Npi
     {
         EnsureNotTerminal();
         EnsureNoClosureUnderReview(AreaType.Ingenieria);
+        EnsureNotOnSuppliesHold();
         if (AssignedEngineeringUserId is null)
             throw new InvalidNpiTransitionException("engineering-not-assigned", "El NPI no tiene un ingeniero asignado.");
         if (EngineeringFeasibility is not null)
@@ -462,6 +463,7 @@ public sealed class Npi
     {
         EnsureNotTerminal();
         EnsureNoClosureUnderReview(AreaType.Diseno);
+        EnsureNotOnSuppliesHold();
         if (AssignedDesignUserId is null)
             throw new InvalidNpiTransitionException("design-not-assigned", "El NPI no tiene un diseñador asignado.");
         if (DesignFeasibility is not null)
@@ -545,6 +547,7 @@ public sealed class Npi
     {
         EnsureNotTerminal();
         EnsureNoClosureUnderReview(AreaType.Ingenieria);
+        EnsureNotOnSuppliesHold();
         if (string.IsNullOrWhiteSpace(description) && fieldKeys.Count == 0)
             throw new NpiValidationException("change-request-empty", "Debe incluir una descripción o al menos un campo a modificar.");
         if (EngineeringFeasibility is not null && PtRegisteredAt is not null)
@@ -584,6 +587,7 @@ public sealed class Npi
     {
         EnsureNotTerminal();
         EnsureNoClosureUnderReview(AreaType.Diseno);
+        EnsureNotOnSuppliesHold();
         // El admin de Diseño revisa el arte antes de asignar (2026-11-09): valida o rechaza artes y pide cambios.
         if (AssignedDesignUserId is null && !IsDesignAdmin(actor))
             throw new InvalidNpiTransitionException("design-not-assigned", "El NPI no tiene un diseñador asignado.");
@@ -627,6 +631,7 @@ public sealed class Npi
     {
         EnsureActive();
         EnsureNoClosureUnderReview(AreaType.Diseno);
+        EnsureNotOnSuppliesHold();
         // El admin de Diseño revisa el arte antes de asignar (2026-11-09): valida o rechaza artes y pide cambios.
         if (AssignedDesignUserId is null && !IsDesignAdmin(actor))
             throw new InvalidNpiTransitionException("design-not-assigned", "El NPI no tiene un diseñador asignado.");
@@ -677,6 +682,7 @@ public sealed class Npi
     {
         EnsureActive();
         EnsureNoClosureUnderReview(AreaType.Diseno);
+        EnsureNotOnSuppliesHold();
         // El admin de Diseño revisa el arte antes de asignar (2026-11-09): valida o rechaza artes y pide cambios.
         if (AssignedDesignUserId is null && !IsDesignAdmin(actor))
             throw new InvalidNpiTransitionException("design-not-assigned", "El NPI no tiene un diseñador asignado.");
@@ -1230,7 +1236,7 @@ public sealed class Npi
     /// reloj va en pausa (espera a Diseño, al cliente o a Comercial).
     /// </summary>
     private bool EngineeringHasPendingWork =>
-        EngineeringFeasibility is null
+        (EngineeringFeasibility is null && SuppliesTemporaryRejection is null)
         || _informationRequests.Any(r => r.Type == InformationRequestType.Engineering && r.Status == InformationRequestStatus.Pending)
         || (PendingEngineeringReconfirmation is not null && PendingEngineeringChangeRequest is null)
         || (PrintCardAwaitingEngineering && PendingEngineeringChangeRequest is null)
@@ -2039,15 +2045,54 @@ public sealed class Npi
 
         var now = clock.UtcNow;
         SuppliesAgreement = new SuppliesAgreementInfo(text, now, actor.UserId, evidenceAttachmentId);
-        SuppliesTemporaryRejection = null;
-        EngineeringAreaStatus = EngineeringAreaStatus.Assigned;
-
-        CommercialTimer = CommercialTimer.Pause(clock, calendar);
-        EngineeringTimer = EngineeringTimer.StartOrResume(clock);
-        AppendTimerEvent(TimerStage.Commercial, TimerAction.Pause, now, actor.UserId);
-        AppendTimerEvent(TimerStage.Engineering, TimerAction.Resume, now, actor.UserId, note: "Acuerdo para solventar insumos");
+        LiftSuppliesHold(actor, clock, calendar, now, "Acuerdo para solventar insumos");
 
         Audit(actor, now, "SuppliesAgreementRegistered", text);
+    }
+
+    /// <summary>
+    /// Ingeniería retira su rechazo temporal por insumos (2026-11-25): ya llegaron, se consiguieron o fue un
+    /// error. Antes sólo se podía con "Deshacer", y nada más si nadie había actuado después (NPI-0095/0096:
+    /// Diseño ya había rechazado artes). El motivo es lo que verá Comercial.
+    /// </summary>
+    public void WithdrawSuppliesRejection(Actor actor, IClock clock, IBusinessCalendar calendar, string reason)
+    {
+        EnsureActive();
+        EnsureNoClosureUnderReview(AreaType.Ingenieria);
+        if (SuppliesTemporaryRejection is null)
+            throw new InvalidNpiTransitionException("no-open-supplies-rejection", "No hay un rechazo temporal por insumos abierto.");
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new NpiValidationException("supplies-withdraw-reason-required", "Explica por qué se retira (p. ej. «ya llegaron los insumos»): es lo que verá Comercial.");
+        if (reason.Trim().Length > 1000)
+            throw new NpiValidationException("supplies-withdraw-reason-too-long", "El motivo no puede exceder 1000 caracteres.");
+
+        var now = clock.UtcNow;
+        LiftSuppliesHold(actor, clock, calendar, now, "Ingeniería retiró el rechazo temporal por insumos");
+        Audit(actor, now, "SuppliesRejectionWithdrawn", reason.Trim());
+    }
+
+    /// <summary>
+    /// Mientras hay un rechazo temporal por insumos el NPI queda detenido (2026-11-25): Diseño no avanza y
+    /// Comercial sólo lo resuelve, modifica el NPI o termina lo que ya tenía pendiente. Se levanta con el
+    /// acuerdo de Comercial o cuando Ingeniería lo retira; el rechazo total cierra el NPI.
+    /// </summary>
+    private void EnsureNotOnSuppliesHold()
+    {
+        if (SuppliesTemporaryRejection is not null)
+            throw new InvalidNpiTransitionException("supplies-rejection-open", "El NPI está detenido por el rechazo temporal de insumos: primero Comercial registra el acuerdo (o el rechazo total), o Ingeniería lo retira.");
+    }
+
+    /// <summary>Quita el rechazo por insumos: Ingeniería retoma donde iba y Comercial se pausa si ya no le queda nada.</summary>
+    private void LiftSuppliesHold(Actor actor, IClock clock, IBusinessCalendar calendar, DateTimeOffset now, string note)
+    {
+        SuppliesTemporaryRejection = null;
+        EngineeringAreaStatus = CurrentEngineeringAreaStatus();
+        if (EngineeringHasPendingWork && PendingEngineeringChangeRequest is null && EngineeringTimer.HasStarted && !EngineeringTimer.IsRunning && !EngineeringTimer.IsClosed)
+        {
+            EngineeringTimer = EngineeringTimer.StartOrResume(clock);
+            AppendTimerEvent(TimerStage.Engineering, TimerAction.Resume, now, actor.UserId, note: note);
+        }
+        if (!CommercialHasPendingWork) PauseTimer(TimerStage.Commercial, actor, clock, calendar, now);
     }
 
     /// <summary>Acción 24 — Rechazo total por falta de insumos (terminal).</summary>
@@ -2059,6 +2104,7 @@ public sealed class Npi
     {
         EnsureNotTerminal();
         EnsureNoClosureUnderReview(AreaType.Diseno);
+        EnsureNotOnSuppliesHold();
         if (string.IsNullOrWhiteSpace(text))
             throw new NpiValidationException("information-request-text-required", "La solicitud de información requiere texto.");
         if (_informationRequests.Any(r => r.Type == type && r.Status == InformationRequestStatus.Pending))

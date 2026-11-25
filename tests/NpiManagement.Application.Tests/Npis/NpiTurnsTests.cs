@@ -31,6 +31,15 @@ public sealed class NpiTurnsTests
     }
 
     [Fact]
+    public void With_a_supplies_rejection_only_commercial_has_turns_and_design_waits()
+    {
+        var f = Active() with { SuppliesTemporaryRejection = true, PendingArtworkRejection = true };
+        ActionsOf(f, AreaType.Comercial).Should().Equal(NpiTurns.UploadNewArtwork, NpiTurns.ResolveSupplies);
+        ActionsOf(f, AreaType.Diseno).Should().BeEmpty();
+        ActionsOf(f, AreaType.Ingenieria).Should().BeEmpty();
+    }
+
+    [Fact]
     public void Requested_changes_move_the_ball_to_commercial()
     {
         var f = Active() with { PendingEngineeringChanges = true };

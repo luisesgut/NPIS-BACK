@@ -7,6 +7,18 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.7.0] — 2026-11-25
+
+### Agregado
+- `POST api/npis/{id}/withdraw-supplies-rejection` (AreaIngenieria, motivo obligatorio): Ingeniería retira su rechazo temporal por insumos; evento `SuppliesRejectionWithdrawn`, aviso a Comercial.
+- Con el rechazo temporal abierto el NPI queda detenido: `ApproveEngineeringFeasibility`, `RequestEngineeringChanges`, `ApproveDesignFeasibility`, `ValidateArtwork`, `RejectArtwork`, `RequestDesignChanges` y `RequestInformation` fallan con `supplies-rejection-open`. Diseño no tiene turno.
+
+### Corregido
+- El acuerdo de insumos pausaba el reloj de Comercial aunque todavía tuviera pendientes (p. ej. subir artes nuevas), y dejaba a Ingeniería en "Asignado" aunque tuviera cambios pedidos. Ahora usa el estado y los relojes reales.
+- El reloj de Ingeniería ya no se reanuda solo (deshacer, reenvíos) mientras espera los insumos.
+
+Sin script SQL.
+
 ## [1.6.1] — 2026-11-25
 
 ### Corregido

@@ -39,6 +39,7 @@ public sealed class NpiWorkflowController(
     LoadEtIntoSisproCommandHandler loadEtIntoSisproHandler,
     RejectSuppliesTemporaryCommandHandler rejectSuppliesTemporaryHandler,
     ResolveSuppliesAgreementCommandHandler resolveSuppliesAgreementHandler,
+    WithdrawSuppliesRejectionCommandHandler withdrawSuppliesRejectionHandler,
     RejectSuppliesTotalCommandHandler rejectSuppliesTotalHandler,
     RequestInformationCommandHandler requestInformationHandler,
     ResolveClientInformationCommandHandler resolveClientInformationHandler,
@@ -147,6 +148,12 @@ public sealed class NpiWorkflowController(
     [Authorize(Policy = "AreaComercial")]
     public Task<NpiDetailDto> ResolveSuppliesAgreement(Guid id, ResolveSuppliesAgreementRequest request, CancellationToken cancellationToken) =>
         resolveSuppliesAgreementHandler.HandleAsync(new ResolveSuppliesAgreementCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Text, request.EvidenceAttachmentId), cancellationToken);
+
+    /// <summary>Ingeniería retira su rechazo temporal por insumos (2026-11-25).</summary>
+    [HttpPost("withdraw-supplies-rejection")]
+    [Authorize(Policy = "AreaIngenieria")]
+    public Task<NpiDetailDto> WithdrawSuppliesRejection(Guid id, RequiredNoteRequest request, CancellationToken cancellationToken) =>
+        withdrawSuppliesRejectionHandler.HandleAsync(new WithdrawSuppliesRejectionCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Note), cancellationToken);
 
     [HttpPost("reject-supplies-total")]
     [Authorize(Policy = "AreaComercial")]

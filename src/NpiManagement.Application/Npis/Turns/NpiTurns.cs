@@ -121,6 +121,8 @@ public static class NpiTurns
         // Mientras espera lo que pidió a Comercial o a Ingeniería, su reloj está en pausa: no le toca.
         if (f.DesignerAssigned && f.PendingDesignReconfirmation) Add(AreaType.Diseno, ReviewClientChange);
         if (!f.DesignerAssigned) Add(AreaType.Diseno, AssignDesigner);
+        // Rechazo temporal por insumos (2026-11-25): el NPI está detenido; la pelota es de Comercial.
+        else if (f.SuppliesTemporaryRejection) { }
         else if (f.PendingCommercialInfo || f.PendingEngineeringInfo) { }
         else if (!f.DesignFeasibility)
         {

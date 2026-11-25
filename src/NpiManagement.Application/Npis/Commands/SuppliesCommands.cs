@@ -44,6 +44,24 @@ public sealed class ResolveSuppliesAgreementCommandHandler(INpiRepository reposi
     }
 }
 
+/// <summary>Ingeniería retira su rechazo temporal por insumos (2026-11-25), con motivo.</summary>
+public sealed record WithdrawSuppliesRejectionCommand(Guid NpiId, CurrentUser Actor, string ActorName, string Reason);
+
+public sealed class WithdrawSuppliesRejectionCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
+{
+    public async Task<NpiDetailDto> HandleAsync(WithdrawSuppliesRejectionCommand command, CancellationToken cancellationToken)
+    {
+        var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsEngineering(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
+
+        npi.WithdrawSuppliesRejection(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, calendar, command.Reason);
+        notifications.Notify(npi.AssignedCommercialUserId, $"NPI {npi.NpiNumber?.Value}: Ingeniería retiró el rechazo temporal por insumos — ya no hace falta el acuerdo. Motivo: {command.Reason.Trim()}", npi.Id, NotificationChannel.BellAndEmail);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+    }
+}
+
 /// <summary>Acción 24 de workflow.md — Rechazo total por falta de insumos (terminal).</summary>
 /// <remarks>Un usuario comercial (no admin) sólo lo propone (nota obligatoria): lo cierra AdminComercial o AdminTotal.</remarks>
 public sealed record RejectSuppliesTotalCommand(Guid NpiId, CurrentUser Actor, string ActorName, string? Note = null);
