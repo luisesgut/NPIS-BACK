@@ -93,6 +93,34 @@ public class DesignChangesAfterFeasibilityTests
     }
 
     [Fact]
+    public void Si_el_cliente_pidió_cambios_Diseño_puede_pedirle_a_Comercial_que_corrija_el_NPI_antes_de_la_versión_nueva()
+    {
+        // 2026-11-25: el cliente pide 5 perforaciones y el NPI dice 6; sólo Comercial puede corregir el dato.
+        var npi = CreateReadyForPrintCard(_clock);
+        npi.CreatePrintCardVersion(Designer, _clock, Calendar, "PC-0001", File(npi, _clock), null);
+        npi.ApprovePrintCard(Engineer, _clock, Calendar, ApproverRole.Engineering, null, null);
+        npi.SendPrintCardToClient(Commercial, _clock);
+        npi.RequestClientChanges(Commercial, _clock, Calendar, null, ["Son 5 perforaciones, no 6"]);
+
+        npi.RequestDesignChanges(Designer, _clock, Calendar, "El cliente pide 5 perforaciones: actualiza el NPI", ["numeroPerforaciones"]);
+
+        npi.DesignTimer.IsRunning.Should().BeFalse("mientras Comercial corrige, el reloj de Diseño se pausa");
+        npi.CommercialTimer.IsRunning.Should().BeTrue();
+        npi.CurrentPrintCardVersion!.IsRejected.Should().BeFalse("la v1 queda como 'el cliente pidió cambios', no retirada por Diseño");
+        ((Action)(() => npi.CreatePrintCardVersion(Designer, _clock, Calendar, "PC-0002", File(npi, _clock), null)))
+            .Should().Throw<InvalidNpiTransitionException>().Which.Code.Should().Be("commercial-changes-pending");
+
+        CommercialEdits(npi, c => c with { NumeroPerforaciones = "5" });
+        npi.Submit(Commercial, _clock, Calendar);
+        foreach (var item in npi.ChangeRequests.Single(c => c.Origin == ChangeRequestOrigin.ClientReported).Checklist)
+            npi.SetClientChangeItemDone(Designer, _clock, item.Id, true);
+
+        npi.CreatePrintCardVersion(Designer, _clock, Calendar, "PC-0002", File(npi, _clock), null);
+        npi.CurrentPrintCardVersion!.VersionNumber.Should().Be(2);
+        npi.Capture.NumeroPerforaciones.Should().Be("5");
+    }
+
+    [Fact]
     public void Undoing_the_design_request_brings_back_the_retired_printcard()
     {
         var npi = CreateReadyForPrintCard(_clock);

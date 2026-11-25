@@ -632,7 +632,9 @@ public sealed class Npi
             throw new InvalidNpiTransitionException("design-not-assigned", "El NPI no tiene un diseñador asignado.");
         if (DesignFeasibility is not null && PrintCardLoadedAt is not null)
             throw new InvalidNpiTransitionException("printcard-already-loaded", "El PrintCard ya fue cargado en sistema: ya no se pueden pedir cambios a Comercial.");
-        if (DesignFeasibility is not null && PrintCardSentToClientAt is not null)
+        // Excepción (2026-11-25): el cliente regresó el PrintCard con cambios y uno de ellos es un dato del NPI que
+        // sólo Comercial puede corregir (p. ej. 5 perforaciones en vez de 6). La pelota ya está en Diseño: puede pedirlo.
+        if (DesignFeasibility is not null && PrintCardSentToClientAt is not null && PendingClientChangeRequest is null)
             throw new InvalidNpiTransitionException("printcard-already-sent", "El PrintCard ya se envió al cliente: los cambios ahora llegan por la respuesta del cliente.");
         if (PendingDesignChangeRequest is not null)
             throw new InvalidNpiTransitionException("design-changes-already-pending", "Ya hay cambios de Diseño pendientes de que Comercial los atienda.");
@@ -648,8 +650,9 @@ public sealed class Npi
         _changeRequests.Add(request);
         DesignAreaStatus = DesignAreaStatus.ChangesRequested;
 
-        // La versión que estaba en revisión se hizo con los datos que se van a corregir: se retira.
-        if (DesignFeasibility is not null && CurrentPrintCardVersion is { IsRejected: false } inReview)
+        // La versión que estaba en revisión se hizo con los datos que se van a corregir: se retira. Si el cliente
+        // ya pidió cambios sobre ella, no: queda como "el cliente pidió cambios" y la reemplaza la versión nueva.
+        if (DesignFeasibility is not null && PendingClientChangeRequest is null && CurrentPrintCardVersion is { IsRejected: false } inReview)
         {
             inReview.Reject(actor.UserId, actor.Name, now, PrintCardRetiredByDesignReason, null);
             Audit(actor, now, "PrintCardRetiredByDesign", $"version={inReview.VersionNumber}");

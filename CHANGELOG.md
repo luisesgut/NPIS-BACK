@@ -7,6 +7,13 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.5.2] — 2026-11-25
+
+### Corregido
+- `RequestDesignChanges` se permite después del envío al cliente si hay cambios del cliente pendientes (antes `printcard-already-sent`). Pausa el reloj de Diseño y corre el de Comercial; la versión que el cliente regresó no se retira (la reemplaza la nueva). Sin el pedido del cliente sigue bloqueado.
+
+Sin script SQL.
+
 ## [1.5.1] — 2026-11-25
 
 ### Corregido
