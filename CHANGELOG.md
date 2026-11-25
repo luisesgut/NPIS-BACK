@@ -7,6 +7,13 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.5.1] — 2026-11-25
+
+### Corregido
+- NPI-0049: `ApprovePrintCard` con rol Client ahora falla (`client-information-pending`) mientras haya una solicitud de información de Diseño al cliente pendiente. Las preguntas de Diseño a Comercial o a Ingeniería no bloquean.
+
+Sin script SQL.
+
 ## [1.5.0] — 2026-11-24
 
 ### Cambiado

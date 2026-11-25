@@ -1692,6 +1692,10 @@ public sealed class Npi
             throw new NpiValidationException("client-approval-evidence-required", "La aprobación en nombre del Cliente requiere evidencia obligatoria.");
         if (role == ApproverRole.Client && version.CommercialChecklist.Any(i => !i.IsDone))
             throw new InvalidNpiTransitionException("printcard-observations-pending", "Palomea los puntos que Diseño pidió revisar con el cliente antes de registrar su aprobación.");
+        // NPI-0049 (2026-11-25): se registró la aprobación del cliente con una pregunta de Diseño al cliente sin
+        // contestar, y el PrintCard aprobado tenía justo ese problema. Primero la respuesta, luego la aprobación.
+        if (role == ApproverRole.Client && _informationRequests.Any(r => r.Type == InformationRequestType.Client && r.Status == InformationRequestStatus.Pending))
+            throw new InvalidNpiTransitionException("client-information-pending", "Diseño le hizo una pregunta al cliente que sigue sin respuesta: entrégale lo que dijo el cliente («Entregar a Diseño») antes de registrar su aprobación.");
         if (evidenceAttachmentId is { } evidenceId && _attachments.All(a => a.Id != evidenceId))
             throw new NpiValidationException("evidence-not-found", "La evidencia indicada no pertenece a este NPI.");
 
