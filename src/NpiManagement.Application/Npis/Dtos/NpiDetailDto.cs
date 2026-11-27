@@ -132,7 +132,11 @@ public sealed record NpiDetailDto(
     /// <summary>Quien lo consulta puede trabajarlo porque AdminTotal le compartió el cliente con "Ver y trabajar".</summary>
     bool ClientWork = false,
     /// <summary>NPI del que partió; el folio y qué cambió vienen en /based-on (2026-11-11).</summary>
-    Guid? BasedOnNpiId = null);
+    Guid? BasedOnNpiId = null,
+    /// <summary>"El cliente aún no hace pedido" (2026-11-27), mientras no haya pedido. null si no se pospuso.</summary>
+    SapOrderDeferralDto? SapOrderDeferral = null);
+
+public sealed record SapOrderDeferralDto(DateOnly Until, string? Reason, string? ByName, DateTimeOffset? At);
 
 public sealed record NpiParticipantDto(Guid UserId, string Area, string AddedByName, DateTimeOffset AddedAt);
 

@@ -1005,6 +1005,20 @@ namespace NpiManagement.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<string>("SapOrderDeferralReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("SapOrderDeferredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SapOrderDeferredByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateOnly?>("SapOrderDeferredUntil")
+                        .HasColumnType("date");
+
                     b.Property<string>("TerminalReason")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");

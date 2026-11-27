@@ -20,6 +20,8 @@ public static class DependencyInjection
         services.AddScoped<GetNpiAssigneesQueryHandler>();
         services.AddScoped<GetNpiBasedOnQueryHandler>();
         services.AddScoped<GetSapOrdersQueryHandler>();
+        services.AddScoped<Npis.SapOrders.PendingSapOrdersService>();
+        services.AddScoped<Npis.SapOrders.GetPendingSapOrdersQueryHandler>();
         services.AddScoped<GetSapProductsQueryHandler>();
         services.AddScoped<Npis.Advance.AdvanceSyncService>();
         services.AddScoped<Npis.Advance.SyncNpiWithAdvanceCommandHandler>();
@@ -73,6 +75,7 @@ public static class DependencyInjection
         services.AddScoped<LoadPrintCardIntoSystemCommandHandler>();
         services.AddScoped<RegisterSapPtCommandHandler>();
         services.AddScoped<RegisterSapOrderCommandHandler>();
+        services.AddScoped<DeferSapOrderCommandHandler>();
         services.AddScoped<RegisterEtCommandHandler>();
         services.AddScoped<LoadEtIntoSisproCommandHandler>();
         services.AddScoped<LinkSisproQuoteCommandHandler>();

@@ -43,6 +43,26 @@ public sealed class RegisterSapOrderCommandHandler(INpiRepository repository, IU
     }
 }
 
+/// <summary>"El cliente aún no hace pedido" (2026-11-27): hasta esa fecha el NPI no bloquea crear NPIs nuevos.</summary>
+public sealed record DeferSapOrderCommand(Guid NpiId, CurrentUser Actor, string ActorName, DateOnly Until, string Reason);
+
+public sealed class DeferSapOrderCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IBusinessCalendar calendar, INotificationService notifications)
+{
+    public async Task<NpiDetailDto> HandleAsync(DeferSapOrderCommand command, CancellationToken cancellationToken)
+    {
+        var npi = await repository.GetByIdAsync(command.NpiId, cancellationToken) ?? throw new NotFoundException("Npi", command.NpiId);
+        if (!NpiAuthorization.CanActAsCommercial(command.Actor, npi)) throw new NotFoundException("Npi", command.NpiId);
+
+        npi.DeferSapOrder(new Actor(command.Actor.UserId, command.Actor.Role, command.ActorName), clock, command.Until, command.Reason);
+        // Ingeniería espera el pedido para la ET: que sepa para cuándo (sólo campana).
+        if (npi.AssignedEngineeringUserId is { } engineerId)
+            notifications.Notify(engineerId, $"NPI {npi.NpiNumber?.Value}: el cliente aún no hace pedido; Comercial lo espera para el {command.Until:dd/MM/yyyy}.", npi.Id);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return NpiMapper.ToDetail(npi, clock, calendar, repository.GetRowVersion(npi));
+    }
+}
+
 /// <summary>Acción 20 de workflow.md — Registrar ET Creada (hito separado de la carga en SisPro, decisión 9).</summary>
 public sealed record RegisterEtCommand(Guid NpiId, CurrentUser Actor, string ActorName);
 

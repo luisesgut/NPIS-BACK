@@ -30,6 +30,7 @@ public sealed class NpisController(
     GetTeamCandidatesQueryHandler teamCandidatesHandler,
     GetNpiBasedOnQueryHandler basedOnHandler,
     GetSapOrdersQueryHandler sapOrdersHandler,
+    NpiManagement.Application.Npis.SapOrders.GetPendingSapOrdersQueryHandler pendingSapOrdersHandler,
     GetSapProductsQueryHandler sapProductsHandler,
     NpiManagement.Application.Npis.Advance.GetAdvanceStatusQueryHandler advanceStatusHandler,
     NpiManagement.Application.Npis.Advance.SyncNpiWithAdvanceCommandHandler advanceSyncHandler,
@@ -63,6 +64,14 @@ public sealed class NpisController(
         var updated = await updateHandler.HandleAsync(command, cancellationToken);
         return Ok(updated);
     }
+
+    /// <summary>
+    /// NPIs con PT y sin orden de venta de quien consulta (y de su equipo, si es director), y si eso ya le impide
+    /// crear NPIs nuevos (2026-11-27). Para las demás áreas regresa la lista vacía.
+    /// </summary>
+    [HttpGet("pending-sap-orders")]
+    public Task<NpiManagement.Application.Npis.SapOrders.PendingSapOrdersDto> PendingSapOrders(CancellationToken cancellationToken) =>
+        pendingSapOrdersHandler.HandleAsync(new NpiManagement.Application.Npis.SapOrders.GetPendingSapOrdersQuery(User.ToCurrentUser()), cancellationToken);
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<NpiDetailDto>> GetById(Guid id, CancellationToken cancellationToken)

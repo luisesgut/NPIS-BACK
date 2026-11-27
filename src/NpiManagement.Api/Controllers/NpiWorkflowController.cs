@@ -35,6 +35,7 @@ public sealed class NpiWorkflowController(
     ValidateArtworkCommandHandler validateArtworkHandler,
     RegisterSapPtCommandHandler registerSapPtHandler,
     RegisterSapOrderCommandHandler registerSapOrderHandler,
+    DeferSapOrderCommandHandler deferSapOrderHandler,
     RegisterEtCommandHandler registerEtHandler,
     LoadEtIntoSisproCommandHandler loadEtIntoSisproHandler,
     RejectSuppliesTemporaryCommandHandler rejectSuppliesTemporaryHandler,
@@ -128,6 +129,11 @@ public sealed class NpiWorkflowController(
     [Authorize(Policy = "AreaComercial")]
     public Task<NpiDetailDto> RegisterSapOrder(Guid id, RegisterSapOrderRequest request, CancellationToken cancellationToken) =>
         registerSapOrderHandler.HandleAsync(new RegisterSapOrderCommand(id, User.ToCurrentUser(), User.DisplayName(), request.PedidoSapNumber), cancellationToken);
+
+    [HttpPost("defer-sap-order")]
+    [Authorize(Policy = "AreaComercial")]
+    public Task<NpiDetailDto> DeferSapOrder(Guid id, DeferSapOrderRequest request, CancellationToken cancellationToken) =>
+        deferSapOrderHandler.HandleAsync(new DeferSapOrderCommand(id, User.ToCurrentUser(), User.DisplayName(), request.Until, request.Reason), cancellationToken);
 
     [HttpPost("register-et")]
     [Authorize(Policy = "AreaIngenieria")]

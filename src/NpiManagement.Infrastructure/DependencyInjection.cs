@@ -78,6 +78,7 @@ public static class DependencyInjection
         services.AddScoped<INpiRepository, NpiRepository>();
         services.AddScoped<INpiDeletion, EfNpiDeletion>();
         services.AddScoped<NpiManagement.Application.Npis.Turns.INpiTurnReader, EfNpiTurnReader>();
+        services.AddScoped<NpiManagement.Application.Npis.SapOrders.IPendingSapOrderReader, EfPendingSapOrderReader>();
         services.AddScoped<INpiListReader, EfNpiListReader>();
         services.AddScoped<IDashboardReader, EfDashboardReader>();
         services.AddScoped<NpiManagement.Application.Dashboard.IDashboardOverviewReader, EfDashboardOverviewReader>();

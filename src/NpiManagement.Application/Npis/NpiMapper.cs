@@ -53,7 +53,10 @@ public static class NpiMapper
         npi.FinalPrintCardVersion?.Id,
         Participants: npi.Participants.OrderBy(p => p.AddedAt)
             .Select(p => new NpiParticipantDto(p.UserId, p.Area.ToString(), p.AddedByName, p.AddedAt)).ToList(),
-        BasedOnNpiId: npi.BasedOnNpiId);
+        BasedOnNpiId: npi.BasedOnNpiId,
+        SapOrderDeferral: npi.PedidoSapRegisteredAt is null && npi.SapOrderDeferredUntil is { } until
+            ? new SapOrderDeferralDto(until, npi.SapOrderDeferralReason, npi.SapOrderDeferredByName, npi.SapOrderDeferredAt)
+            : null);
 
     private static readonly System.Text.Json.JsonSerializerOptions SnapshotJson = new(System.Text.Json.JsonSerializerDefaults.Web);
 

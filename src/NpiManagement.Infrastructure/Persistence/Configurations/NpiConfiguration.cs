@@ -96,6 +96,10 @@ public sealed class NpiConfiguration : IEntityTypeConfiguration<Npi>
         builder.Property(n => n.PedidoSapNumber).HasMaxLength(100);
         builder.Property(n => n.PedidoSapRegisteredAt);
         builder.Property(n => n.PedidoSapRegisteredByUserId);
+        builder.Property(n => n.SapOrderDeferredUntil);
+        builder.Property(n => n.SapOrderDeferralReason).HasMaxLength(SapOrderHold.DeferralReasonMaxLength);
+        builder.Property(n => n.SapOrderDeferredAt);
+        builder.Property(n => n.SapOrderDeferredByName).HasMaxLength(200);
 
         builder.Property(n => n.EtCreatedAt);
         builder.Property(n => n.EtCreatedByUserId);

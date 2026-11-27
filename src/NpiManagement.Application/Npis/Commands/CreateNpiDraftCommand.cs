@@ -9,10 +9,15 @@ namespace NpiManagement.Application.Npis.Commands;
 /// <param name="Viewer">Usuario completo del token (director, clientes compartidos) para decidir si puede ligar el NPI de origen.</param>
 public sealed record CreateNpiDraftCommand(Guid ActorUserId, string ActorRole, string ActorName, NpiCaptureDto Capture, Priority Priority, Guid? PreAssignedEngineeringUserId, Guid? BasedOnNpiId = null, Authorization.CurrentUser? Viewer = null);
 
-public sealed class CreateNpiDraftCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IUserDirectory userDirectory)
+/// <param name="sapOrders">"Ponle orden de venta antes de crear otro NPI" (2026-11-27). Opcional sólo para las pruebas que no lo usan.</param>
+public sealed class CreateNpiDraftCommandHandler(INpiRepository repository, IUnitOfWork unitOfWork, IClock clock, IUserDirectory userDirectory, SapOrders.PendingSapOrdersService? sapOrders = null)
 {
     public async Task<Guid> HandleAsync(CreateNpiDraftCommand command, CancellationToken cancellationToken)
     {
+        if (sapOrders is not null)
+            await sapOrders.EnsureCanCreateNpiAsync(
+                command.Viewer ?? new Authorization.CurrentUser(command.ActorUserId, command.ActorRole, AreaType.Comercial), cancellationToken);
+
         if (command.PreAssignedEngineeringUserId is { } engineerId)
             await AssigneeGuard.EnsureAssignableAsync(userDirectory, engineerId, AreaType.Ingenieria, cancellationToken);
 

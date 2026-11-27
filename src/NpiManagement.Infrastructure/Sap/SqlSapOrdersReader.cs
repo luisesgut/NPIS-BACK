@@ -12,7 +12,7 @@ namespace NpiManagement.Infrastructure.Sap;
 public sealed class SqlSapOrdersReader(IOptions<SapOrdersOptions> options) : ISapOrdersReader
 {
     private const string Sql = @"
-SELECT Orden, ClaveProducto, Producto, Cantidad, Unidad, NombreCliente, Vendedor, Sucursal
+SELECT Orden, ClaveProducto, Producto, Cantidad, Unidad, NombreCliente, Vendedor, Sucursal, FechaCreacion
 FROM dbo.Cat_Ordenes
 WHERE ClaveProducto = @clave
 ORDER BY Orden";
@@ -41,9 +41,24 @@ ORDER BY Orden";
                 Text(reader, 4),
                 Text(reader, 5),
                 Text(reader, 6),
-                Text(reader, 7)));
+                Text(reader, 7),
+                Date(reader, 8)));
         }
         return result;
+    }
+
+    // FechaCreacion puede venir como fecha o como texto según la vista; si no se entiende, se queda sin fecha.
+    private static DateOnly? Date(SqlDataReader reader, int i)
+    {
+        if (reader.IsDBNull(i)) return null;
+        return reader.GetValue(i) switch
+        {
+            DateTime dt => DateOnly.FromDateTime(dt),
+            DateTimeOffset dto => DateOnly.FromDateTime(dto.DateTime),
+            DateOnly d => d,
+            var other => DateTime.TryParse(Convert.ToString(other, CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+                ? DateOnly.FromDateTime(parsed) : null,
+        };
     }
 
     private static string? Text(SqlDataReader reader, int i) =>

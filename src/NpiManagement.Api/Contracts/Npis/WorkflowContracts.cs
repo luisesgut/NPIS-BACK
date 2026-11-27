@@ -65,6 +65,9 @@ public sealed record RegisterSapPtRequest([Required] string CodigoPT, string? Pt
 
 public sealed record RegisterSapOrderRequest([Required] string PedidoSapNumber);
 
+/// <summary>"El cliente aún no hace pedido" (2026-11-27): hasta cuándo se espera y por qué.</summary>
+public sealed record DeferSapOrderRequest([Required] DateOnly Until, [Required] string Reason);
+
 public sealed record ResolveSuppliesAgreementRequest([Required] string Text, [Required] Guid EvidenceAttachmentId);
 
 public sealed record RequestInformationRequest([Required] InformationRequestType Type, [Required] string Text, IReadOnlyList<Guid>? ImageAttachmentIds = null);

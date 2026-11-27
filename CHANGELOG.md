@@ -7,6 +7,16 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.10.0] — 2026-11-27
+
+### Agregado
+- Orden de venta pendiente bloquea crear NPIs (`SapOrderHold`): 3 días hábiles después del PT sin pedido, `POST api/npis` responde 409 `sap-orders-pending` a vendedores (por sus NPIs) y directores de Comercial (por los suyos y los de sus vendedores). AdminTotal y otras áreas nunca.
+- `GET api/npis/pending-sap-orders`: los NPIs pendientes, desde cuándo bloquean y si ya bloquean.
+- `POST api/npis/{id}/defer-sap-order` (`{ until, reason }`): "el cliente aún no hace pedido", máx. 30 días; evento `SapOrderDeferred`; avisa al ingeniero por campana.
+- Órdenes de SAP (`Cat_Ordenes`): se lee `FechaCreacion` y la sugerida es la más antigua (antes, el número más bajo).
+
+Script SQL: `scripts/migracion-2026-11-27-orden-venta-pendiente.sql` (migración `20261127174145_AddSapOrderDeferral`, 4 columnas en Npis). Correr antes de publicar.
+
 ## [1.9.0] — 2026-11-25
 
 ### Agregado

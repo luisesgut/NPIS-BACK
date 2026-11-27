@@ -6,7 +6,7 @@ namespace NpiManagement.Application.Npis.Queries;
 
 /// <summary>
 /// Órdenes de venta de SAP con el PT del NPI (2026-11-12), para que Comercial no la busque a mano: la
-/// primera (número más bajo) es la que corresponde. Si SAP no responde, se avisa y se captura a mano.
+/// primera (la más antigua por FechaCreacion; a igual fecha, el número más bajo) es la que corresponde. Si SAP no responde, se avisa y se captura a mano.
 /// </summary>
 public sealed record GetSapOrdersQuery(Guid NpiId, CurrentUser Actor);
 
@@ -25,9 +25,11 @@ public sealed class GetSapOrdersQueryHandler(INpiRepository repository, ISapOrde
         try
         {
             var orders = await sap.FindByProductKeyAsync(clave, cancellationToken);
-            // Orden es numérica en SAP: se ordena como número, no como texto ("9999" antes que "10000").
+            // La más antigua primero (2026-11-27); sin fecha, al final. Orden es numérica en SAP: se ordena como
+            // número, no como texto ("9999" antes que "10000").
             var sorted = orders
-                .OrderBy(o => long.TryParse(o.Orden, out var n) ? n : long.MaxValue)
+                .OrderBy(o => o.FechaCreacion ?? DateOnly.MaxValue)
+                .ThenBy(o => long.TryParse(o.Orden, out var n) ? n : long.MaxValue)
                 .ThenBy(o => o.Orden, StringComparer.Ordinal)
                 .ToList();
             return new SapOrdersLookupDto(true, clave, sorted);

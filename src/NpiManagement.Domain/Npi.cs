@@ -83,6 +83,12 @@ public sealed class Npi
     public DateTimeOffset? PedidoSapRegisteredAt { get; private set; }
     public Guid? PedidoSapRegisteredByUserId { get; private set; }
 
+    /// <summary>"El cliente aún no hace pedido" (2026-11-27): hasta esa fecha este NPI no le impide a Comercial crear NPIs nuevos (SapOrderHold).</summary>
+    public DateOnly? SapOrderDeferredUntil { get; private set; }
+    public string? SapOrderDeferralReason { get; private set; }
+    public DateTimeOffset? SapOrderDeferredAt { get; private set; }
+    public string? SapOrderDeferredByName { get; private set; }
+
     public DateTimeOffset? EtCreatedAt { get; private set; }
     public Guid? EtCreatedByUserId { get; private set; }
     public DateTimeOffset? EtLoadedInSisproAt { get; private set; }
@@ -1078,6 +1084,10 @@ public sealed class Npi
         PtRegisteredByUserId = null;
         EtCreatedAt = null;
         EtCreatedByUserId = null;
+        SapOrderDeferredUntil = null;
+        SapOrderDeferralReason = null;
+        SapOrderDeferredAt = null;
+        SapOrderDeferredByName = null;
     }
 
     /// <summary>Motivo con el que se retira el PrintCard cuando Diseño decide rehacerlo por un cambio del cliente tras el PT (el front lo reconoce).</summary>
@@ -1943,6 +1953,39 @@ public sealed class Npi
         ResumeTimer(TimerStage.Engineering, actor, clock, now); // le toca la ET
 
         Audit(actor, now, "SapOrderRegistered", pedidoSapNumber);
+    }
+
+    /// <summary>
+    /// "El cliente aún no hace pedido" (2026-11-27): Comercial dice hasta cuándo espera el pedido y por qué; mientras,
+    /// este NPI no le impide crear NPIs nuevos. Se puede volver a posponer, y la orden se registra igual cuando llegue.
+    /// No toca relojes: el pedido sigue siendo lo que falta.
+    /// </summary>
+    public void DeferSapOrder(Actor actor, IClock clock, DateOnly until, string reason)
+    {
+        EnsureActive();
+        EnsureNoClosureUnderReview(AreaType.Comercial);
+        if (CodigoPT is null)
+            throw new InvalidNpiTransitionException("pt-not-registered", "Ingeniería todavía no carga el PT: aún no hay orden de venta que esperar.");
+        if (PedidoSapRegisteredAt is not null)
+            throw new InvalidNpiTransitionException("pedido-sap-already-registered", "El Pedido en SAP ya fue registrado.");
+        var text = reason?.Trim();
+        if (string.IsNullOrEmpty(text))
+            throw new NpiValidationException("sap-order-deferral-reason-required", "Escribe por qué el cliente aún no hace pedido.");
+        if (text.Length > SapOrderHold.DeferralReasonMaxLength)
+            throw new NpiValidationException("sap-order-deferral-reason-too-long", $"El motivo admite hasta {SapOrderHold.DeferralReasonMaxLength} caracteres.");
+
+        var now = clock.UtcNow;
+        var today = SapOrderHold.LocalDate(now);
+        if (until <= today)
+            throw new NpiValidationException("sap-order-deferral-date-invalid", "La fecha para volver a avisar debe ser posterior a hoy.");
+        if (until > today.AddDays(SapOrderHold.MaxDeferralDays))
+            throw new NpiValidationException("sap-order-deferral-too-far", $"Máximo {SapOrderHold.MaxDeferralDays} días; si el cliente tarda más, vuelve a posponerlo entonces.");
+
+        SapOrderDeferredUntil = until;
+        SapOrderDeferralReason = text;
+        SapOrderDeferredAt = now;
+        SapOrderDeferredByName = actor.Name;
+        Audit(actor, now, "SapOrderDeferred", $"{until.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)} · {text}");
     }
 
     /// <summary>Acción 20 — Registrar ET Creada (hito separado de la carga en SisPro, decisión 9).</summary>
