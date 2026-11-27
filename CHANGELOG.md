@@ -7,6 +7,10 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.11.0] — 2026-11-27
+
+Sin cambios en el back: versión compartida con el front (calculadora "Costo de placas").
+
 ## [1.10.1] — 2026-11-27
 
 ### Cambiado
