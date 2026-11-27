@@ -4,7 +4,6 @@ using NpiManagement.Application.Npis.Commands;
 using NpiManagement.Application.Npis.Dtos;
 using NpiManagement.Application.Npis.SapOrders;
 using NpiManagement.Application.Tests.Fakes;
-using NpiManagement.Application.Users;
 using NpiManagement.Domain;
 using NpiManagement.Domain.Common;
 using NpiManagement.Domain.Exceptions;
@@ -31,20 +30,10 @@ public class PendingSapOrdersTests
         }
     }
 
-    private sealed class FakeTeams(Guid director, params Guid[] members) : ICommercialTeamStore
-    {
-        public Task<Guid?> GetDirectorIdAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult<Guid?>(members.Contains(userId) ? director : null);
-        public Task<IReadOnlyList<TeamPersonDto>> ListMembersAsync(Guid directorUserId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<TeamPersonDto>>(directorUserId == director ? members.Select(m => new TeamPersonDto(m, "Vendedor")).ToList() : []);
-        public Task<MyTeamDto> GetMyTeamAsync(Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IReadOnlyDictionary<Guid, Guid>> ListDirectorsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task SetDirectorAsync(Guid userId, Guid? directorUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
-    }
-
     private static PendingSapOrderRow Row(Guid owner, string folio, DateTimeOffset ptAt, DateOnly? deferredUntil = null) =>
         new(Guid.NewGuid(), folio, "MASTRONARDI", "BOLSA", "PT-" + folio, null, ptAt, deferredUntil, deferredUntil is null ? null : "Sin pedido aún", owner, "Vendedor Uno");
 
-    private static PendingSapOrdersService Service(FakeReader reader) => new(reader, new FakeTeams(Director, Seller), Clock, Calendar);
+    private static PendingSapOrdersService Service(FakeReader reader) => new(reader, Clock, Calendar);
 
     [Fact]
     public async Task Bloquea_solo_por_los_que_ya_pasaron_la_gracia_y_no_estan_pospuestos()
@@ -64,15 +53,18 @@ public class PendingSapOrdersTests
     }
 
     [Fact]
-    public async Task El_director_queda_bloqueado_por_los_NPIs_de_sus_vendedores()
+    public async Task Es_individual_al_director_solo_lo_bloquean_los_suyos_no_los_de_sus_vendedores()
     {
-        var reader = new FakeReader(Row(Seller, "NPI-0071", new DateTimeOffset(2026, 1, 5, 16, 0, 0, TimeSpan.Zero)));
+        var reader = new FakeReader(
+            Row(Seller, "NPI-0071", new DateTimeOffset(2026, 1, 5, 16, 0, 0, TimeSpan.Zero)),
+            Row(Director, "NPI-0072", new DateTimeOffset(2026, 1, 9, 16, 0, 0, TimeSpan.Zero)));
+        var director = new CurrentUser(Director, ApplicationRoles.AdminComercial, AreaType.Comercial);
 
-        var result = await Service(reader).GetAsync(new CurrentUser(Director, ApplicationRoles.AdminComercial, AreaType.Comercial), CancellationToken.None);
+        var result = await Service(reader).GetAsync(director, CancellationToken.None);
 
-        reader.AskedFor.Should().BeEquivalentTo([Director, Seller]);
-        result.Blocked.Should().BeTrue();
-        result.Items.Single().OwnerName.Should().Be("Vendedor Uno");
+        reader.AskedFor.Should().BeEquivalentTo([Director]);
+        result.Blocked.Should().BeFalse("el vencido es de su vendedor; el suyo sigue en gracia");
+        result.Items.Select(i => i.NpiNumber).Should().Equal("NPI-0072");
     }
 
     [Fact]

@@ -1,5 +1,4 @@
 using NpiManagement.Application.Authorization;
-using NpiManagement.Application.Users;
 using NpiManagement.Domain;
 using NpiManagement.Domain.Common;
 using NpiManagement.Domain.Exceptions;
@@ -9,7 +8,7 @@ namespace NpiManagement.Application.Npis.SapOrders;
 /// <summary>
 /// Un NPI con el PT en SAP y sin orden de venta (2026-11-27). BlocksFrom: desde qué día impide crear NPIs nuevos
 /// (PT + 3 días hábiles); Blocking: si ya lo impide hoy. DeferredUntil/DeferralReason: "el cliente aún no hace
-/// pedido". OwnerName: el vendedor responsable cuando no es quien consulta (el director ve los de su equipo).
+/// pedido". OwnerName: el responsable si no es quien consulta (hoy siempre es él: el bloqueo es individual).
 /// </summary>
 public sealed record PendingSapOrderItemDto(
     Guid NpiId, string? NpiNumber, string Cliente, string DescripcionProducto, string CodigoPT, string? PtName,
@@ -33,11 +32,11 @@ public interface IPendingSapOrderReader
 }
 
 /// <summary>
-/// "Ponle orden de venta antes de crear otro NPI" (2026-11-27). Aplica a vendedores y directores de Comercial: el
-/// vendedor, por los NPIs que tiene a su cargo; el director (admin de Comercial), por los suyos y los de sus
-/// vendedores. AdminTotal y las demás áreas nunca quedan bloqueados.
+/// "Ponle orden de venta antes de crear otro NPI" (2026-11-27). Aplica a vendedores y directores de Comercial, y es
+/// individual: cada quien sólo por los NPIs que tiene a su cargo (Luis, v1.10.1: al director no lo bloquean los de
+/// sus vendedores). AdminTotal y las demás áreas nunca quedan bloqueados.
 /// </summary>
-public sealed class PendingSapOrdersService(IPendingSapOrderReader reader, ICommercialTeamStore teams, IClock clock, IBusinessCalendar calendar)
+public sealed class PendingSapOrdersService(IPendingSapOrderReader reader, IClock clock, IBusinessCalendar calendar)
 {
     public static bool Applies(CurrentUser user) => user.Role is ApplicationRoles.UsuarioComercial or ApplicationRoles.AdminComercial;
 
@@ -45,11 +44,7 @@ public sealed class PendingSapOrdersService(IPendingSapOrderReader reader, IComm
     {
         if (!Applies(actor)) return new PendingSapOrdersDto(false, [], SapOrderHold.GraceBusinessDays, SapOrderHold.MaxDeferralDays);
 
-        var owners = new List<Guid> { actor.UserId };
-        if (actor.Role == ApplicationRoles.AdminComercial)
-            owners.AddRange((await teams.ListMembersAsync(actor.UserId, cancellationToken)).Select(m => m.Id));
-
-        var rows = await reader.ListAsync(owners, cancellationToken);
+        var rows = await reader.ListAsync([actor.UserId], cancellationToken);
         var today = SapOrderHold.LocalDate(clock.UtcNow);
         var items = rows
             .Select(r => new PendingSapOrderItemDto(

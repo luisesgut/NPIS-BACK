@@ -7,6 +7,13 @@ Versiones con [SemVer](https://semver.org/lang/es/): **MAYOR.MENOR.PARCHE**.
 
 El back y el front comparten número de versión y se publican juntos. Si una versión lleva script SQL, se indica.
 
+## [1.10.1] — 2026-11-27
+
+### Cambiado
+- Orden de venta pendiente: el bloqueo es individual. Al director de Comercial ya no lo bloquean los NPIs de sus vendedores, sólo los suyos (decisión de Luis).
+
+Sin script SQL (el de la v1.10.0 sigue siendo necesario si no se ha corrido).
+
 ## [1.10.0] — 2026-11-27
 
 ### Agregado
